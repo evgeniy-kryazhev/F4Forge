@@ -92,6 +92,9 @@ target("F4Forge.Dotnet")
     set_kind("shared")
     set_targetdir("../runtimes/dotnet/native-provider/bin")
     add_files("../runtimes/dotnet/native-provider/DotNetProvider.cpp")
+    if os.isfile("generated/dotnet_runtime.rc") then
+        add_files("generated/dotnet_runtime.rc")
+    end
     add_includedirs("abi")
     add_cxxflags("/WX", "/permissive-", "/EHsc", "/utf-8", { public = false })
     on_load(function(target)

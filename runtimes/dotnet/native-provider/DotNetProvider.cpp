@@ -7,6 +7,7 @@
 #include <nethost.h>
 
 #include <filesystem>
+#include <fstream>
 #include <mutex>
 #include <string>
 
@@ -18,6 +19,7 @@ using ManagedExecuteTask = void (F4FORGE_CALL*)(uint64_t);
 
 struct State final {
     std::mutex mutex;
+    HMODULE providerModule{};
     HMODULE hostfxrModule{};
     hostfxr_handle hostContext{};
     ManagedInitialize initialize{};
@@ -60,6 +62,36 @@ T GetHostFxrFunction(HMODULE module, const char* name) noexcept
     return reinterpret_cast<T>(GetProcAddress(module, name));
 }
 
+bool ExtractResource(HMODULE module, int resourceId, const std::filesystem::path& destination)
+{
+    const auto resource = FindResourceW(module, MAKEINTRESOURCEW(resourceId), MAKEINTRESOURCEW(10));
+    if (resource == nullptr) return false;
+    const auto loaded = LoadResource(module, resource);
+    const auto size = SizeofResource(module, resource);
+    const auto data = loaded == nullptr ? nullptr : LockResource(loaded);
+    if (data == nullptr || size == 0) return false;
+
+    std::ofstream output(destination, std::ios::binary | std::ios::trunc);
+    if (!output) return false;
+    output.write(static_cast<const char*>(data), static_cast<std::streamsize>(size));
+    return output.good();
+}
+
+bool PrepareManagedRuntime(HMODULE module, const std::filesystem::path& root, std::filesystem::path& cache)
+{
+    cache = root / L".f4forge-runtime";
+    std::filesystem::create_directories(cache);
+    if (!ExtractResource(module, 101, cache / L"F4Forge.DotNet.Runtime.dll")) return false;
+    if (!ExtractResource(module, 102, cache / L"F4Forge.DotNet.Runtime.deps.json")) return false;
+    if (!ExtractResource(module, 103, cache / L"F4Forge.DotNet.Runtime.runtimeconfig.json")) return false;
+
+    const auto sdk = root / L"F4Forge.DotNet.Sdk.dll";
+    if (!std::filesystem::exists(sdk)) return false;
+    std::filesystem::copy_file(sdk, cache / L"F4Forge.DotNet.Sdk.dll",
+        std::filesystem::copy_options::overwrite_existing);
+    return true;
+}
+
 F4ForgeResult InitializeManaged(const F4ForgeRuntimeInitializeParams* params) noexcept
 {
     if (params == nullptr || params->host == nullptr) return F4FORGE_RESULT_INVALID_ARGUMENT;
@@ -70,10 +102,16 @@ F4ForgeResult InitializeManaged(const F4ForgeRuntimeInitializeParams* params) no
     try {
         const auto root = Utf8ToWide(params->configDirectory);
         if (root.empty()) return F4FORGE_RESULT_INVALID_ARGUMENT;
-        const auto assembly = std::filesystem::path(root) / L"F4Forge.DotNet.Runtime.dll";
-        const auto runtimeConfig = std::filesystem::path(root) / L"F4Forge.DotNet.Runtime.runtimeconfig.json";
-        if (!std::filesystem::exists(assembly) || !std::filesystem::exists(runtimeConfig))
-            return F4FORGE_RESULT_RUNTIME_UNAVAILABLE;
+        HMODULE providerModule = nullptr;
+        if (!GetModuleHandleExW(
+                GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
+                reinterpret_cast<LPCWSTR>(&GetState), &providerModule))
+            return F4FORGE_RESULT_INTERNAL_ERROR;
+        state.providerModule = providerModule;
+        std::filesystem::path cache;
+        if (!PrepareManagedRuntime(providerModule, root, cache)) return F4FORGE_RESULT_RUNTIME_UNAVAILABLE;
+        const auto assembly = cache / L"F4Forge.DotNet.Runtime.dll";
+        const auto runtimeConfig = cache / L"F4Forge.DotNet.Runtime.runtimeconfig.json";
         if (!LoadHostFxr(state)) return F4FORGE_RESULT_RUNTIME_UNAVAILABLE;
 
         const auto initializeForConfig = GetHostFxrFunction<hostfxr_initialize_for_runtime_config_fn>(

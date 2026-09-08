@@ -51,6 +51,32 @@ if ($Clean -and (Test-Path -LiteralPath $buildRoot)) {
     Remove-Item -LiteralPath $buildRoot -Recurse -Force
 }
 
+Invoke-Checked "dotnet" @("build", $runtimeProject, "--configuration", "Release")
+
+$managedRoot = Join-Path $root "runtimes\dotnet\runtime\bin\Release\net10.0"
+$managedRuntime = Join-Path $managedRoot "F4Forge.DotNet.Runtime.dll"
+$managedDeps = Join-Path $managedRoot "F4Forge.DotNet.Runtime.deps.json"
+$runtimeConfig = Join-Path $managedRoot "F4Forge.DotNet.Runtime.runtimeconfig.json"
+$sdkAssembly = Join-Path $root "runtimes\dotnet\sdk\bin\Release\net10.0\F4Forge.DotNet.Sdk.dll"
+$resourceDirectory = Join-Path $nativeRoot "generated"
+$resourceFile = Join-Path $resourceDirectory "dotnet_runtime.rc"
+
+foreach ($required in @($managedRuntime, $managedDeps, $runtimeConfig, $sdkAssembly)) {
+    if (-not (Test-Path -LiteralPath $required)) {
+        throw "Managed build artifact was not found: $required"
+    }
+}
+
+New-Item -ItemType Directory -Path $resourceDirectory -Force | Out-Null
+$resourceRuntimePath = $managedRuntime.Replace('\', '/')
+$resourceDepsPath = $managedDeps.Replace('\', '/')
+$resourceConfigPath = $runtimeConfig.Replace('\', '/')
+@(
+    "101 RCDATA `"$resourceRuntimePath`""
+    "102 RCDATA `"$resourceDepsPath`""
+    "103 RCDATA `"$resourceConfigPath`""
+) | Set-Content -LiteralPath $resourceFile -Encoding ASCII
+
 Push-Location $nativeRoot
 try {
     Invoke-Checked "xmake" @("f", "-y", "-p", "windows", "-a", "x64", "--dotnet_host_dir=$DotNetHostDir")
@@ -60,24 +86,23 @@ finally {
     Pop-Location
 }
 
-Invoke-Checked "dotnet" @("build", $runtimeProject, "--configuration", "Release")
-
 $loader = Join-Path $nativeRoot "build\windows\x64\release\F4Forge.dll"
 $provider = Join-Path $root "runtimes\dotnet\native-provider\bin\F4Forge.Dotnet.dll"
-$managedRoot = Join-Path $root "runtimes\dotnet\runtime\bin\Release\net10.0"
-$managedRuntime = Join-Path $managedRoot "F4Forge.DotNet.Runtime.dll"
-$runtimeConfig = Join-Path $managedRoot "F4Forge.DotNet.Runtime.runtimeconfig.json"
 
-foreach ($required in @($loader, $provider, $managedRuntime, $runtimeConfig)) {
+foreach ($required in @($loader, $provider, $sdkAssembly)) {
     if ($null -eq $required -or -not (Test-Path -LiteralPath $required)) {
         throw "Build artifact was not found: $required"
     }
 }
 
 New-Item -ItemType Directory -Path $packageRoot, $frameworkRoot -Force | Out-Null
+Remove-Item -LiteralPath @(
+    (Join-Path $frameworkRoot "F4Forge.Runtime.DotNet.dll"),
+    (Join-Path $frameworkRoot "F4Forge.DotNet.Runtime.dll"),
+    (Join-Path $frameworkRoot "F4Forge.DotNet.Runtime.runtimeconfig.json")
+) -Force -ErrorAction SilentlyContinue
 Copy-Item -LiteralPath $loader -Destination (Join-Path $packageRoot "F4Forge.dll") -Force
 Copy-Item -LiteralPath $provider -Destination (Join-Path $frameworkRoot "F4Forge.Dotnet.dll") -Force
-Copy-Item -LiteralPath $managedRuntime -Destination (Join-Path $frameworkRoot "F4Forge.DotNet.Runtime.dll") -Force
-Copy-Item -LiteralPath $runtimeConfig -Destination (Join-Path $frameworkRoot "F4Forge.DotNet.Runtime.runtimeconfig.json") -Force
+Copy-Item -LiteralPath $sdkAssembly -Destination (Join-Path $frameworkRoot "F4Forge.DotNet.Sdk.dll") -Force
 
 Write-Host "F4Forge build completed: $buildRoot"

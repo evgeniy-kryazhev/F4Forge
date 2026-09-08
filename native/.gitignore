@@ -1,6 +1,7 @@
 .xmake/
 build/
 build-*/
+generated/
 *.pdb
 *.ilk
 *.obj
