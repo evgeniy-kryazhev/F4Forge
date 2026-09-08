@@ -48,8 +48,11 @@ typedef void (F4FORGE_CALL* F4ForgeRuntimeExecuteTaskFn)(
     const F4ForgeRuntimeTask* task) F4FORGE_NOEXCEPT;
 
 typedef struct F4ForgeRuntimeProvider {
+    // cppcheck-suppress uninitMemberVarNoCtor
     uint32_t abiVersion;
+    // cppcheck-suppress uninitMemberVarNoCtor
     uint32_t structSize;
+    // cppcheck-suppress uninitMemberVarNoCtor
     const F4ForgeRuntimeInfo* info;
     F4ForgeRuntimeInitializeFn initialize;
     F4ForgeRuntimeShutdownFn shutdown;

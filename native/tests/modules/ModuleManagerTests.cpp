@@ -22,11 +22,12 @@ int main()
     f4forge::core::ModuleManager modules(endpoints);
 
     F4ForgeModuleHandle module = F4FORGE_INVALID_HANDLE;
-    assert(modules.Register(7, { "test.module", sizeof("test.module") - 1 }, 1, &module)
-        == F4FORGE_RESULT_SUCCESS);
+    const auto registerResult = modules.Register(7, { "test.module", sizeof("test.module") - 1 }, 1, &module);
+    assert(registerResult == F4FORGE_RESULT_SUCCESS);
     assert(modules.IsActive(module));
-    assert(modules.Register(7, { "test.module", sizeof("test.module") - 1 }, 1, &module)
-        == F4FORGE_RESULT_ALREADY_REGISTERED);
+    const auto duplicateRegisterResult = modules.Register(
+        7, { "test.module", sizeof("test.module") - 1 }, 1, &module);
+    assert(duplicateRegisterResult == F4FORGE_RESULT_ALREADY_REGISTERED);
 
     F4ForgeEndpointDefinition definition{
         sizeof(F4ForgeEndpointDefinition),
@@ -42,11 +43,14 @@ int main()
         nullptr
     };
     F4ForgeEndpointHandle endpoint = F4FORGE_INVALID_HANDLE;
-    assert(endpoints.Register(definition, modules.Owner(module), &endpoint) == F4FORGE_RESULT_SUCCESS);
+    const auto endpointRegisterResult = endpoints.Register(definition, modules.Owner(module), &endpoint);
+    assert(endpointRegisterResult == F4FORGE_RESULT_SUCCESS);
 
-    assert(modules.Unregister(module) == F4FORGE_RESULT_SUCCESS);
+    const auto unregisterResult = modules.Unregister(module);
+    assert(unregisterResult == F4FORGE_RESULT_SUCCESS);
     assert(!modules.IsActive(module));
-    assert(modules.Unregister(module) == F4FORGE_RESULT_INVALID_HANDLE);
+    const auto duplicateUnregisterResult = modules.Unregister(module);
+    assert(duplicateUnregisterResult == F4FORGE_RESULT_INVALID_HANDLE);
     assert(endpoints.Invoke(endpoint, nullptr, 0, nullptr, 0, nullptr) == F4FORGE_RESULT_STALE_HANDLE);
     return 0;
 }

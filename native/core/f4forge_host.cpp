@@ -83,10 +83,12 @@ F4ForgeEndpointHandle F4FORGE_CALL F4ForgeHost::ResolveEndpoint(
     }
 }
 
+// cppcheck-suppress constParameterCallback
 F4ForgeResult F4FORGE_CALL F4ForgeHost::Invoke(
     F4ForgeEndpointHandle endpoint,
     const void* request,
     uint32_t requestSize,
+    // cppcheck-suppress constParameterCallback
     void* response,
     uint32_t responseCapacity,
     uint32_t* responseSize) F4FORGE_NOEXCEPT

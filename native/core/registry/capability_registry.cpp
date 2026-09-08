@@ -21,7 +21,7 @@ F4ForgeResult CapabilityRegistry::Register(F4ForgeStringView id, uint32_t versio
     }
 }
 
-void CapabilityRegistry::InvalidateOwner(EndpointOwner* owner) noexcept
+void CapabilityRegistry::InvalidateOwner(const EndpointOwner* owner) noexcept
 {
     if (owner == nullptr) return;
     std::unique_lock lock(_mutex);

@@ -15,7 +15,7 @@ public:
     CapabilityRegistry& operator=(const CapabilityRegistry&) = delete;
 
     F4ForgeResult Register(F4ForgeStringView id, uint32_t version, EndpointOwner* owner);
-    void InvalidateOwner(EndpointOwner* owner) noexcept;
+    void InvalidateOwner(const EndpointOwner* owner) noexcept;
     uint32_t Query(F4ForgeStringView id, uint32_t minimumVersion) const;
 
 private:

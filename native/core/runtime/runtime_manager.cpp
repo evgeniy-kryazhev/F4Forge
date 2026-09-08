@@ -3,6 +3,8 @@
 #define WIN32_LEAN_AND_MEAN
 #include <Windows.h>
 
+#include <algorithm>
+
 namespace f4forge::core {
 
 F4ForgeResult RuntimeManager::RegisterProvider(const RuntimeProvider& provider)
@@ -10,9 +12,9 @@ F4ForgeResult RuntimeManager::RegisterProvider(const RuntimeProvider& provider)
     if (!IsValidProvider(provider)) return F4FORGE_RESULT_INVALID_ARGUMENT;
     std::lock_guard lock(_mutex);
     if (_providerCount >= MaxProviders) return F4FORGE_RESULT_INTERNAL_ERROR;
-    for (uint32_t index = 0; index < _providerCount; ++index) {
-        if (Equal(_providers[index]->info.id, provider.info.id)) return F4FORGE_RESULT_ALREADY_REGISTERED;
-    }
+    if (std::any_of(_providers.begin(), _providers.begin() + _providerCount,
+        [&provider](const auto& candidate) { return Equal(candidate->info.id, provider.info.id); }))
+        return F4FORGE_RESULT_ALREADY_REGISTERED;
     auto ownedProvider = std::make_unique<RuntimeProvider>(provider);
     ownedProvider->provider.info = &ownedProvider->info;
     _providers[_providerCount++] = std::move(ownedProvider);
@@ -68,13 +70,10 @@ F4ForgeResult RuntimeManager::Initialize(
     RuntimeInstance* instance = nullptr;
     {
         std::lock_guard lock(_mutex);
-        const RuntimeProvider* selected = nullptr;
-        for (uint32_t index = 0; index < _providerCount; ++index) {
-            if (Equal(_providers[index]->info.id, id)) {
-                selected = _providers[index].get();
-                break;
-            }
-        }
+        const auto selectedIt = std::find_if(_providers.begin(), _providers.begin() + _providerCount,
+            [&id](const auto& candidate) { return Equal(candidate->info.id, id); });
+        const RuntimeProvider* selected = selectedIt == _providers.begin() + _providerCount
+            ? nullptr : selectedIt->get();
         if (selected == nullptr) return F4FORGE_RESULT_RUNTIME_UNAVAILABLE;
         if (_runtimeCount >= MaxRuntimes) return F4FORGE_RESULT_INTERNAL_ERROR;
 
@@ -183,9 +182,8 @@ bool RuntimeManager::HasProvider(F4ForgeStringView id) const noexcept
 {
     if (id.data == nullptr) return false;
     std::lock_guard lock(_mutex);
-    for (uint32_t index = 0; index < _providerCount; ++index)
-        if (Equal(_providers[index]->info.id, id)) return true;
-    return false;
+    return std::any_of(_providers.begin(), _providers.begin() + _providerCount,
+        [&id](const auto& provider) { return Equal(provider->info.id, id); });
 }
 
 uint32_t RuntimeManager::ProviderCount() const noexcept
@@ -225,10 +223,9 @@ bool RuntimeManager::Equal(F4ForgeStringView left, F4ForgeStringView right) noex
 RuntimeInstance* RuntimeManager::FindUnlocked(F4ForgeRuntimeHandle runtime) noexcept
 {
     if (runtime == F4FORGE_INVALID_HANDLE) return nullptr;
-    for (uint32_t index = 0; index < _runtimeCount; ++index) {
-        if (_runtimes[index] && _runtimes[index]->handle == runtime) return _runtimes[index].get();
-    }
-    return nullptr;
+    const auto it = std::find_if(_runtimes.begin(), _runtimes.begin() + _runtimeCount,
+        [runtime](const auto& instance) { return instance && instance->handle == runtime; });
+    return it == _runtimes.begin() + _runtimeCount ? nullptr : it->get();
 }
 
 }

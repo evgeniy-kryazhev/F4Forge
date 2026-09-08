@@ -56,7 +56,8 @@ int main()
         { "test.event", sizeof("test.event") - 1 }, &EndpointNoop, nullptr
     };
     F4ForgeEndpointHandle eventEndpoint = F4FORGE_INVALID_HANDLE;
-    assert(endpoints.Register(eventDefinition, &owner, &eventEndpoint) == F4FORGE_RESULT_SUCCESS);
+    const auto eventRegisterResult = endpoints.Register(eventDefinition, &owner, &eventEndpoint);
+    assert(eventRegisterResult == F4FORGE_RESULT_SUCCESS);
 
     EventState state{};
     const auto subscription = events.Subscribe(eventEndpoint, &OnEvent, &state);
@@ -75,7 +76,8 @@ int main()
         { "test.interceptor", sizeof("test.interceptor") - 1 }, &EndpointNoop, nullptr
     };
     F4ForgeEndpointHandle interceptorEndpoint = F4FORGE_INVALID_HANDLE;
-    assert(endpoints.Register(interceptorDefinition, &owner, &interceptorEndpoint) == F4FORGE_RESULT_SUCCESS);
+    const auto interceptorRegisterResult = endpoints.Register(interceptorDefinition, &owner, &interceptorEndpoint);
+    assert(interceptorRegisterResult == F4FORGE_RESULT_SUCCESS);
     const auto interceptor = interceptors.Intercept(interceptorEndpoint, &OnInterceptor, nullptr);
     assert(interceptor != F4FORGE_INVALID_HANDLE);
     assert(interceptors.Emit(interceptorEndpoint, &value, sizeof(value)) == F4FORGE_RESULT_SUCCESS);

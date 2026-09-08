@@ -49,7 +49,8 @@ int main()
     };
 
     F4ForgeEndpointHandle endpoint = F4FORGE_INVALID_HANDLE;
-    assert(registry.Register(definition, &owner, &endpoint) == F4FORGE_RESULT_SUCCESS);
+    const auto registerResult = registry.Register(definition, &owner, &endpoint);
+    assert(registerResult == F4FORGE_RESULT_SUCCESS);
     assert(endpoint != F4FORGE_INVALID_HANDLE);
     assert(registry.Resolve({ "test.echo", 10 }, 1) == endpoint);
 

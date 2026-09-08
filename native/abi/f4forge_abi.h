@@ -86,16 +86,27 @@ typedef F4ForgeResult (F4FORGE_CALL* F4ForgeInterceptorCallback)(
     void* context) F4FORGE_NOEXCEPT;
 
 typedef struct F4ForgeEndpointDefinition {
+    // cppcheck-suppress uninitMemberVarNoCtor
     uint32_t structSize;
+    // cppcheck-suppress uninitMemberVarNoCtor
     uint32_t kind;
+    // cppcheck-suppress uninitMemberVarNoCtor
     uint32_t version;
+    // cppcheck-suppress uninitMemberVarNoCtor
     uint32_t flags;
+    // cppcheck-suppress uninitMemberVarNoCtor
     uint32_t threadPolicy;
+    // cppcheck-suppress uninitMemberVarNoCtor
     uint32_t requestSize;
+    // cppcheck-suppress uninitMemberVarNoCtor
     uint32_t responseSize;
+    // cppcheck-suppress uninitMemberVarNoCtor
     uint32_t payloadSize;
+    // cppcheck-suppress uninitMemberVarNoCtor
     F4ForgeStringView name;
+    // cppcheck-suppress uninitMemberVarNoCtor
     F4ForgeEndpointThunk thunk;
+    // cppcheck-suppress uninitMemberVarNoCtor
     void* context;
 } F4ForgeEndpointDefinition;
 
@@ -155,7 +166,9 @@ typedef F4ForgeResult (F4FORGE_CALL* F4ForgeQueueTaskFn)(
     void* context) F4FORGE_NOEXCEPT;
 
 typedef struct F4ForgeHostApi {
+    // cppcheck-suppress uninitMemberVarNoCtor
     uint32_t abiVersion;
+    // cppcheck-suppress uninitMemberVarNoCtor
     uint32_t structSize;
     F4ForgeResolveEndpointFn resolveEndpoint;
     F4ForgeInvokeFn invoke;

@@ -93,7 +93,7 @@ F4ForgeResult EndpointRegistry::Invoke(
     F4ForgeEndpointHandle endpoint,
     const void* request,
     uint32_t requestSize,
-    void* response,
+    const void* response,
     uint32_t responseCapacity,
     uint32_t* responseSize) const noexcept
 {
@@ -163,7 +163,7 @@ bool EndpointRegistry::ValidateBuffers(
     const Slot& slot,
     const void* request,
     uint32_t requestSize,
-    void* response,
+    const void* response,
     uint32_t responseCapacity,
     uint32_t* responseSize) noexcept
 {
