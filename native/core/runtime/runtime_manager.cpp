@@ -118,6 +118,18 @@ F4ForgeResult RuntimeManager::Initialize(
         result = F4FORGE_RESULT_INTERNAL_ERROR;
     }
 
+    if (result != F4FORGE_RESULT_SUCCESS) {
+        std::function<bool(F4ForgeRuntimeHandle)> moduleShutdown;
+        {
+            std::lock_guard lock(_mutex);
+            moduleShutdown = _moduleShutdown;
+        }
+        if (moduleShutdown) {
+            try { moduleShutdown(instance->handle); }
+            catch (...) { }
+        }
+    }
+
     std::lock_guard lock(_mutex);
     if (result == F4FORGE_RESULT_SUCCESS) {
         instance->state = RuntimeInstance::State::Active;
@@ -238,6 +250,15 @@ bool RuntimeManager::IsActive(F4ForgeRuntimeHandle runtime) const noexcept
     std::lock_guard lock(_mutex);
     const auto* instance = FindUnlocked(runtime);
     return instance != nullptr && instance->state == RuntimeInstance::State::Active;
+}
+
+bool RuntimeManager::CanRegisterModule(F4ForgeRuntimeHandle runtime) const noexcept
+{
+    std::lock_guard lock(_mutex);
+    const auto* instance = FindUnlocked(runtime);
+    return instance != nullptr &&
+        (instance->state == RuntimeInstance::State::Initializing ||
+         instance->state == RuntimeInstance::State::Active);
 }
 
 bool RuntimeManager::HasProvider(F4ForgeStringView id) const noexcept

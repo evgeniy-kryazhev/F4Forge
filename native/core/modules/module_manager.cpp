@@ -36,7 +36,7 @@ F4ForgeResult ModuleManager::Register(
     if (runtime == F4FORGE_INVALID_HANDLE) return F4FORGE_RESULT_INVALID_ARGUMENT;
 
     std::lock_guard lock(_mutex);
-    if (_runtimes != nullptr && !_runtimes->IsActive(runtime))
+    if (_runtimes != nullptr && !_runtimes->CanRegisterModule(runtime))
         return F4FORGE_RESULT_INACTIVE_RUNTIME;
     for (uint32_t index = 1; index < _nextIndex; ++index) {
         const auto& slot = _slots[index];

@@ -61,6 +61,7 @@ public:
     void SetModuleShutdownCallback(std::function<bool(F4ForgeRuntimeHandle)> callback) noexcept;
     RuntimeInstance* Find(F4ForgeRuntimeHandle runtime) noexcept;
     bool IsActive(F4ForgeRuntimeHandle runtime) const noexcept;
+    bool CanRegisterModule(F4ForgeRuntimeHandle runtime) const noexcept;
     bool HasProvider(F4ForgeStringView id) const noexcept;
     uint32_t ProviderCount() const noexcept;
 

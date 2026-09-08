@@ -11,6 +11,7 @@ namespace {
 std::thread::id gameThread;
 uint32_t gameOnlyCalls = 0;
 uint32_t eventCalls = 0;
+F4ForgeModuleHandle providerModule = F4FORGE_INVALID_HANDLE;
 
 int32_t F4FORGE_CALL IsGameThread() noexcept
 {
@@ -43,8 +44,14 @@ void F4FORGE_CALL OnEvent(
     ++eventCalls;
 }
 
-F4ForgeResult F4FORGE_CALL InitializeRuntime(const F4ForgeRuntimeInitializeParams*) noexcept
+F4ForgeResult F4FORGE_CALL InitializeRuntime(const F4ForgeRuntimeInitializeParams* params) noexcept
 {
+    if (params != nullptr && params->host != nullptr && params->host->registerModule != nullptr) {
+        const auto result = params->host->registerModule(
+            params->runtime, { "host.provider-module", sizeof("host.provider-module") - 1 }, 1,
+            &providerModule);
+        if (result != F4FORGE_RESULT_SUCCESS) return result;
+    }
     return F4FORGE_RESULT_SUCCESS;
 }
 
@@ -149,6 +156,8 @@ int main()
     const auto runtimeInitializeResult = runtimes.Initialize(
         { "host-test-runtime", sizeof("host-test-runtime") - 1 }, &api, {}, {}, &runtime);
     assert(runtimeInitializeResult == F4FORGE_RESULT_SUCCESS);
+    const auto providerModuleActive = host.Modules().IsActive(providerModule);
+    assert(providerModuleActive);
     assert(api.registerModule != nullptr);
     assert(api.unregisterModule != nullptr);
     assert(api.queryCapability({ "core", sizeof("core") - 1 }, 1) == 1);
@@ -366,6 +375,8 @@ int main()
     assert(runtimeShutdownResult == F4FORGE_RESULT_SUCCESS);
     const auto shutdownModuleActive = host.Modules().IsActive(shutdownModule);
     assert(!shutdownModuleActive);
+    const auto providerModuleStillActive = host.Modules().IsActive(providerModule);
+    assert(!providerModuleStillActive);
     assert(api.invoke(shutdownEndpoint, nullptr, 0, &gameResponse, sizeof(gameResponse), nullptr)
         == F4FORGE_RESULT_STALE_HANDLE);
 
