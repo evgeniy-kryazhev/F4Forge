@@ -165,11 +165,20 @@ uint32_t RuntimeManager::ProviderCount() const noexcept
 
 bool RuntimeManager::IsValidProvider(const RuntimeProvider& provider) noexcept
 {
-    return provider.info.abiVersion == F4FORGE_RUNTIME_PROVIDER_ABI_VERSION &&
-        provider.info.structSize >= sizeof(F4ForgeRuntimeInfo) &&
+    const auto infoHasPrefix = F4FORGE_HAS_FIELD(provider.info.structSize, F4ForgeRuntimeInfo, structSize);
+    const auto infoHasVersion = F4FORGE_HAS_FIELD(provider.info.structSize, F4ForgeRuntimeInfo, providerVersion);
+    const auto providerHasPrefix = F4FORGE_HAS_FIELD(provider.provider.structSize, F4ForgeRuntimeProvider, structSize);
+    const auto providerHasInfo = F4FORGE_HAS_FIELD(provider.provider.structSize, F4ForgeRuntimeProvider, info);
+    const auto providerHasInitialize = F4FORGE_HAS_FIELD(
+        provider.provider.structSize, F4ForgeRuntimeProvider, initialize);
+    const auto providerHasShutdown = F4FORGE_HAS_FIELD(provider.provider.structSize, F4ForgeRuntimeProvider, shutdown);
+    const auto providerHasExecuteTask = F4FORGE_HAS_FIELD(
+        provider.provider.structSize, F4ForgeRuntimeProvider, executeTask);
+    return infoHasPrefix && infoHasVersion && providerHasPrefix && providerHasInfo && providerHasInitialize &&
+        providerHasShutdown && providerHasExecuteTask &&
+        provider.info.abiVersion == F4FORGE_RUNTIME_PROVIDER_ABI_VERSION &&
         provider.info.id.data != nullptr && provider.info.id.length != 0 &&
         provider.provider.abiVersion == F4FORGE_RUNTIME_PROVIDER_ABI_VERSION &&
-        provider.provider.structSize >= sizeof(F4ForgeRuntimeProvider) &&
         provider.provider.info != nullptr &&
         provider.provider.initialize != nullptr &&
         provider.provider.shutdown != nullptr &&

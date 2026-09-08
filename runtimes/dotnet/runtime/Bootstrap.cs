@@ -8,6 +8,8 @@ namespace F4Forge.DotNet.Runtime;
 public static unsafe class Bootstrap
 {
     private const uint AbiVersion = 1;
+    private const uint ManagedBootstrapMinimumSize = 56;
+    private const uint NativeApiMinimumSize = 104;
     private static readonly object Gate = new();
     private static NativeApi* nativeApi;
     private static ulong runtimeHandle;
@@ -22,10 +24,10 @@ public static unsafe class Bootstrap
             if (apiPointer == 0) return (int)F4ForgeResult.InvalidArgument;
             var args = (ManagedBootstrapArgs*)apiPointer;
             if (args->AbiVersion != AbiVersion) return (int)F4ForgeResult.InvalidAbiVersion;
-            if (args->StructSize < sizeof(ManagedBootstrapArgs)) return (int)F4ForgeResult.InvalidStructSize;
+            if (args->StructSize < ManagedBootstrapMinimumSize) return (int)F4ForgeResult.InvalidStructSize;
             if (args->Runtime == 0) return (int)F4ForgeResult.InvalidArgument;
             if (args->Host == null) return (int)F4ForgeResult.InvalidArgument;
-            if (args->Host->AbiVersion != AbiVersion || args->Host->StructSize < sizeof(NativeApi))
+            if (args->Host->AbiVersion != AbiVersion || args->Host->StructSize < NativeApiMinimumSize)
                 return (int)F4ForgeResult.InvalidStructSize;
             if (args->Host->ResolveEndpoint == null || args->Host->Invoke == null)
                 return (int)F4ForgeResult.InvalidArgument;
