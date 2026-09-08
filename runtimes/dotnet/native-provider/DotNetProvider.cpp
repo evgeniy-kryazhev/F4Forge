@@ -102,7 +102,14 @@ F4ForgeResult InitializeManaged(const F4ForgeRuntimeInitializeParams* params) no
 
         state.initialize = reinterpret_cast<ManagedInitialize>(initialize);
         state.executeTask = reinterpret_cast<ManagedExecuteTask>(executeTask);
-        const auto result = state.initialize(const_cast<F4ForgeHostApi*>(params->host));
+        const F4ForgeManagedBootstrapArgs bootstrapArgs{
+            F4FORGE_RUNTIME_PROVIDER_ABI_VERSION,
+            sizeof(F4ForgeManagedBootstrapArgs),
+            params->host,
+            params->pluginDirectory,
+            params->configDirectory
+        };
+        const auto result = state.initialize(const_cast<F4ForgeManagedBootstrapArgs*>(&bootstrapArgs));
         if (result != static_cast<int>(F4FORGE_RESULT_SUCCESS)) return static_cast<F4ForgeResult>(result);
         state.initialized = true;
         return F4FORGE_RESULT_SUCCESS;

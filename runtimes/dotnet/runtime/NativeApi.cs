@@ -11,6 +11,16 @@ internal unsafe struct F4ForgeStringView
 }
 
 [StructLayout(LayoutKind.Sequential, Pack = 8)]
+internal unsafe struct ManagedBootstrapArgs
+{
+    public uint AbiVersion;
+    public uint StructSize;
+    public NativeApi* Host;
+    public F4ForgeStringView PluginDirectory;
+    public F4ForgeStringView ConfigDirectory;
+}
+
+[StructLayout(LayoutKind.Sequential, Pack = 8)]
 internal unsafe struct F4ForgeEndpointDefinition
 {
     public uint StructSize;

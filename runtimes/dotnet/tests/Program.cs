@@ -1,3 +1,5 @@
+using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using F4Forge.DotNet.Runtime;
 using F4Forge.DotNet.Sdk;
 using F4Forge.FailureFixture;
@@ -7,12 +9,29 @@ internal static unsafe class Program
 {
     private static int Main()
     {
-        if (sizeof(NativeApi) != 104 || sizeof(F4ForgeEndpointDefinition) != 64 || sizeof(F4ForgeStringView) != 16)
+        if (sizeof(NativeApi) != 104 || sizeof(F4ForgeEndpointDefinition) != 64 || sizeof(F4ForgeStringView) != 16 ||
+            sizeof(ManagedBootstrapArgs) != 48)
             return 5;
 
         delegate* unmanaged[Cdecl]<nint, int> initialize = &Bootstrap.Initialize;
         if (initialize(0) != (int)F4ForgeResult.InvalidArgument)
             return 1;
+
+        NativeApi host = new()
+        {
+            AbiVersion = 1,
+            StructSize = (uint)sizeof(NativeApi),
+            ResolveEndpoint = &ResolveEndpoint,
+            Invoke = &Invoke
+        };
+        ManagedBootstrapArgs bootstrapArgs = new()
+        {
+            AbiVersion = 1,
+            StructSize = (uint)sizeof(ManagedBootstrapArgs),
+            Host = &host
+        };
+        if (initialize((nint)(&bootstrapArgs)) != (int)F4ForgeResult.Success)
+            return 11;
 
         var plugin = new TestPlugin();
         if (plugin.Id != "test.plugin")
@@ -49,6 +68,13 @@ internal static unsafe class Program
         GC.WaitForPendingFinalizers();
         return 0;
     }
+
+    [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
+    private static ulong ResolveEndpoint(F4ForgeStringView name, uint version) => 1;
+
+    [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
+    private static int Invoke(ulong endpoint, void* request, uint requestSize, void* response, uint responseCapacity, uint* responseSize)
+        => (int)F4ForgeResult.Success;
 
     private sealed class TestPlugin : F4ForgePlugin
     {

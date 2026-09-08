@@ -11,3 +11,4 @@ $RECYCLE.BIN/
 # Windows shortcuts
 *.lnk
 native/lib
+.xmake/
