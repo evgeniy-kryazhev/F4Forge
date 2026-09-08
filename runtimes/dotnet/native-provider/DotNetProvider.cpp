@@ -10,6 +10,7 @@
 #include <fstream>
 #include <mutex>
 #include <string>
+#include <string_view>
 
 namespace {
 
@@ -62,6 +63,12 @@ T GetHostFxrFunction(HMODULE module, const char* name) noexcept
     return reinterpret_cast<T>(GetProcAddress(module, name));
 }
 
+void LogHost(const F4ForgeHostApi* host, uint32_t level, std::string_view message) noexcept
+{
+    if (host == nullptr || host->log == nullptr) return;
+    host->log(level, { message.data(), static_cast<uint32_t>(message.size()) });
+}
+
 bool ExtractResource(HMODULE module, int resourceId, const std::filesystem::path& destination)
 {
     const auto resource = FindResourceW(module, MAKEINTRESOURCEW(resourceId), MAKEINTRESOURCEW(10));
@@ -101,7 +108,10 @@ F4ForgeResult InitializeManaged(const F4ForgeRuntimeInitializeParams* params) no
 
     try {
         const auto root = Utf8ToWide(params->configDirectory);
-        if (root.empty()) return F4FORGE_RESULT_INVALID_ARGUMENT;
+        if (root.empty()) {
+            LogHost(params->host, 4, "Dotnet provider: empty config directory");
+            return F4FORGE_RESULT_INVALID_ARGUMENT;
+        }
         HMODULE providerModule = nullptr;
         if (!GetModuleHandleExW(
                 GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
@@ -109,16 +119,25 @@ F4ForgeResult InitializeManaged(const F4ForgeRuntimeInitializeParams* params) no
             return F4FORGE_RESULT_INTERNAL_ERROR;
         state.providerModule = providerModule;
         std::filesystem::path cache;
-        if (!PrepareManagedRuntime(providerModule, root, cache)) return F4FORGE_RESULT_RUNTIME_UNAVAILABLE;
+        if (!PrepareManagedRuntime(providerModule, root, cache)) {
+            LogHost(params->host, 4, "Dotnet provider: embedded runtime resources or external SDK unavailable");
+            return F4FORGE_RESULT_RUNTIME_UNAVAILABLE;
+        }
         const auto assembly = cache / L"F4Forge.DotNet.Runtime.dll";
         const auto runtimeConfig = cache / L"F4Forge.DotNet.Runtime.runtimeconfig.json";
-        if (!LoadHostFxr(state)) return F4FORGE_RESULT_RUNTIME_UNAVAILABLE;
+        if (!LoadHostFxr(state)) {
+            LogHost(params->host, 4, "Dotnet provider: hostfxr could not be loaded");
+            return F4FORGE_RESULT_RUNTIME_UNAVAILABLE;
+        }
 
         const auto initializeForConfig = GetHostFxrFunction<hostfxr_initialize_for_runtime_config_fn>(
             state.hostfxrModule, "hostfxr_initialize_for_runtime_config");
         const auto getRuntimeDelegate = GetHostFxrFunction<hostfxr_get_runtime_delegate_fn>(
             state.hostfxrModule, "hostfxr_get_runtime_delegate");
-        if (initializeForConfig == nullptr || getRuntimeDelegate == nullptr) return F4FORGE_RESULT_INTERNAL_ERROR;
+        if (initializeForConfig == nullptr || getRuntimeDelegate == nullptr) {
+            LogHost(params->host, 4, "Dotnet provider: hostfxr exports are unavailable");
+            return F4FORGE_RESULT_INTERNAL_ERROR;
+        }
         if (initializeForConfig(runtimeConfig.c_str(), nullptr, &state.hostContext) != 0)
             return F4FORGE_RESULT_RUNTIME_UNAVAILABLE;
 
@@ -148,7 +167,11 @@ F4ForgeResult InitializeManaged(const F4ForgeRuntimeInitializeParams* params) no
             params->configDirectory
         };
         const auto result = state.initialize(const_cast<F4ForgeManagedBootstrapArgs*>(&bootstrapArgs));
-        if (result != static_cast<int>(F4FORGE_RESULT_SUCCESS)) return static_cast<F4ForgeResult>(result);
+        if (result != static_cast<int>(F4FORGE_RESULT_SUCCESS)) {
+            LogHost(params->host, 4, "Dotnet provider: managed bootstrap initialization failed");
+            return static_cast<F4ForgeResult>(result);
+        }
+        LogHost(params->host, 2, "Dotnet provider: managed runtime initialized");
         state.initialized = true;
         return F4FORGE_RESULT_SUCCESS;
     } catch (...) {
