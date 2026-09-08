@@ -2,6 +2,7 @@
 build/
 build-*/
 generated/
+compile_commands.json
 *.pdb
 *.ilk
 *.obj
