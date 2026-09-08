@@ -18,7 +18,7 @@ namespace {
 
 using LoadAssemblyAndGetFunctionPointer = load_assembly_and_get_function_pointer_fn;
 using ManagedInitialize = int (F4FORGE_CALL*)(void*);
-using ManagedExecuteTask = void (F4FORGE_CALL*)(uint64_t);
+using ManagedExecuteTask = void (F4FORGE_CALL*)(uint64_t, uint64_t);
 
 struct State final {
     std::mutex mutex;
@@ -185,7 +185,8 @@ F4ForgeResult InitializeManaged(const F4ForgeRuntimeInitializeParams* params) no
             sizeof(F4ForgeManagedBootstrapArgs),
             params->host,
             params->pluginDirectory,
-            params->configDirectory
+            params->configDirectory,
+            params->runtime
         };
         const auto result = state.initialize(const_cast<F4ForgeManagedBootstrapArgs*>(&bootstrapArgs));
         if (result != static_cast<int>(F4FORGE_RESULT_SUCCESS)) {
@@ -215,7 +216,7 @@ void F4FORGE_CALL ExecuteTask(const F4ForgeRuntimeTask* task) F4FORGE_NOEXCEPT
     try {
         auto& state = GetState();
         if (task == nullptr || state.executeTask == nullptr) return;
-        state.executeTask(task->taskHandle);
+        state.executeTask(task->runtime, task->taskHandle);
     } catch (...) {
     }
 }

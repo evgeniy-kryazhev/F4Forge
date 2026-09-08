@@ -1,6 +1,7 @@
 #pragma once
 
 #include "f4forge_results.h"
+#include <stddef.h>
 #include <stdint.h>
 
 #ifdef __cplusplus
@@ -22,6 +23,9 @@ extern "C" {
 #define F4FORGE_ABI_VERSION 1u
 #define F4FORGE_RUNTIME_PROVIDER_ABI_VERSION 1u
 #define F4FORGE_INVALID_HANDLE UINT64_C(0)
+
+#define F4FORGE_HAS_FIELD(structSize, structType, field) \
+    ((structSize) >= (uint32_t)(offsetof(structType, field) + sizeof(((structType*)0)->field)))
 
 typedef uint64_t F4ForgeRawHandle;
 typedef F4ForgeRawHandle F4ForgeEndpointHandle;

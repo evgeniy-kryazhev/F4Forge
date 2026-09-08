@@ -18,6 +18,7 @@ internal unsafe struct ManagedBootstrapArgs
     public NativeApi* Host;
     public F4ForgeStringView PluginDirectory;
     public F4ForgeStringView ConfigDirectory;
+    public ulong Runtime;
 }
 
 [StructLayout(LayoutKind.Sequential, Pack = 8)]

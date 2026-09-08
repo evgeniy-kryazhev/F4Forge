@@ -10,6 +10,7 @@ public static unsafe class Bootstrap
     private const uint AbiVersion = 1;
     private static readonly object Gate = new();
     private static NativeApi* nativeApi;
+    private static ulong runtimeHandle;
     private static bool initialized;
     private static PluginLoader? pluginLoader;
 
@@ -22,6 +23,7 @@ public static unsafe class Bootstrap
             var args = (ManagedBootstrapArgs*)apiPointer;
             if (args->AbiVersion != AbiVersion) return (int)F4ForgeResult.InvalidAbiVersion;
             if (args->StructSize < sizeof(ManagedBootstrapArgs)) return (int)F4ForgeResult.InvalidStructSize;
+            if (args->Runtime == 0) return (int)F4ForgeResult.InvalidArgument;
             if (args->Host == null) return (int)F4ForgeResult.InvalidArgument;
             if (args->Host->AbiVersion != AbiVersion || args->Host->StructSize < sizeof(NativeApi))
                 return (int)F4ForgeResult.InvalidStructSize;
@@ -32,6 +34,7 @@ public static unsafe class Bootstrap
             {
                 if (initialized) return (int)F4ForgeResult.Success;
                 nativeApi = args->Host;
+                runtimeHandle = args->Runtime;
                 Logger.Sink = message => WriteLog(nativeApi, message);
                 var pluginDirectory = ReadUtf8(args->PluginDirectory);
                 Logger.Info($"Managed plugin directory: {pluginDirectory}");
@@ -49,10 +52,11 @@ public static unsafe class Bootstrap
     }
 
     [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
-    public static void ExecuteTask(ulong _)
+    public static void ExecuteTask(ulong runtime, ulong _)
     {
         try
         {
+            if (!initialized || runtime != runtimeHandle) return;
         }
         catch
         {

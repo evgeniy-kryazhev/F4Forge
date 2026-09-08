@@ -10,7 +10,7 @@ internal static unsafe class Program
     private static int Main()
     {
         if (sizeof(NativeApi) != 104 || sizeof(F4ForgeEndpointDefinition) != 64 || sizeof(F4ForgeStringView) != 16 ||
-            sizeof(ManagedBootstrapArgs) != 48)
+            sizeof(ManagedBootstrapArgs) != 56)
             return 5;
 
         delegate* unmanaged[Cdecl]<nint, int> initialize = &Bootstrap.Initialize;
@@ -28,7 +28,8 @@ internal static unsafe class Program
         {
             AbiVersion = 1,
             StructSize = (uint)sizeof(ManagedBootstrapArgs),
-            Host = &host
+            Host = &host,
+            Runtime = 1
         };
         if (initialize((nint)(&bootstrapArgs)) != (int)F4ForgeResult.Success)
             return 11;

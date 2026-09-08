@@ -26,6 +26,7 @@ typedef struct F4ForgeRuntimeInitializeParams {
 typedef struct F4ForgeRuntimeTask {
     void* context;
     uint64_t taskHandle;
+    F4ForgeRuntimeHandle runtime;
 } F4ForgeRuntimeTask;
 
 typedef struct F4ForgeManagedBootstrapArgs {
@@ -34,6 +35,7 @@ typedef struct F4ForgeManagedBootstrapArgs {
     const F4ForgeHostApi* host;
     F4ForgeStringView pluginDirectory;
     F4ForgeStringView configDirectory;
+    F4ForgeRuntimeHandle runtime;
 } F4ForgeManagedBootstrapArgs;
 
 typedef F4ForgeResult (F4FORGE_CALL* F4ForgeRuntimeInitializeFn)(
@@ -74,8 +76,10 @@ static_assert(std::is_standard_layout_v<F4ForgeRuntimeProvider>);
 static_assert(std::is_trivial_v<F4ForgeRuntimeProvider>);
 static_assert(sizeof(F4ForgeRuntimeInfo) == 48);
 static_assert(sizeof(F4ForgeRuntimeInitializeParams) == 56);
-static_assert(sizeof(F4ForgeRuntimeTask) == 16);
-static_assert(sizeof(F4ForgeManagedBootstrapArgs) == 48);
+static_assert(offsetof(F4ForgeRuntimeTask, runtime) == 16);
+static_assert(sizeof(F4ForgeRuntimeTask) == 24);
+static_assert(offsetof(F4ForgeManagedBootstrapArgs, runtime) == 48);
+static_assert(sizeof(F4ForgeManagedBootstrapArgs) == 56);
 static_assert(sizeof(F4ForgeRuntimeProvider) == 40);
 static_assert(offsetof(F4ForgeRuntimeProvider, info) == 8);
 static_assert(offsetof(F4ForgeRuntimeProvider, initialize) == 16);
