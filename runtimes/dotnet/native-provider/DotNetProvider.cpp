@@ -4,13 +4,15 @@
 #include <Windows.h>
 #include <coreclr_delegates.h>
 #include <hostfxr.h>
-#include <nethost.h>
 
+#include <algorithm>
 #include <filesystem>
 #include <fstream>
+#include <iterator>
 #include <mutex>
 #include <string>
 #include <string_view>
+#include <vector>
 
 namespace {
 
@@ -49,12 +51,31 @@ std::wstring Utf8ToWide(F4ForgeStringView value)
 
 bool LoadHostFxr(State& state) noexcept
 {
-    char_t hostfxrPath[4096]{};
-    size_t hostfxrPathSize = sizeof(hostfxrPath) / sizeof(hostfxrPath[0]);
-    get_hostfxr_parameters parameters{ sizeof(parameters), nullptr, nullptr };
-    if (get_hostfxr_path(hostfxrPath, &hostfxrPathSize, &parameters) != 0) return false;
-    state.hostfxrModule = LoadLibraryW(hostfxrPath);
-    return state.hostfxrModule != nullptr;
+    std::vector<std::filesystem::path> roots;
+    wchar_t buffer[32768]{};
+    for (const wchar_t* variable : { L"DOTNET_ROOT", L"DOTNET_ROOT(x64)", L"ProgramW6432", L"ProgramFiles" }) {
+        const auto length = GetEnvironmentVariableW(variable, buffer, static_cast<DWORD>(std::size(buffer)));
+        if (length == 0 || length >= std::size(buffer)) continue;
+        std::filesystem::path root(buffer, buffer + length);
+        if (root.filename() != L"dotnet") root /= L"dotnet";
+        if (std::find(roots.begin(), roots.end(), root) == roots.end()) roots.push_back(std::move(root));
+    }
+
+    for (const auto& root : roots) {
+        const auto fxrDirectory = root / L"host" / L"fxr";
+        if (!std::filesystem::exists(fxrDirectory)) continue;
+        std::vector<std::filesystem::path> versions;
+        for (const auto& entry : std::filesystem::directory_iterator(fxrDirectory))
+            if (entry.is_directory()) versions.push_back(entry.path());
+        std::sort(versions.rbegin(), versions.rend());
+        for (const auto& version : versions) {
+            const auto path = version / L"hostfxr.dll";
+            if (!std::filesystem::exists(path)) continue;
+            state.hostfxrModule = LoadLibraryW(path.c_str());
+            if (state.hostfxrModule != nullptr) return true;
+        }
+    }
+    return false;
 }
 
 template <typename T>
