@@ -178,7 +178,8 @@ F4ForgeResult RuntimeManager::Shutdown(F4ForgeRuntimeHandle runtime)
         std::lock_guard lock(_mutex);
         instance = FindUnlocked(runtime);
         if (instance == nullptr) return F4FORGE_RESULT_INVALID_HANDLE;
-        if (instance->state != RuntimeInstance::State::Active)
+        if (instance->state != RuntimeInstance::State::Active &&
+            instance->state != RuntimeInstance::State::Quarantined)
             return F4FORGE_RESULT_INACTIVE_RUNTIME;
         instance->state = RuntimeInstance::State::ShuttingDown;
         provider = instance->provider;

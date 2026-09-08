@@ -88,6 +88,8 @@ private:
         F4ForgeAsyncOperationHandle operation) F4FORGE_NOEXCEPT;
     static F4ForgeResult F4FORGE_CALL ReleaseOperation(
         F4ForgeAsyncOperationHandle operation) F4FORGE_NOEXCEPT;
+    static F4ForgeResult F4FORGE_CALL WaitModuleQuiescence(
+        F4ForgeModuleHandle module, uint32_t timeoutMilliseconds) F4FORGE_NOEXCEPT;
     static void F4FORGE_CALL Log(
         uint32_t level,
         F4ForgeStringView message) F4FORGE_NOEXCEPT;

@@ -44,6 +44,7 @@ public:
         F4ForgeModuleHandle* module);
 
     F4ForgeResult Unregister(F4ForgeModuleHandle module);
+    F4ForgeResult WaitForQuiescence(F4ForgeModuleHandle module, uint32_t timeoutMilliseconds);
     bool UnregisterRuntime(F4ForgeRuntimeHandle runtime);
     ModuleState* Find(F4ForgeModuleHandle module) const noexcept;
     bool IsActive(F4ForgeModuleHandle module) const noexcept;
@@ -58,6 +59,7 @@ private:
     };
 
     ModuleState* FindUnlocked(F4ForgeModuleHandle module) const noexcept;
+    ModuleState* FindAnyUnlocked(F4ForgeModuleHandle module) const noexcept;
 
     EndpointRegistry& _endpoints;
     EventRegistry& _events;

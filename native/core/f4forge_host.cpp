@@ -42,6 +42,7 @@ F4ForgeHost::F4ForgeHost() noexcept
     _api.getOperationResult = &GetOperationResult;
     _api.cancelOperation = &CancelOperation;
     _api.releaseOperation = &ReleaseOperation;
+    _api.waitModuleQuiescence = &WaitModuleQuiescence;
 
     static EndpointOwner coreOwner;
     static constexpr F4ForgeStringView coreCapabilities[] = {
@@ -300,6 +301,13 @@ F4ForgeResult F4FORGE_CALL F4ForgeHost::CancelOperation(F4ForgeAsyncOperationHan
 F4ForgeResult F4FORGE_CALL F4ForgeHost::ReleaseOperation(F4ForgeAsyncOperationHandle operation) F4FORGE_NOEXCEPT
 {
     try { return Instance()._operations.Release(operation); }
+    catch (...) { return F4FORGE_RESULT_INTERNAL_ERROR; }
+}
+
+F4ForgeResult F4FORGE_CALL F4ForgeHost::WaitModuleQuiescence(
+    F4ForgeModuleHandle module, uint32_t timeoutMilliseconds) F4FORGE_NOEXCEPT
+{
+    try { return Instance()._modules.WaitForQuiescence(module, timeoutMilliseconds); }
     catch (...) { return F4FORGE_RESULT_INTERNAL_ERROR; }
 }
 

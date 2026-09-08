@@ -141,12 +141,14 @@ int main()
     assert(value == 9);
 
     F4ForgeModuleHandle eventModule = F4FORGE_INVALID_HANDLE;
-    assert(modules.Register(7, { "reentrant.event", sizeof("reentrant.event") - 1 }, 1, &eventModule)
-        == F4FORGE_RESULT_SUCCESS);
+    const auto reentrantEventModuleResult = modules.Register(
+        7, { "reentrant.event", sizeof("reentrant.event") - 1 }, 1, &eventModule);
+    assert(reentrantEventModuleResult == F4FORGE_RESULT_SUCCESS);
     F4ForgeEndpointHandle reentrantEvent = F4FORGE_INVALID_HANDLE;
     eventDefinition.name = { "reentrant.event.endpoint", sizeof("reentrant.event.endpoint") - 1 };
-    assert(endpoints.Register(eventDefinition, modules.Owner(eventModule), &reentrantEvent)
-        == F4FORGE_RESULT_SUCCESS);
+    const auto reentrantEventEndpointResult = endpoints.Register(
+        eventDefinition, modules.Owner(eventModule), &reentrantEvent);
+    assert(reentrantEventEndpointResult == F4FORGE_RESULT_SUCCESS);
     ReentrantState eventReentrant{ &modules, eventModule };
     const auto reentrantSubscription = events.Subscribe(
         modules.Owner(eventModule), reentrantEvent, &UnregisterFromEvent, &eventReentrant);
@@ -157,13 +159,15 @@ int main()
         == F4FORGE_INVALID_HANDLE);
 
     F4ForgeModuleHandle interceptorModule = F4FORGE_INVALID_HANDLE;
-    assert(modules.Register(7, { "reentrant.interceptor", sizeof("reentrant.interceptor") - 1 }, 1,
-        &interceptorModule) == F4FORGE_RESULT_SUCCESS);
+    const auto reentrantInterceptorModuleResult = modules.Register(
+        7, { "reentrant.interceptor", sizeof("reentrant.interceptor") - 1 }, 1, &interceptorModule);
+    assert(reentrantInterceptorModuleResult == F4FORGE_RESULT_SUCCESS);
     F4ForgeEndpointHandle reentrantInterceptor = F4FORGE_INVALID_HANDLE;
     interceptorDefinition.name = {
         "reentrant.interceptor.endpoint", sizeof("reentrant.interceptor.endpoint") - 1 };
-    assert(endpoints.Register(interceptorDefinition, modules.Owner(interceptorModule), &reentrantInterceptor)
-        == F4FORGE_RESULT_SUCCESS);
+    const auto reentrantInterceptorEndpointResult = endpoints.Register(
+        interceptorDefinition, modules.Owner(interceptorModule), &reentrantInterceptor);
+    assert(reentrantInterceptorEndpointResult == F4FORGE_RESULT_SUCCESS);
     ReentrantState interceptorReentrant{ &modules, interceptorModule };
     const auto reentrantInterceptorSubscription = interceptors.Intercept(
         modules.Owner(interceptorModule), reentrantInterceptor,

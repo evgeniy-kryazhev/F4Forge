@@ -12,7 +12,7 @@ internal static unsafe class Program
 
     private static int Main()
     {
-        if (sizeof(NativeApi) != 160 || sizeof(F4ForgeEndpointDefinition) != 64 || sizeof(F4ForgeStringView) != 16 ||
+        if (sizeof(NativeApi) != 168 || sizeof(F4ForgeEndpointDefinition) != 64 || sizeof(F4ForgeStringView) != 16 ||
             sizeof(ManagedBootstrapArgs) != 56)
             return 5;
 

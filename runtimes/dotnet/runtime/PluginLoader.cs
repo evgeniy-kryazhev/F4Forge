@@ -304,7 +304,12 @@ internal unsafe sealed class PluginLoader
         }
 
         var path = old.Path;
-        if (!old.Stop()) return false;
+        if (!old.Stop())
+        {
+            lock (_gate)
+                if (!_quarantined.Contains(old)) _quarantined.Add(old);
+            return false;
+        }
         return Load(path);
     }
 
@@ -425,6 +430,8 @@ internal unsafe sealed class PluginLoader
         private PluginState _state = PluginState.Loading;
         private int _failures;
         private bool _teardownStarted;
+        private bool _unloadStarted;
+        private NativeHostBridge? _bridge;
 
         public PluginInstance(string path, PluginLoadContext context, F4ForgePlugin plugin, string id,
             PluginResourceScope scope, NativeApi* host, ulong runtime)
@@ -435,9 +442,11 @@ internal unsafe sealed class PluginLoader
             Id = id;
             Scope = scope;
             var bridge = host == null ? null : new NativeHostBridge(host, runtime, id);
+            _bridge = bridge;
             if (bridge != null)
             {
                 scope.Add(bridge);
+                bridge.SetFinalizationCallback(FinalizeAfterNativeQuiescence);
                 ContextInfo = new F4ForgePluginContext(
                     bridge.Module, scope.Add, bridge, scope.CancellationToken);
             }
@@ -525,7 +534,7 @@ internal unsafe sealed class PluginLoader
             if (!wait && !finalize) return false;
             if (finalize) {
                 FinalizeStop(wasLoaded);
-                return true;
+                return State == PluginState.Unloaded;
             }
             return WaitForStop();
         }
@@ -556,7 +565,22 @@ internal unsafe sealed class PluginLoader
                 }
             }
             Scope.Dispose();
-            lock (_lifecycleGate) _state = PluginState.Unloaded;
+            if (_bridge != null && !_bridge.IsQuiesced)
+            {
+                lock (_lifecycleGate) _state = PluginState.Quarantined;
+                return;
+            }
+            FinalizeAfterNativeQuiescence();
+        }
+
+        private void FinalizeAfterNativeQuiescence()
+        {
+            lock (_lifecycleGate)
+            {
+                if (_unloadStarted) return;
+                _unloadStarted = true;
+                _state = PluginState.Unloaded;
+            }
             Context.Unload();
             _stopped.TrySetResult(true);
         }

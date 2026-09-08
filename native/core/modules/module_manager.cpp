@@ -100,6 +100,22 @@ F4ForgeResult ModuleManager::Unregister(F4ForgeModuleHandle module)
     return F4FORGE_RESULT_SUCCESS;
 }
 
+F4ForgeResult ModuleManager::WaitForQuiescence(
+    F4ForgeModuleHandle module, uint32_t timeoutMilliseconds)
+{
+    ModuleState* state = nullptr;
+    {
+        std::lock_guard lock(_mutex);
+        state = FindAnyUnlocked(module);
+        if (state == nullptr) return F4FORGE_RESULT_INVALID_HANDLE;
+    }
+    const auto timeout = timeoutMilliseconds == F4FORGE_WAIT_INFINITE
+        ? std::chrono::milliseconds::max()
+        : std::chrono::milliseconds(timeoutMilliseconds);
+    return state->endpointOwner.WaitForQuiescence(timeout)
+        ? F4FORGE_RESULT_SUCCESS : F4FORGE_RESULT_TIMEOUT;
+}
+
 bool ModuleManager::UnregisterRuntime(F4ForgeRuntimeHandle runtime)
 {
     std::vector<std::pair<F4ForgeModuleHandle, ModuleState*>> modules;
@@ -152,6 +168,17 @@ ModuleState* ModuleManager::FindUnlocked(F4ForgeModuleHandle module) const noexc
     if (!slot.state) return nullptr;
     if (f4forge::HandleGeneration(module) != slot.generation.load(std::memory_order_acquire)) return nullptr;
     if (!slot.state->active.load(std::memory_order_acquire)) return nullptr;
+    return slot.state.get();
+}
+
+ModuleState* ModuleManager::FindAnyUnlocked(F4ForgeModuleHandle module) const noexcept
+{
+    if (module == F4FORGE_INVALID_HANDLE) return nullptr;
+    const auto index = f4forge::HandleIndex(module);
+    if (index == 0 || index >= MaxModules) return nullptr;
+    const auto& slot = _slots[index];
+    if (!slot.state || f4forge::HandleGeneration(module) !=
+        slot.generation.load(std::memory_order_acquire)) return nullptr;
     return slot.state.get();
 }
 

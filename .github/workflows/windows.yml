@@ -26,7 +26,7 @@ jobs:
       - name: Install xmake
         shell: pwsh
         run: |
-          winget install --id Xmake-io.Xmake --exact --version 3.1.1 --accept-source-agreements --accept-package-agreements
+          winget install --id Xmake-io.Xmake --exact --version 3.1.1+20260827 --accept-source-agreements --accept-package-agreements
 
           $machinePath = [Environment]::GetEnvironmentVariable("Path", "Machine")
           $userPath = [Environment]::GetEnvironmentVariable("Path", "User")

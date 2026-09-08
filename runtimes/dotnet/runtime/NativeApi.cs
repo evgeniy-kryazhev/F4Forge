@@ -61,4 +61,5 @@ internal unsafe struct NativeApi
     public delegate* unmanaged[Cdecl]<ulong, int*, void*, uint, uint*, int> GetOperationResult;
     public delegate* unmanaged[Cdecl]<ulong, int> CancelOperation;
     public delegate* unmanaged[Cdecl]<ulong, int> ReleaseOperation;
+    public delegate* unmanaged[Cdecl]<ulong, uint, int> WaitModuleQuiescence;
 }

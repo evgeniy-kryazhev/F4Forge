@@ -112,6 +112,22 @@ int main()
         assert(cycleShutdownResult == F4FORGE_RESULT_SUCCESS);
         assert(!manager.IsActive(cycleRuntime));
     }
+    F4ForgeRuntimeHandle quarantinedRuntime = F4FORGE_INVALID_HANDLE;
+    const auto quarantinedInitializeResult = manager.Initialize(
+        { "test", 4 }, &host, {}, {}, &quarantinedRuntime);
+    assert(quarantinedInitializeResult == F4FORGE_RESULT_SUCCESS);
+    uint32_t moduleShutdownAttempts = 0;
+    manager.SetModuleShutdownCallback([&](F4ForgeRuntimeHandle) {
+        return ++moduleShutdownAttempts > 1;
+    });
+    const auto quarantineShutdownResult = manager.Shutdown(quarantinedRuntime);
+    assert(quarantineShutdownResult == F4FORGE_RESULT_TIMEOUT);
+    assert(!manager.IsActive(quarantinedRuntime));
+    const auto finalizedShutdownResult = manager.Shutdown(quarantinedRuntime);
+    assert(finalizedShutdownResult == F4FORGE_RESULT_SUCCESS);
+    assert(shutdownCalls == 1003);
+    const auto* retiredRuntime = manager.Find(quarantinedRuntime);
+    assert(retiredRuntime == nullptr);
     assert(manager.DiscoverDirectory("C:/F4Forge/missing-runtime-directory") == 0);
     return 0;
 }

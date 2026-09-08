@@ -93,7 +93,7 @@ public:
         std::lock_guard lock(_mutex);
         _quiescing = true;
         active.store(false, std::memory_order_release);
-        _state = State::Unloaded;
+        if (_inFlight == 0) _state = State::Unloaded;
     }
 
     bool IsActive() const noexcept
@@ -136,6 +136,7 @@ private:
     {
         if (!_quiescing || _inFlight != 0 || _teardownStarted || !_teardown) return {};
         _teardownStarted = true;
+        _state = State::Unloaded;
         return std::move(_teardown);
     }
 

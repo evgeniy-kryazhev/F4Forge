@@ -10,7 +10,12 @@ internal unsafe sealed class NativeHostBridge : IPluginHostBridge, IDisposable
 {
     private readonly NativeApi* _api;
     private readonly SdkModuleHandle _module;
+    private readonly List<CallbackRegistration> _registrations = [];
+    private readonly TaskCompletionSource<bool> _quiesced =
+        new(TaskCreationOptions.RunContinuationsAsynchronously);
+    private Action? _finalized;
     private bool _disposed;
+    private int _finalizationStarted;
 
     public NativeHostBridge(NativeApi* api, ulong runtime, string id)
     {
@@ -61,7 +66,8 @@ internal unsafe sealed class NativeHostBridge : IPluginHostBridge, IDisposable
         var state = new EndpointState(callback);
         var handle = RegisterEndpointNative(name, kind, version, requestSize, responseSize, threadPolicy, state);
         if (!handle.IsValid) { state.Dispose(); return null; }
-        var resource = new CallbackRegistration(_api, handle.Value, state, false);
+        var resource = new CallbackRegistration(_api, handle.Value, state, CallbackKind.Endpoint);
+        _registrations.Add(resource);
         return new HostRegistration<EndpointHandle> { Handle = handle, Resource = resource };
     }
 
@@ -100,7 +106,8 @@ internal unsafe sealed class NativeHostBridge : IPluginHostBridge, IDisposable
         var handle = _api->Subscribe(_module.Value, endpoint.Value, &EventThunk, (void*)context);
         if (handle == 0) { GCHandle.FromIntPtr(context).Free(); return null; }
         state.Handle = context;
-        var resource = new CallbackRegistration(_api, handle, state, false);
+        var resource = new CallbackRegistration(_api, handle, state, CallbackKind.Event);
+        _registrations.Add(resource);
         return new HostSubscription<EventSubscriptionHandle> {
             Handle = new EventSubscriptionHandle(handle), Resource = resource };
     }
@@ -114,7 +121,8 @@ internal unsafe sealed class NativeHostBridge : IPluginHostBridge, IDisposable
         var handle = _api->Intercept(_module.Value, endpoint.Value, &InterceptorThunk, (void*)context);
         if (handle == 0) { GCHandle.FromIntPtr(context).Free(); return null; }
         state.Handle = context;
-        var resource = new CallbackRegistration(_api, handle, state, true);
+        var resource = new CallbackRegistration(_api, handle, state, CallbackKind.Interceptor);
+        _registrations.Add(resource);
         return new HostSubscription<InterceptorSubscriptionHandle> {
             Handle = new InterceptorSubscriptionHandle(handle), Resource = resource };
     }
@@ -186,8 +194,38 @@ internal unsafe sealed class NativeHostBridge : IPluginHostBridge, IDisposable
     {
         if (_disposed) return;
         _disposed = true;
-        if (_api != null && _api->UnregisterModule != null && _module.IsValid)
-            _api->UnregisterModule(_module.Value);
+        foreach (var registration in _registrations) registration.Dispose();
+        if (_api == null || !_module.IsValid || _api->UnregisterModule == null) {
+            FinalizeCallbackStates();
+            return;
+        }
+        _api->UnregisterModule(_module.Value);
+        if (!HasModuleQuiescenceApi) return;
+        _ = Task.Run(() => {
+            var quiescence = (F4ForgeResult)_api->WaitModuleQuiescence(
+                _module.Value, uint.MaxValue);
+            if (quiescence is F4ForgeResult.Success or F4ForgeResult.InvalidHandle)
+                FinalizeCallbackStates();
+        });
+    }
+
+    public bool IsQuiesced => _quiesced.Task.IsCompletedSuccessfully;
+
+    private bool HasModuleQuiescenceApi =>
+        _api != null && _api->StructSize >= 168 && _api->WaitModuleQuiescence != null;
+
+    public void SetFinalizationCallback(Action callback)
+    {
+        _finalized = callback;
+        if (IsQuiesced) callback();
+    }
+
+    private void FinalizeCallbackStates()
+    {
+        if (Interlocked.Exchange(ref _finalizationStarted, 1) != 0) return;
+        foreach (var registration in _registrations) registration.Retire();
+        _quiesced.TrySetResult(true);
+        _finalized?.Invoke();
     }
 
     [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
@@ -241,29 +279,49 @@ internal unsafe sealed class NativeHostBridge : IPluginHostBridge, IDisposable
     {
         public EndpointCallback Callback { get; } = callback;
         public nint Handle { get; set; }
-        public void Dispose() { if (Handle != 0) GCHandle.FromIntPtr(Handle).Free(); }
+        public void Dispose()
+        {
+            if (Handle != 0) { GCHandle.FromIntPtr(Handle).Free(); Handle = 0; }
+        }
     }
 
     private sealed class EventState(Action<ReadOnlyMemory<byte>> callback) : IDisposable
     {
         public Action<ReadOnlyMemory<byte>> Callback { get; } = callback;
         public nint Handle { get; set; }
-        public void Dispose() { if (Handle != 0) GCHandle.FromIntPtr(Handle).Free(); }
+        public void Dispose()
+        {
+            if (Handle != 0) { GCHandle.FromIntPtr(Handle).Free(); Handle = 0; }
+        }
     }
 
     private sealed class InterceptorState(Func<Memory<byte>, F4ForgeResult> callback) : IDisposable
     {
         public Func<Memory<byte>, F4ForgeResult> Callback { get; } = callback;
         public nint Handle { get; set; }
-        public void Dispose() { if (Handle != 0) GCHandle.FromIntPtr(Handle).Free(); }
-    }
-
-    private sealed class CallbackRegistration(NativeApi* api, ulong handle, IDisposable state, bool interceptor) : IDisposable
-    {
         public void Dispose()
         {
-            if (interceptor) api->RemoveInterceptor(handle);
-            else api->Unsubscribe(handle);
+            if (Handle != 0) { GCHandle.FromIntPtr(Handle).Free(); Handle = 0; }
+        }
+    }
+
+    private enum CallbackKind { Endpoint, Event, Interceptor }
+
+    private sealed class CallbackRegistration(
+        NativeApi* api, ulong handle, IDisposable state, CallbackKind kind) : IDisposable
+    {
+        private int _disposed;
+
+        public void Dispose()
+        {
+            if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
+            if (kind == CallbackKind.Event) api->Unsubscribe(handle);
+            else if (kind == CallbackKind.Interceptor) api->RemoveInterceptor(handle);
+        }
+
+        public void Retire()
+        {
+            Dispose();
             state.Dispose();
         }
     }
