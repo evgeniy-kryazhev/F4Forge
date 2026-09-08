@@ -1,4 +1,5 @@
 #include "f4forge_runtime_abi.h"
+#include "HostFxrVersion.h"
 
 #define WIN32_LEAN_AND_MEAN
 #include <Windows.h>
@@ -49,7 +50,7 @@ std::wstring Utf8ToWide(F4ForgeStringView value)
     return result;
 }
 
-bool LoadHostFxr(State& state) noexcept
+bool LoadHostFxr(State& state)
 {
     std::vector<std::filesystem::path> roots;
     wchar_t buffer[32768]{};
@@ -67,13 +68,10 @@ bool LoadHostFxr(State& state) noexcept
         std::vector<std::filesystem::path> versions;
         for (const auto& entry : std::filesystem::directory_iterator(fxrDirectory))
             if (entry.is_directory()) versions.push_back(entry.path());
-        std::sort(versions.rbegin(), versions.rend());
-        for (const auto& version : versions) {
-            const auto path = version / L"hostfxr.dll";
-            if (!std::filesystem::exists(path)) continue;
-            state.hostfxrModule = LoadLibraryW(path.c_str());
-            if (state.hostfxrModule != nullptr) return true;
-        }
+        const auto path = f4forge::dotnet::SelectHighestHostFxrPath(versions);
+        if (path.empty()) continue;
+        state.hostfxrModule = LoadLibraryW(path.c_str());
+        if (state.hostfxrModule != nullptr) return true;
     }
     return false;
 }

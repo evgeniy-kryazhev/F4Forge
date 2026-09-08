@@ -108,7 +108,7 @@ target("F4Forge.Dotnet")
     set_basename("F4Forge.Dotnet")
     set_kind("shared")
     set_targetdir("../runtimes/dotnet/native-provider/bin")
-    add_files("../runtimes/dotnet/native-provider/DotNetProvider.cpp")
+    add_files("../runtimes/dotnet/native-provider/DotNetProvider.cpp", "../runtimes/dotnet/native-provider/HostFxrVersion.cpp")
     if os.isfile("generated/dotnet_runtime.rc") then
         add_files("generated/dotnet_runtime.rc")
     end
@@ -119,3 +119,9 @@ target("F4Forge.Dotnet")
         assert(hostdir and os.isfile(path.join(hostdir, "hostfxr.h")), "Missing .NET x64 native host pack")
         target:add("includedirs", hostdir)
     end)
+
+target("F4ForgeHostFxrVersionTests")
+    set_kind("binary")
+    add_files("../runtimes/dotnet/native-provider/HostFxrVersion.cpp", "tests/runtime/HostFxrVersionTests.cpp")
+    add_includedirs("../runtimes/dotnet/native-provider")
+    add_cxxflags("/WX", "/permissive-", "/EHsc", "/utf-8", { public = false })
