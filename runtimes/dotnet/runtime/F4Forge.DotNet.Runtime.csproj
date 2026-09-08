@@ -5,5 +5,6 @@
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\sdk\F4Forge.DotNet.Sdk.csproj" />
+    <None Include="F4Forge.DotNet.Runtime.runtimeconfig.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>
