@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <AssemblyName>F4Forge.PluginFixture</AssemblyName>
+    <RootNamespace>F4Forge.PluginFixture</RootNamespace>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\sdk\F4Forge.DotNet.Sdk.csproj" />
+    <Compile Include="FixturePlugin.cs" />
+  </ItemGroup>
+</Project>

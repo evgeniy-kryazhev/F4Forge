@@ -7,5 +7,11 @@
   <ItemGroup>
     <ProjectReference Include="..\sdk\F4Forge.DotNet.Sdk.csproj" />
     <ProjectReference Include="..\runtime\F4Forge.DotNet.Runtime.csproj" />
+    <ProjectReference Include="PluginFixture.csproj" />
+    <ProjectReference Include="FailureFixture.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Remove="FixturePlugin.cs" />
+    <Compile Remove="FailurePlugin.cs" />
   </ItemGroup>
 </Project>

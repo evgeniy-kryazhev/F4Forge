@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <AssemblyName>F4Forge.FailureFixture</AssemblyName>
+    <RootNamespace>F4Forge.FailureFixture</RootNamespace>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\sdk\F4Forge.DotNet.Sdk.csproj" />
+    <Compile Include="FailurePlugin.cs" />
+  </ItemGroup>
+</Project>
