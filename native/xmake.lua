@@ -15,6 +15,7 @@ add_rules("mode.debug", "mode.releasedbg")
 add_rules("plugin.vsxmake.autoupdate")
 
 target("F4Forge")
+    set_kind("shared")
     add_rules("commonlibf4.plugin", {
         name = "F4Forge",
         author = "F4Forge contributors",
