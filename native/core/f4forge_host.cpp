@@ -129,8 +129,20 @@ F4ForgeResult F4FORGE_CALL F4ForgeHost::QueueTask(
     return F4FORGE_RESULT_RUNTIME_UNAVAILABLE;
 }
 
-void F4FORGE_CALL F4ForgeHost::Log(uint32_t, F4ForgeStringView) F4FORGE_NOEXCEPT
+void F4ForgeHost::SetLogSink(LogSink sink) noexcept
 {
+    _logSink.store(sink, std::memory_order_release);
+}
+
+void F4FORGE_CALL F4ForgeHost::Log(uint32_t level, F4ForgeStringView message) F4FORGE_NOEXCEPT
+{
+    if (message.data == nullptr && message.length != 0) return;
+    const auto sink = Instance()._logSink.load(std::memory_order_acquire);
+    if (sink == nullptr) return;
+    try {
+        sink(level, std::string_view(message.data == nullptr ? "" : message.data, message.length));
+    } catch (...) {
+    }
 }
 
 F4ForgeEventSubscriptionHandle F4FORGE_CALL F4ForgeHost::Subscribe(

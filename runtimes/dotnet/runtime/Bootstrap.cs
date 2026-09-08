@@ -32,6 +32,7 @@ public static unsafe class Bootstrap
             {
                 if (initialized) return (int)F4ForgeResult.Success;
                 nativeApi = args->Host;
+                Logger.Sink = message => WriteLog(nativeApi, message);
                 var pluginDirectory = ReadUtf8(args->PluginDirectory);
                 pluginLoader = new PluginLoader();
                 pluginLoader.LoadDirectory(pluginDirectory);
@@ -62,5 +63,16 @@ public static unsafe class Bootstrap
     {
         if (value.Data == null || value.Length == 0) return string.Empty;
         return Encoding.UTF8.GetString(value.Data, checked((int)value.Length));
+    }
+
+    private static void WriteLog(NativeApi* api, string message)
+    {
+        if (api == null || api->Log == null) return;
+        var bytes = Encoding.UTF8.GetBytes(message);
+        fixed (byte* text = bytes)
+        {
+            var view = new F4ForgeStringView { Data = text, Length = checked((uint)bytes.Length) };
+            api->Log(2, view);
+        }
     }
 }

@@ -7,6 +7,9 @@
 #include "registry/interceptor_registry.h"
 #include "runtime/runtime_manager.h"
 
+#include <atomic>
+#include <string_view>
+
 namespace f4forge::core {
 
 class F4ForgeHost final {
@@ -20,6 +23,8 @@ public:
     CapabilityRegistry& Capabilities() noexcept;
     ModuleManager& Modules() noexcept;
     RuntimeManager& Runtimes() noexcept;
+    using LogSink = void (*)(uint32_t level, std::string_view message) noexcept;
+    void SetLogSink(LogSink sink) noexcept;
 
 private:
     F4ForgeHost() noexcept;
@@ -75,6 +80,7 @@ private:
     ModuleManager _modules;
     RuntimeManager _runtimes;
     F4ForgeHostApi _api{};
+    std::atomic<LogSink> _logSink{ nullptr };
 };
 
 }
