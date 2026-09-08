@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <AssemblyName>F4Forge.DotNet.Tests</AssemblyName>
+    <RootNamespace>F4Forge.DotNet.Tests</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\sdk\F4Forge.DotNet.Sdk.csproj" />
+    <ProjectReference Include="..\runtime\F4Forge.DotNet.Runtime.csproj" />
+  </ItemGroup>
+</Project>
