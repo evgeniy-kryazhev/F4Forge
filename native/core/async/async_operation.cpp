@@ -48,27 +48,64 @@ void AsyncOperation::Run() noexcept
         result = F4FORGE_RESULT_INTERNAL_ERROR;
     }
 
+    std::function<void()> terminalCallback;
     {
         std::lock_guard lock(_mutex);
         if (_state == F4FORGE_ASYNC_OPERATION_RUNNING) {
             _invocationResult = result;
             _state = F4FORGE_ASYNC_OPERATION_COMPLETED;
+            if (_autoReleaseOnTerminal && !_terminalCallbackInvoked) {
+                _terminalCallbackInvoked = true;
+                terminalCallback = _terminalCallback;
+            }
         }
     }
     _condition.notify_all();
+    if (terminalCallback) {
+        try { terminalCallback(); } catch (...) { }
+    }
 }
 
 F4ForgeResult AsyncOperation::Cancel() noexcept
 {
-    std::lock_guard lock(_mutex);
-    if (_state == F4FORGE_ASYNC_OPERATION_PENDING) {
-        _state = F4FORGE_ASYNC_OPERATION_CANCELLED;
-        _condition.notify_all();
-        return F4FORGE_RESULT_SUCCESS;
+    std::function<void()> terminalCallback;
+    F4ForgeResult result;
+    {
+        std::lock_guard lock(_mutex);
+        if (_state == F4FORGE_ASYNC_OPERATION_PENDING) {
+            _state = F4FORGE_ASYNC_OPERATION_CANCELLED;
+            result = F4FORGE_RESULT_SUCCESS;
+        } else if (_state == F4FORGE_ASYNC_OPERATION_RUNNING) {
+            return F4FORGE_RESULT_NOT_CANCELLABLE;
+        } else if (_state == F4FORGE_ASYNC_OPERATION_CANCELLED) {
+            result = F4FORGE_RESULT_SUCCESS;
+        } else {
+            return F4FORGE_RESULT_OPERATION_BUSY;
+        }
+        if (_autoReleaseOnTerminal && !_terminalCallbackInvoked) {
+            _terminalCallbackInvoked = true;
+            terminalCallback = _terminalCallback;
+        }
     }
-    if (_state == F4FORGE_ASYNC_OPERATION_RUNNING) return F4FORGE_RESULT_NOT_CANCELLABLE;
-    if (_state == F4FORGE_ASYNC_OPERATION_CANCELLED) return F4FORGE_RESULT_SUCCESS;
-    return F4FORGE_RESULT_OPERATION_BUSY;
+    _condition.notify_all();
+    if (terminalCallback) {
+        try { terminalCallback(); } catch (...) { }
+    }
+    return result;
+}
+
+bool AsyncOperation::MarkAutoReleaseOnTerminal() noexcept
+{
+    std::lock_guard lock(_mutex);
+    _autoReleaseOnTerminal = true;
+    return _state == F4FORGE_ASYNC_OPERATION_COMPLETED ||
+        _state == F4FORGE_ASYNC_OPERATION_CANCELLED;
+}
+
+void AsyncOperation::SetTerminalCallback(std::function<void()> callback) noexcept
+{
+    std::lock_guard lock(_mutex);
+    _terminalCallback = std::move(callback);
 }
 
 F4ForgeResult AsyncOperation::Wait(
@@ -156,6 +193,7 @@ F4ForgeResult AsyncOperationRegistry::Create(
     const auto handle = Publish(object);
     if (handle == F4FORGE_INVALID_HANDLE) return F4FORGE_RESULT_INTERNAL_ERROR;
     *operation = handle;
+    object->SetTerminalCallback([this, handle] { Retire(handle); });
 
     GameThreadScheduler* scheduler;
     {
@@ -259,17 +297,22 @@ F4ForgeResult AsyncOperationRegistry::Release(F4ForgeAsyncOperationHandle operat
     return F4FORGE_RESULT_SUCCESS;
 }
 
-void AsyncOperationRegistry::CancelRequester(F4ForgeModuleHandle requester) const noexcept
+void AsyncOperationRegistry::CancelRequester(F4ForgeModuleHandle requester) noexcept
 {
-    std::vector<std::shared_ptr<AsyncOperation>> operations;
+    std::vector<std::pair<F4ForgeAsyncOperationHandle, std::shared_ptr<AsyncOperation>>> operations;
     {
         std::lock_guard lock(_mutex);
         for (uint32_t index = 1; index < _nextIndex; ++index) {
             if (_slots[index].operation && _slots[index].operation->Requester() == requester)
-                operations.push_back(_slots[index].operation);
+                operations.emplace_back(
+                    f4forge::MakeHandle(_slots[index].generation, index), _slots[index].operation);
         }
     }
-    for (const auto& operation : operations) operation->Cancel();
+    for (const auto& [handle, operation] : operations) {
+        const auto terminal = operation->MarkAutoReleaseOnTerminal();
+        operation->Cancel();
+        if (terminal) Retire(handle);
+    }
 }
 
 void AsyncOperationRegistry::RunJob(void* context) noexcept
@@ -325,6 +368,21 @@ F4ForgeAsyncOperationHandle AsyncOperationRegistry::Publish(std::shared_ptr<Asyn
     }
     _slots[index].operation = std::move(operation);
     return f4forge::MakeHandle(_slots[index].generation, index);
+}
+
+void AsyncOperationRegistry::Retire(F4ForgeAsyncOperationHandle operation) noexcept
+{
+    std::lock_guard lock(_mutex);
+    if (operation == F4FORGE_INVALID_HANDLE) return;
+    const auto index = f4forge::HandleIndex(operation);
+    if (index == 0 || index >= MaxOperations) return;
+    auto& slot = _slots[index];
+    if (f4forge::HandleGeneration(operation) != slot.generation || !slot.operation) return;
+    slot.operation.reset();
+    if (slot.generation != UINT32_MAX) {
+        ++slot.generation;
+        _freeIndices.push_back(index);
+    }
 }
 
 }

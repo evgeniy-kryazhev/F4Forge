@@ -20,6 +20,7 @@ internal sealed class PluginLoader
     private readonly object _gate = new();
     private readonly Dictionary<string, PluginInstance> _plugins = new(StringComparer.OrdinalIgnoreCase);
     private readonly int _failureThreshold;
+    private static readonly AsyncLocal<int> DispatchDepth = new();
 
     public PluginLoader(int failureThreshold = 3)
     {
@@ -60,7 +61,14 @@ internal sealed class PluginLoader
 
         var loaded = 0;
         foreach (var candidate in OrderCandidates(candidates))
+        {
+            if (!DependenciesActive(candidate, candidates))
+            {
+                Logger.Error($"Managed plugin '{candidate.Manifest.Id}' skipped because a dependency is inactive.");
+                continue;
+            }
             if (Load(candidate.Path, candidate.Manifest.Id)) ++loaded;
+        }
 
         foreach (var path in Directory.EnumerateFiles(directory, "*.dll").Order(StringComparer.OrdinalIgnoreCase))
         {
@@ -122,45 +130,92 @@ internal sealed class PluginLoader
 
     private static List<PluginCandidate> OrderCandidates(IReadOnlyList<PluginCandidate> candidates)
     {
-        var providers = new Dictionary<string, PluginCandidate>(StringComparer.OrdinalIgnoreCase);
+        var ids = new Dictionary<string, PluginCandidate>(StringComparer.OrdinalIgnoreCase);
+        var capabilities = new Dictionary<string, PluginCandidate>(StringComparer.OrdinalIgnoreCase);
         foreach (var candidate in candidates)
         {
             if (!string.IsNullOrWhiteSpace(candidate.Manifest.Id))
-                providers[candidate.Manifest.Id!] = candidate;
+            {
+                if (!ids.TryAdd(candidate.Manifest.Id!, candidate))
+                    Logger.Error($"Duplicate managed plugin id: {candidate.Manifest.Id}");
+            }
             foreach (var capability in candidate.Manifest.ProvidedCapabilities ?? [])
-                if (!providers.TryAdd(capability, candidate))
+                if (!capabilities.TryAdd(capability, candidate))
                     Logger.Error($"Duplicate managed capability provider: {capability}");
         }
 
+        if (ids.Count != candidates.Count(candidate => !string.IsNullOrWhiteSpace(candidate.Manifest.Id)) ||
+            capabilities.Count != (candidates.SelectMany(candidate => candidate.Manifest.ProvidedCapabilities ?? [])
+                .Distinct(StringComparer.OrdinalIgnoreCase).Count()))
+            return [];
+
+        var providers = new Dictionary<string, PluginCandidate>(ids, StringComparer.OrdinalIgnoreCase);
+        foreach (var capability in capabilities)
+            if (!providers.TryAdd(capability.Key, capability.Value))
+            {
+                Logger.Error($"Managed plugin id/capability collision: {capability.Key}");
+                return [];
+            }
+
         var visiting = new HashSet<PluginCandidate>();
         var visited = new HashSet<PluginCandidate>();
+        var failed = new HashSet<PluginCandidate>();
         var ordered = new List<PluginCandidate>();
         bool Visit(PluginCandidate candidate)
         {
             if (visited.Contains(candidate)) return true;
+            if (failed.Contains(candidate)) return false;
             if (!visiting.Add(candidate))
             {
                 Logger.Error($"Managed plugin dependency cycle includes '{candidate.Manifest.Id}'.");
+                failed.Add(candidate);
                 return false;
             }
+            var valid = true;
             foreach (var dependency in candidate.Manifest.Dependencies ?? [])
             {
                 if (!providers.TryGetValue(dependency, out var provider))
                 {
                     Logger.Error($"Managed plugin '{candidate.Manifest.Id}' is missing dependency '{dependency}'.");
-                    return false;
+                    valid = false;
+                    break;
                 }
-                if (!Visit(provider)) return false;
+                if (!Visit(provider))
+                {
+                    valid = false;
+                    break;
+                }
             }
             visiting.Remove(candidate);
+            if (!valid)
+            {
+                failed.Add(candidate);
+                return false;
+            }
             visited.Add(candidate);
             ordered.Add(candidate);
             return true;
         }
 
         foreach (var candidate in candidates)
-            if (!Visit(candidate)) ordered.Remove(candidate);
+            Visit(candidate);
         return ordered;
+    }
+
+    private bool DependenciesActive(
+        PluginCandidate candidate,
+        IReadOnlyList<PluginCandidate> candidates)
+    {
+        foreach (var dependency in candidate.Manifest.Dependencies ?? [])
+        {
+            var provider = candidates.FirstOrDefault(item =>
+                string.Equals(item.Manifest.Id, dependency, StringComparison.OrdinalIgnoreCase) ||
+                (item.Manifest.ProvidedCapabilities ?? [])
+                    .Any(capability => string.Equals(capability, dependency, StringComparison.OrdinalIgnoreCase)));
+            if (provider == null || string.IsNullOrWhiteSpace(provider.Manifest.Id) ||
+                !IsActive(provider.Manifest.Id!)) return false;
+        }
+        return true;
     }
 
     public bool Load(string path, string? expectedId = null)
@@ -170,7 +225,7 @@ internal sealed class PluginLoader
         {
             var context = new PluginLoadContext(path);
             var assembly = context.LoadFromAssemblyPath(Path.GetFullPath(path));
-            var pluginType = FindPluginType(assembly);
+            var pluginType = FindPluginType(assembly, expectedId);
             if (pluginType == null)
             {
                 context.Unload();
@@ -243,6 +298,7 @@ internal sealed class PluginLoader
             using (lease)
             try
             {
+                ++DispatchDepth.Value;
                 callback(instance.Plugin);
                 instance.ResetFailures();
             }
@@ -252,6 +308,10 @@ internal sealed class PluginLoader
                 {
                     instance.Scope.Dispose();
                 }
+            }
+            finally
+            {
+                --DispatchDepth.Value;
             }
         }
     }
@@ -278,20 +338,33 @@ internal sealed class PluginLoader
             return _plugins.TryGetValue(id, out var instance) && instance.State == PluginState.Active;
     }
 
-    private static Type? FindPluginType(Assembly assembly)
+    private static Type? FindPluginType(Assembly assembly, string? expectedId = null)
     {
         try
         {
-            return assembly.GetTypes()
+            var types = assembly.GetTypes()
                 .Where(type => type is { IsAbstract: false, IsPublic: true } && typeof(F4ForgePlugin).IsAssignableFrom(type))
-                .OrderBy(type => type.FullName, StringComparer.Ordinal)
-                .FirstOrDefault();
+                .OrderBy(type => type.FullName, StringComparer.Ordinal);
+            if (expectedId == null) return types.FirstOrDefault();
+            foreach (var type in types)
+            {
+                if (Activator.CreateInstance(type) is F4ForgePlugin plugin &&
+                    plugin.Id.Equals(expectedId, StringComparison.OrdinalIgnoreCase)) return type;
+            }
+            return null;
         }
         catch (ReflectionTypeLoadException exception)
         {
-            return exception.Types.OfType<Type>()
+            var types = exception.Types.OfType<Type>()
                 .Where(type => type is { IsAbstract: false, IsPublic: true } && typeof(F4ForgePlugin).IsAssignableFrom(type))
-                .FirstOrDefault();
+                .OrderBy(type => type.FullName, StringComparer.Ordinal);
+            if (expectedId == null) return types.FirstOrDefault();
+            foreach (var type in types)
+            {
+                if (Activator.CreateInstance(type) is F4ForgePlugin plugin &&
+                    plugin.Id.Equals(expectedId, StringComparison.OrdinalIgnoreCase)) return type;
+            }
+            return null;
         }
     }
 
@@ -311,9 +384,11 @@ internal sealed class PluginLoader
     private sealed class PluginInstance
     {
         private readonly object _lifecycleGate = new();
+        private readonly TaskCompletionSource<bool> _stopped = new(TaskCreationOptions.RunContinuationsAsynchronously);
         private int _inFlight;
         private PluginState _state = PluginState.Loading;
         private int _failures;
+        private bool _teardownStarted;
 
         public PluginInstance(string path, PluginLoadContext context, F4ForgePlugin plugin, string id, PluginResourceScope scope)
         {
@@ -382,12 +457,29 @@ internal sealed class PluginLoader
         public void Stop()
         {
             bool wasLoaded;
+            bool finalize;
             lock (_lifecycleGate)
             {
-                if (_state is PluginState.Unloaded or PluginState.Quiescing) return;
+                if (_state == PluginState.Unloaded) return;
+                if (_state == PluginState.Quiescing)
+                {
+                    if (DispatchDepth.Value == 0) _stopped.Task.GetAwaiter().GetResult();
+                    return;
+                }
                 wasLoaded = _state is PluginState.Active or PluginState.Disabled;
                 _state = PluginState.Quiescing;
-                while (_inFlight != 0) Monitor.Wait(_lifecycleGate);
+                finalize = _inFlight == 0;
+            }
+            if (finalize) FinalizeStop(wasLoaded);
+            else if (DispatchDepth.Value == 0) _stopped.Task.GetAwaiter().GetResult();
+        }
+
+        private void FinalizeStop(bool wasLoaded)
+        {
+            lock (_lifecycleGate)
+            {
+                if (_teardownStarted || _state == PluginState.Unloaded) return;
+                _teardownStarted = true;
             }
             if (wasLoaded)
             {
@@ -397,15 +489,18 @@ internal sealed class PluginLoader
             Scope.Dispose();
             lock (_lifecycleGate) _state = PluginState.Unloaded;
             Context.Unload();
+            _stopped.TrySetResult(true);
         }
 
         private void ReleaseDispatchLease()
         {
+            bool finalize;
             lock (_lifecycleGate)
             {
                 --_inFlight;
-                if (_inFlight == 0) Monitor.PulseAll(_lifecycleGate);
+                finalize = _inFlight == 0 && _state == PluginState.Quiescing;
             }
+            if (finalize) FinalizeStop(true);
         }
 
         private sealed class DispatchLease : IDisposable

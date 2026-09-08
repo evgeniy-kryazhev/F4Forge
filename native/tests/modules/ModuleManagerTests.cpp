@@ -11,9 +11,25 @@ struct Request {
     uint32_t value;
 };
 
+struct SelfUnregisterContext {
+    f4forge::core::ModuleManager* modules{};
+    F4ForgeModuleHandle module{};
+    uint32_t calls{};
+};
+
 F4ForgeResult F4FORGE_CALL Noop(
     void*, const void*, uint32_t, void*, uint32_t, uint32_t*) noexcept
 {
+    return F4FORGE_RESULT_SUCCESS;
+}
+
+F4ForgeResult F4FORGE_CALL SelfUnregister(
+    void* context, const void*, uint32_t, void*, uint32_t, uint32_t*) noexcept
+{
+    auto& self = *static_cast<SelfUnregisterContext*>(context);
+    ++self.calls;
+    const auto result = self.modules->Unregister(self.module);
+    assert(result == F4FORGE_RESULT_SUCCESS);
     return F4FORGE_RESULT_SUCCESS;
 }
 
@@ -66,5 +82,27 @@ int main()
     assert(f4forge::HandleGeneration(reusedModule) != f4forge::HandleGeneration(module));
     const auto reusedUnregisterResult = modules.Unregister(reusedModule);
     assert(reusedUnregisterResult == F4FORGE_RESULT_SUCCESS);
+
+    F4ForgeModuleHandle reentrantModule = F4FORGE_INVALID_HANDLE;
+    const auto reentrantRegisterResult = modules.Register(
+        7, { "reentrant.module", sizeof("reentrant.module") - 1 }, 1, &reentrantModule);
+    assert(reentrantRegisterResult == F4FORGE_RESULT_SUCCESS);
+    SelfUnregisterContext reentrantContext{ &modules, reentrantModule };
+    F4ForgeEndpointDefinition reentrantDefinition = definition;
+    reentrantDefinition.name = { "reentrant.module.endpoint", sizeof("reentrant.module.endpoint") - 1 };
+    reentrantDefinition.thunk = &SelfUnregister;
+    reentrantDefinition.context = &reentrantContext;
+    F4ForgeEndpointHandle reentrantEndpoint = F4FORGE_INVALID_HANDLE;
+    const auto reentrantEndpointResult = endpoints.Register(
+        reentrantDefinition, modules.Owner(reentrantModule), &reentrantEndpoint);
+    assert(reentrantEndpointResult == F4FORGE_RESULT_SUCCESS);
+    Request reentrantRequest{};
+    assert(endpoints.Invoke(
+        reentrantEndpoint, &reentrantRequest, sizeof(reentrantRequest), nullptr, 0, nullptr)
+        == F4FORGE_RESULT_SUCCESS);
+    assert(reentrantContext.calls == 1);
+    assert(!modules.IsActive(reentrantModule));
+    assert(endpoints.Invoke(reentrantEndpoint, nullptr, 0, nullptr, 0, nullptr)
+        == F4FORGE_RESULT_STALE_HANDLE);
     return 0;
 }

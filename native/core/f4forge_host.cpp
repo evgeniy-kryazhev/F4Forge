@@ -18,6 +18,9 @@ F4ForgeHost::F4ForgeHost() noexcept
       _operations(),
       _modules(_endpoints, _events, _interceptors, _capabilities, &_runtimes, &_operations)
 {
+    _runtimes.SetModuleShutdownCallback([this](F4ForgeRuntimeHandle runtime) {
+        _modules.UnregisterRuntime(runtime);
+    });
     _api.abiVersion = F4FORGE_ABI_VERSION;
     _api.structSize = sizeof(F4ForgeHostApi);
     _api.resolveEndpoint = &ResolveEndpoint;

@@ -32,6 +32,8 @@ public:
     F4ForgeAsyncOperationState State() const noexcept;
     void Run() noexcept;
     F4ForgeResult Cancel() noexcept;
+    bool MarkAutoReleaseOnTerminal() noexcept;
+    void SetTerminalCallback(std::function<void()> callback) noexcept;
     F4ForgeResult Wait(const GameThreadScheduler* scheduler, uint32_t timeoutMilliseconds) const noexcept;
     F4ForgeResult GetResult(
         F4ForgeResult* invocationResult,
@@ -52,6 +54,9 @@ private:
     uint32_t _responseSize{};
     std::vector<uint8_t> _response;
     Executor _executor;
+    std::function<void()> _terminalCallback;
+    bool _autoReleaseOnTerminal{};
+    bool _terminalCallbackInvoked{};
 };
 
 class AsyncOperationRegistry final {
@@ -84,7 +89,7 @@ public:
         uint32_t* responseSize) const noexcept;
     F4ForgeResult Cancel(F4ForgeAsyncOperationHandle operation) const noexcept;
     F4ForgeResult Release(F4ForgeAsyncOperationHandle operation) noexcept;
-    void CancelRequester(F4ForgeModuleHandle requester) const noexcept;
+    void CancelRequester(F4ForgeModuleHandle requester) noexcept;
     void Shutdown() noexcept;
 
     static void RunJob(void* context) noexcept;
@@ -102,6 +107,7 @@ private:
 
     std::shared_ptr<AsyncOperation> Acquire(F4ForgeAsyncOperationHandle operation) const noexcept;
     F4ForgeAsyncOperationHandle Publish(std::shared_ptr<AsyncOperation> operation);
+    void Retire(F4ForgeAsyncOperationHandle operation) noexcept;
 
     mutable std::mutex _mutex;
     GameThreadScheduler* _scheduler{};

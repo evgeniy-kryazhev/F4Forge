@@ -3,6 +3,7 @@
 #include <atomic>
 #include <condition_variable>
 #include <cstdint>
+#include <functional>
 #include <mutex>
 
 namespace f4forge::core {
@@ -42,6 +43,8 @@ private:
 
 class DispatchOwner {
 public:
+    using DeferredTeardown = std::function<void()>;
+
     DispatchOwner() noexcept = default;
     DispatchOwner(const DispatchOwner&) = delete;
     DispatchOwner& operator=(const DispatchOwner&) = delete;
@@ -54,12 +57,17 @@ public:
         return DispatchLease(this);
     }
 
-    void BeginQuiescing() noexcept
+    void BeginQuiescing(DeferredTeardown teardown = {}) noexcept
     {
-        std::unique_lock lock(_mutex);
-        active.store(false, std::memory_order_release);
-        _quiescing = true;
-        _condition.wait(lock, [this] { return _inFlight == 0; });
+        DeferredTeardown ready;
+        {
+            std::lock_guard lock(_mutex);
+            active.store(false, std::memory_order_release);
+            _quiescing = true;
+            if (teardown && !_teardown) _teardown = std::move(teardown);
+            if (_inFlight == 0) ready = TakeTeardownUnlocked();
+        }
+        InvokeTeardown(std::move(ready));
     }
 
     void MarkUnloaded() noexcept
@@ -81,16 +89,38 @@ private:
 
     void ReleaseDispatchLease() noexcept
     {
-        std::lock_guard lock(_mutex);
-        if (_inFlight == 0) return;
-        --_inFlight;
-        if (_quiescing && _inFlight == 0) _condition.notify_all();
+        DeferredTeardown ready;
+        {
+            std::lock_guard lock(_mutex);
+            if (_inFlight == 0) return;
+            --_inFlight;
+            if (_quiescing && _inFlight == 0) {
+                _condition.notify_all();
+                ready = TakeTeardownUnlocked();
+            }
+        }
+        InvokeTeardown(std::move(ready));
+    }
+
+    DeferredTeardown TakeTeardownUnlocked() noexcept
+    {
+        if (!_quiescing || _inFlight != 0 || _teardownStarted || !_teardown) return {};
+        _teardownStarted = true;
+        return std::move(_teardown);
+    }
+
+    static void InvokeTeardown(DeferredTeardown teardown) noexcept
+    {
+        if (!teardown) return;
+        try { teardown(); } catch (...) { }
     }
 
     mutable std::mutex _mutex;
     std::condition_variable _condition;
     uint32_t _inFlight{};
     bool _quiescing{};
+    bool _teardownStarted{};
+    DeferredTeardown _teardown;
 };
 
 inline void DispatchLease::Reset() noexcept

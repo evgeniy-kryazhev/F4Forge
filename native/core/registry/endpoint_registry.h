@@ -50,7 +50,7 @@ public:
         uint32_t responseCapacity,
         uint32_t* responseSize) const noexcept;
 
-    void InvalidateOwner(EndpointOwner* owner);
+    void InvalidateOwner(const EndpointOwner* owner);
     void SetGameThreadCheck(GameThreadCheck check) noexcept;
 
 private:

@@ -75,14 +75,36 @@ F4ForgeResult RuntimeManager::Initialize(
         const RuntimeProvider* selected = selectedIt == _providers.begin() + _providerCount
             ? nullptr : selectedIt->get();
         if (selected == nullptr) return F4FORGE_RESULT_RUNTIME_UNAVAILABLE;
-        if (_runtimeCount >= MaxRuntimes) return F4FORGE_RESULT_INTERNAL_ERROR;
+
+        for (uint32_t index = 0; index < _runtimeCount; ++index) {
+            const auto& existing = _runtimes[index];
+            if (!existing || existing->provider != selected) continue;
+            if (existing->state == RuntimeInstance::State::Active)
+                return F4FORGE_RESULT_ALREADY_REGISTERED;
+            if (existing->state == RuntimeInstance::State::Initializing ||
+                existing->state == RuntimeInstance::State::ShuttingDown)
+                return F4FORGE_RESULT_OPERATION_BUSY;
+        }
 
         auto reserved = std::make_unique<RuntimeInstance>();
         reserved->handle = _nextRuntimeHandle++;
         reserved->provider = selected;
         reserved->state = RuntimeInstance::State::Initializing;
         instance = reserved.get();
-        _runtimes[_runtimeCount++] = std::move(reserved);
+        uint32_t slot = _runtimeCount;
+        for (uint32_t index = 0; index < _runtimeCount; ++index) {
+            const auto state = _runtimes[index] == nullptr
+                ? RuntimeInstance::State::Inactive : _runtimes[index]->state;
+            if (state == RuntimeInstance::State::Inactive || state == RuntimeInstance::State::Failed) {
+                slot = index;
+                break;
+            }
+        }
+        if (slot == _runtimeCount) {
+            if (_runtimeCount >= MaxRuntimes) return F4FORGE_RESULT_INTERNAL_ERROR;
+            ++_runtimeCount;
+        }
+        _runtimes[slot] = std::move(reserved);
     }
 
     F4ForgeRuntimeInitializeParams params{
@@ -160,6 +182,15 @@ F4ForgeResult RuntimeManager::Shutdown(F4ForgeRuntimeHandle runtime)
     }
 
     F4ForgeResult result = F4FORGE_RESULT_SUCCESS;
+    std::function<void(F4ForgeRuntimeHandle)> moduleShutdown;
+    {
+        std::lock_guard lock(_mutex);
+        moduleShutdown = _moduleShutdown;
+    }
+    if (moduleShutdown) {
+        try { moduleShutdown(runtime); }
+        catch (...) { result = F4FORGE_RESULT_INTERNAL_ERROR; }
+    }
     try {
         provider->provider.shutdown(runtime);
     } catch (...) {
@@ -170,6 +201,13 @@ F4ForgeResult RuntimeManager::Shutdown(F4ForgeRuntimeHandle runtime)
         instance->state = RuntimeInstance::State::Inactive;
     }
     return result;
+}
+
+void RuntimeManager::SetModuleShutdownCallback(
+    std::function<void(F4ForgeRuntimeHandle)> callback) noexcept
+{
+    std::lock_guard lock(_mutex);
+    _moduleShutdown = std::move(callback);
 }
 
 RuntimeInstance* RuntimeManager::Find(F4ForgeRuntimeHandle runtime) noexcept

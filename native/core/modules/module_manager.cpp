@@ -74,23 +74,45 @@ F4ForgeResult ModuleManager::Unregister(F4ForgeModuleHandle module)
             return F4FORGE_RESULT_INACTIVE_MODULE;
     }
 
-    state->endpointOwner.BeginQuiescing();
+    // Close dispatch admission first. Final slot retirement is deferred when
+    // this call originates from one of the module's own callbacks.
+    state->endpointOwner.BeginQuiescing([this, module] {
+        std::lock_guard lock(_mutex);
+        const auto index = f4forge::HandleIndex(module);
+        if (index == 0 || index >= MaxModules) return;
+        auto& slot = _slots[index];
+        if (!slot.state || f4forge::HandleGeneration(module) !=
+            slot.generation.load(std::memory_order_acquire)) return;
+        if (slot.generation.load(std::memory_order_acquire) != UINT32_MAX) {
+            slot.generation.fetch_add(1, std::memory_order_acq_rel);
+            _freeIndices.push_back(index);
+        }
+        _retiredStates.push_back(std::move(slot.state));
+    });
     if (_operations != nullptr) _operations->CancelRequester(module);
     _events.InvalidateOwner(&state->endpointOwner);
     _interceptors.InvalidateOwner(&state->endpointOwner);
     _capabilities.InvalidateOwner(&state->endpointOwner);
     _endpoints.InvalidateOwner(&state->endpointOwner);
 
+    return F4FORGE_RESULT_SUCCESS;
+}
+
+void ModuleManager::UnregisterRuntime(F4ForgeRuntimeHandle runtime)
+{
+    std::vector<F4ForgeModuleHandle> modules;
     {
         std::lock_guard lock(_mutex);
-        const auto index = f4forge::HandleIndex(module);
-        const auto generation = _slots[index].generation.load(std::memory_order_acquire);
-        if (generation != UINT32_MAX) {
-            _slots[index].generation.fetch_add(1, std::memory_order_acq_rel);
-            _freeIndices.push_back(index);
+        for (uint32_t index = 1; index < _nextIndex; ++index) {
+            const auto& slot = _slots[index];
+            if (!slot.state || !slot.state->active.load(std::memory_order_acquire) ||
+                slot.state->runtime != runtime)
+                continue;
+            modules.push_back(f4forge::MakeHandle(
+                slot.generation.load(std::memory_order_acquire), index));
         }
     }
-    return F4FORGE_RESULT_SUCCESS;
+    for (const auto module : modules) Unregister(module);
 }
 
 ModuleState* ModuleManager::Find(F4ForgeModuleHandle module) const noexcept

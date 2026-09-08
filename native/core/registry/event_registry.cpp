@@ -97,9 +97,11 @@ F4ForgeResult EventRegistry::Emit(
             ? DispatchLease{} : subscription->subscriber->TryAcquireDispatchLease();
         if (!subscriberLease) continue;
         if (!subscription->active.load(std::memory_order_acquire)) continue;
+        const auto subscriptionHandle = f4forge::MakeHandle(
+            subscription->generation.load(std::memory_order_acquire), index);
         try {
             subscription->callback(
-                f4forge::MakeHandle(subscription->generation.load(std::memory_order_acquire), index),
+                subscriptionHandle,
                 endpoint,
                 payload,
                 payloadSize,

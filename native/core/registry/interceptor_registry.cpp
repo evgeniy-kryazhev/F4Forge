@@ -98,10 +98,12 @@ F4ForgeResult InterceptorRegistry::Emit(
             ? DispatchLease{} : subscription->interceptorOwner->TryAcquireDispatchLease();
         if (!interceptorLease) continue;
         if (!subscription->active.load(std::memory_order_acquire)) continue;
+        const auto subscriptionHandle = f4forge::MakeHandle(
+            subscription->generation.load(std::memory_order_acquire), index);
         F4ForgeResult result = F4FORGE_RESULT_INTERNAL_ERROR;
         try {
             result = subscription->callback(
-                f4forge::MakeHandle(subscription->generation.load(std::memory_order_acquire), index),
+                subscriptionHandle,
                 endpoint,
                 payload,
                 payloadSize,

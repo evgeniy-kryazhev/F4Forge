@@ -8,7 +8,8 @@ F4ForgeResult CapabilityRegistry::Register(F4ForgeStringView id, uint32_t versio
 {
     if (id.data == nullptr || id.length == 0 || version == 0 || owner == nullptr)
         return F4FORGE_RESULT_INVALID_ARGUMENT;
-    if (!owner->active.load(std::memory_order_acquire)) return F4FORGE_RESULT_INACTIVE_MODULE;
+    auto ownerLease = owner->TryAcquireDispatchLease();
+    if (!ownerLease) return F4FORGE_RESULT_INACTIVE_MODULE;
 
     try {
         std::string key(id.data, id.length);

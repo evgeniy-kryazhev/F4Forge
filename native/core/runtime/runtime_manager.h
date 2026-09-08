@@ -5,6 +5,7 @@
 #include <array>
 #include <cstdint>
 #include <filesystem>
+#include <functional>
 #include <memory>
 #include <mutex>
 #include <string>
@@ -54,6 +55,7 @@ public:
         F4ForgeStringView pluginDirectory,
         F4ForgeStringView configDirectory);
     F4ForgeResult Shutdown(F4ForgeRuntimeHandle runtime);
+    void SetModuleShutdownCallback(std::function<void(F4ForgeRuntimeHandle)> callback) noexcept;
     RuntimeInstance* Find(F4ForgeRuntimeHandle runtime) noexcept;
     bool IsActive(F4ForgeRuntimeHandle runtime) const noexcept;
     bool HasProvider(F4ForgeStringView id) const noexcept;
@@ -70,6 +72,7 @@ private:
     uint32_t _providerCount = 0;
     uint32_t _runtimeCount = 0;
     uint64_t _nextRuntimeHandle = 1;
+    std::function<void(F4ForgeRuntimeHandle)> _moduleShutdown;
 };
 
 }

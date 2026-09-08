@@ -14,3 +14,8 @@ public sealed class FixturePlugin : F4ForgePlugin
     {
     }
 }
+
+public sealed class ZDependentPlugin : F4ForgePlugin
+{
+    public override string Id => "dependent.plugin";
+}

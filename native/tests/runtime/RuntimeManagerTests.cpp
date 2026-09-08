@@ -82,15 +82,24 @@ int main()
     assert(initializeResult == F4FORGE_RESULT_SUCCESS);
     assert(runtime != F4FORGE_INVALID_HANDLE);
     assert(initializeCalls == 1);
+    F4ForgeRuntimeHandle duplicateRuntime = F4FORGE_INVALID_HANDLE;
+    const auto duplicateInitializeResult = manager.Initialize(
+        { "test", 4 }, &host, {}, {}, &duplicateRuntime);
+    assert(duplicateInitializeResult == F4FORGE_RESULT_ALREADY_REGISTERED);
     const auto shutdownResult = manager.Shutdown(runtime);
     assert(shutdownResult == F4FORGE_RESULT_SUCCESS);
     assert(shutdownCalls == 1);
     const auto duplicateShutdownResult = manager.Shutdown(runtime);
     assert(duplicateShutdownResult == F4FORGE_RESULT_INACTIVE_RUNTIME);
+    F4ForgeRuntimeHandle restartedRuntime = F4FORGE_INVALID_HANDLE;
+    const auto restartInitializeResult = manager.Initialize(
+        { "test", 4 }, &host, {}, {}, &restartedRuntime);
+    assert(restartInitializeResult == F4FORGE_RESULT_SUCCESS);
+    assert(restartedRuntime != runtime);
     const auto missingInitializeResult = manager.Initialize({ "missing", 7 }, &host, {}, {}, &runtime);
     assert(missingInitializeResult == F4FORGE_RESULT_RUNTIME_UNAVAILABLE);
     const auto initializeAllResult = manager.InitializeAll(&host, { "plugins", 7 }, { "config", 6 });
-    assert(initializeAllResult == 3);
+    assert(initializeAllResult == 2);
     assert(initializeCalls == 2);
     assert(manager.DiscoverDirectory("C:/F4Forge/missing-runtime-directory") == 0);
     return 0;

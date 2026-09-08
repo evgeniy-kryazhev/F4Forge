@@ -111,6 +111,36 @@ internal static unsafe class Program
         if (new PluginLoader().LoadDirectory(missingDependencyRoot) != 0)
             return 18;
 
+        var activationRoot = Path.Combine(Path.GetTempPath(), "f4forge-activation-tests", Guid.NewGuid().ToString("N"));
+        var failedDirectory = Path.Combine(activationRoot, "Failed");
+        var dependentDirectory = Path.Combine(activationRoot, "Dependent");
+        Directory.CreateDirectory(failedDirectory);
+        Directory.CreateDirectory(dependentDirectory);
+        File.Copy(typeof(FailurePlugin).Assembly.Location, Path.Combine(failedDirectory, "Failure.dll"));
+        File.Copy(typeof(FixturePlugin).Assembly.Location, Path.Combine(dependentDirectory, "Dependent.dll"));
+        File.WriteAllText(Path.Combine(failedDirectory, "f4forge.plugin.json"),
+            "{\"id\":\"failure.plugin\",\"entryAssembly\":\"Failure.dll\"}");
+        File.WriteAllText(Path.Combine(dependentDirectory, "f4forge.plugin.json"),
+            "{\"id\":\"dependent.plugin\",\"entryAssembly\":\"Dependent.dll\",\"dependencies\":[\"failure.plugin\"]}");
+        var activationLoader = new PluginLoader();
+        if (activationLoader.LoadDirectory(activationRoot) != 0 || activationLoader.Count != 0 ||
+            activationLoader.IsActive("dependent.plugin"))
+            return 19;
+
+        var duplicateRoot = Path.Combine(Path.GetTempPath(), "f4forge-duplicate-manifest-tests", Guid.NewGuid().ToString("N"));
+        var duplicateOne = Path.Combine(duplicateRoot, "One");
+        var duplicateTwo = Path.Combine(duplicateRoot, "Two");
+        Directory.CreateDirectory(duplicateOne);
+        Directory.CreateDirectory(duplicateTwo);
+        File.Copy(typeof(FixturePlugin).Assembly.Location, Path.Combine(duplicateOne, "One.dll"));
+        File.Copy(typeof(FixturePlugin).Assembly.Location, Path.Combine(duplicateTwo, "Two.dll"));
+        File.WriteAllText(Path.Combine(duplicateOne, "f4forge.plugin.json"),
+            "{\"id\":\"duplicate.plugin\",\"entryAssembly\":\"One.dll\"}");
+        File.WriteAllText(Path.Combine(duplicateTwo, "f4forge.plugin.json"),
+            "{\"id\":\"duplicate.plugin\",\"entryAssembly\":\"Two.dll\"}");
+        if (new PluginLoader().LoadDirectory(duplicateRoot) != 0)
+            return 20;
+
         if (!loader.Reload("fixture.plugin") || loader.Count != 1)
             return 7;
         loader.Dispatch(_ => throw new InvalidOperationException("callback failure"));

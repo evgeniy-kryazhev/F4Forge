@@ -175,14 +175,14 @@ F4ForgeResult EndpointRegistry::Invoke(
     }
 }
 
-void EndpointRegistry::InvalidateOwner(EndpointOwner* owner)
+void EndpointRegistry::InvalidateOwner(const EndpointOwner* owner)
 {
     if (owner == nullptr) return;
     std::lock_guard registrationLock(_registrationMutex);
     for (uint32_t index = 1; index < _nextIndex; ++index) {
         auto* slot = _slots[index].load(std::memory_order_acquire);
         if (slot == nullptr || slot->owner != owner) continue;
-        slot->active.store(false, std::memory_order_release);
+        if (!slot->active.exchange(false, std::memory_order_acq_rel)) continue;
         const auto generation = slot->generation.load(std::memory_order_acquire);
         if (generation != UINT32_MAX) {
             slot->generation.fetch_add(1, std::memory_order_acq_rel);
@@ -192,7 +192,6 @@ void EndpointRegistry::InvalidateOwner(EndpointOwner* owner)
         std::unique_lock nameLock(_nameMutex);
         _byName.erase(key);
     }
-    owner->BeginQuiescing();
 }
 
 void EndpointRegistry::SetGameThreadCheck(GameThreadCheck check) noexcept

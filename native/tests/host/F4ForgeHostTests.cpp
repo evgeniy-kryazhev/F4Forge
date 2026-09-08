@@ -296,6 +296,25 @@ int main()
     assert(eventCalls == 1);
     assert(api.releaseOperation(eventOperation) == F4FORGE_RESULT_SUCCESS);
     api.unsubscribe(eventSubscription);
+    F4ForgeModuleHandle autoReleaseModule = F4FORGE_INVALID_HANDLE;
+    assert(api.registerModule(runtime, { "host.auto-release", sizeof("host.auto-release") - 1 }, 1,
+        &autoReleaseModule) == F4FORGE_RESULT_SUCCESS);
+    F4ForgeEndpointHandle autoReleaseEndpoint = F4FORGE_INVALID_HANDLE;
+    auto autoReleaseDefinition = gameDefinition;
+    autoReleaseDefinition.name = {
+        "host.auto-release.endpoint", sizeof("host.auto-release.endpoint") - 1 };
+    assert(api.registerEndpoint(autoReleaseModule, &autoReleaseDefinition, &autoReleaseEndpoint)
+        == F4FORGE_RESULT_SUCCESS);
+    F4ForgeAsyncOperationHandle autoReleaseOperation = F4FORGE_INVALID_HANDLE;
+    std::thread autoReleaseSubmitter([&] {
+        assert(api.invokeAsync(autoReleaseModule, autoReleaseEndpoint, nullptr, 0, &autoReleaseOperation)
+            == F4FORGE_RESULT_SUCCESS);
+    });
+    autoReleaseSubmitter.join();
+    assert(api.unregisterModule(autoReleaseModule) == F4FORGE_RESULT_SUCCESS);
+    assert(api.pollOperation(autoReleaseOperation, &state) == F4FORGE_RESULT_INVALID_HANDLE);
+    assert(scheduler.RunOne());
+    assert(api.pollOperation(autoReleaseOperation, &state) == F4FORGE_RESULT_INVALID_HANDLE);
     F4ForgeModuleHandle targetModule = F4FORGE_INVALID_HANDLE;
     F4ForgeModuleHandle requesterModule = F4FORGE_INVALID_HANDLE;
     assert(api.registerModule(runtime, { "host.target", sizeof("host.target") - 1 }, 1, &targetModule)
@@ -333,5 +352,22 @@ int main()
     assert(state == F4FORGE_ASYNC_OPERATION_CANCELLED);
     assert(api.releaseOperation(shutdownOperation) == F4FORGE_RESULT_SUCCESS);
     assert(api.unregisterModule(gameModule) == F4FORGE_RESULT_SUCCESS);
+
+    F4ForgeModuleHandle shutdownModule = F4FORGE_INVALID_HANDLE;
+    assert(api.registerModule(runtime, { "host.shutdown-owned", sizeof("host.shutdown-owned") - 1 }, 1,
+        &shutdownModule) == F4FORGE_RESULT_SUCCESS);
+    F4ForgeEndpointHandle shutdownEndpoint = F4FORGE_INVALID_HANDLE;
+    auto shutdownDefinition = gameDefinition;
+    shutdownDefinition.name = {
+        "host.shutdown-owned.endpoint", sizeof("host.shutdown-owned.endpoint") - 1 };
+    assert(api.registerEndpoint(shutdownModule, &shutdownDefinition, &shutdownEndpoint)
+        == F4FORGE_RESULT_SUCCESS);
+    const auto runtimeShutdownResult = runtimes.Shutdown(runtime);
+    assert(runtimeShutdownResult == F4FORGE_RESULT_SUCCESS);
+    const auto shutdownModuleActive = host.Modules().IsActive(shutdownModule);
+    assert(!shutdownModuleActive);
+    assert(api.invoke(shutdownEndpoint, nullptr, 0, &gameResponse, sizeof(gameResponse), nullptr)
+        == F4FORGE_RESULT_STALE_HANDLE);
+
     return 0;
 }
