@@ -20,6 +20,7 @@ namespace {
 using LoadAssemblyAndGetFunctionPointer = load_assembly_and_get_function_pointer_fn;
 using ManagedInitialize = int (F4FORGE_CALL*)(void*);
 using ManagedExecuteTask = void (F4FORGE_CALL*)(uint64_t, uint64_t);
+using ManagedShutdown = void (F4FORGE_CALL*)();
 
 struct State final {
     std::mutex mutex;
@@ -28,6 +29,7 @@ struct State final {
     hostfxr_handle hostContext{};
     ManagedInitialize initialize{};
     ManagedExecuteTask executeTask{};
+    ManagedShutdown shutdown{};
     bool initialized = false;
 };
 
@@ -175,9 +177,14 @@ F4ForgeResult InitializeManaged(const F4ForgeRuntimeInitializeParams* params) no
         if (loadAssemblyFunction(assembly.c_str(), typeName, L"ExecuteTask", UNMANAGEDCALLERSONLY_METHOD,
                 nullptr, &executeTask) != 0 || executeTask == nullptr)
             return F4FORGE_RESULT_INTERNAL_ERROR;
+        void* shutdown = nullptr;
+        if (loadAssemblyFunction(assembly.c_str(), typeName, L"Shutdown", UNMANAGEDCALLERSONLY_METHOD,
+                nullptr, &shutdown) != 0 || shutdown == nullptr)
+            return F4FORGE_RESULT_INTERNAL_ERROR;
 
         state.initialize = reinterpret_cast<ManagedInitialize>(initialize);
         state.executeTask = reinterpret_cast<ManagedExecuteTask>(executeTask);
+        state.shutdown = reinterpret_cast<ManagedShutdown>(shutdown);
         const F4ForgeManagedBootstrapArgs bootstrapArgs{
             F4FORGE_RUNTIME_PROVIDER_ABI_VERSION,
             sizeof(F4ForgeManagedBootstrapArgs),
@@ -206,7 +213,12 @@ F4ForgeResult F4FORGE_CALL Initialize(const F4ForgeRuntimeInitializeParams* para
 
 void F4FORGE_CALL Shutdown(F4ForgeRuntimeHandle) F4FORGE_NOEXCEPT
 {
-    // CoreCLR and its unmanaged delegates remain loaded until process exit.
+    try {
+        auto& state = GetState();
+        if (state.shutdown != nullptr) state.shutdown();
+        state.initialized = false;
+    } catch (...) {
+    }
 }
 
 void F4FORGE_CALL ExecuteTask(const F4ForgeRuntimeTask* task) F4FORGE_NOEXCEPT

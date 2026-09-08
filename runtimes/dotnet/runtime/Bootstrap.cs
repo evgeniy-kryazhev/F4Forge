@@ -14,6 +14,7 @@ public static unsafe class Bootstrap
     private static NativeApi* nativeApi;
     private static ulong runtimeHandle;
     private static bool initialized;
+    private static bool shuttingDown;
     private static PluginLoader? pluginLoader;
 
     [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
@@ -35,6 +36,7 @@ public static unsafe class Bootstrap
             lock (Gate)
             {
                 if (initialized) return (int)F4ForgeResult.Success;
+                if (shuttingDown) return (int)F4ForgeResult.InactiveRuntime;
                 nativeApi = args->Host;
                 runtimeHandle = args->Runtime;
                 Logger.Sink = message => WriteLog(nativeApi, message);
@@ -62,6 +64,30 @@ public static unsafe class Bootstrap
         }
         catch
         {
+        }
+    }
+
+    [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
+    public static void Shutdown()
+    {
+        try
+        {
+            lock (Gate)
+            {
+                if (shuttingDown) return;
+                shuttingDown = true;
+                pluginLoader?.UnloadAll();
+                pluginLoader = null;
+                Logger.Sink = null;
+                nativeApi = null;
+                runtimeHandle = 0;
+                initialized = false;
+                shuttingDown = false;
+            }
+        }
+        catch
+        {
+            shuttingDown = false;
         }
     }
 

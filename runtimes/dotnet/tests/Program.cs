@@ -67,6 +67,8 @@ internal static unsafe class Program
             return 8;
         GC.Collect();
         GC.WaitForPendingFinalizers();
+        delegate* unmanaged[Cdecl]<void> shutdown = &Bootstrap.Shutdown;
+        shutdown();
         return 0;
     }
 
