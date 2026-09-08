@@ -60,6 +60,18 @@ internal static unsafe class Program
         var failurePath = typeof(FailurePlugin).Assembly.Location;
         if (loader.Load(failurePath))
             return 9;
+
+        var manifestRoot = Path.Combine(Path.GetTempPath(), "f4forge-manifest-tests", Guid.NewGuid().ToString("N"));
+        var manifestDirectory = Path.Combine(manifestRoot, "ManifestPlugin");
+        Directory.CreateDirectory(manifestDirectory);
+        var manifestAssembly = Path.Combine(manifestDirectory, "ManifestPlugin.dll");
+        File.Copy(typeof(FixturePlugin).Assembly.Location, manifestAssembly);
+        File.WriteAllText(Path.Combine(manifestDirectory, "f4forge.plugin.json"),
+            "{\"id\":\"fixture.plugin\",\"version\":\"1.0.0\",\"runtime\":\"dotnet\",\"entryAssembly\":\"ManifestPlugin.dll\"}");
+        var manifestLoader = new PluginLoader();
+        if (manifestLoader.LoadDirectory(manifestRoot) != 1 || !manifestLoader.IsActive("fixture.plugin"))
+            return 14;
+        manifestLoader.UnloadAll();
         if (!loader.Reload("fixture.plugin") || loader.Count != 1)
             return 7;
         loader.Dispatch(_ => throw new InvalidOperationException("callback failure"));

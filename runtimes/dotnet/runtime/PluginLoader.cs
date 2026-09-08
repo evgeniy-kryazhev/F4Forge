@@ -1,4 +1,6 @@
 using System.Reflection;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 using F4Forge.DotNet.Sdk;
 
 namespace F4Forge.DotNet.Runtime;
@@ -31,6 +33,31 @@ internal sealed class PluginLoader
             return 0;
         }
         var loaded = 0;
+
+        foreach (var pluginDirectory in Directory.EnumerateDirectories(directory).Order(StringComparer.OrdinalIgnoreCase))
+        {
+            var manifestPath = Path.Combine(pluginDirectory, "f4forge.plugin.json");
+            if (!File.Exists(manifestPath)) continue;
+            try
+            {
+                var manifest = JsonSerializer.Deserialize<PluginManifest>(File.ReadAllText(manifestPath));
+                if (manifest == null || string.IsNullOrWhiteSpace(manifest.EntryAssembly))
+                {
+                    Logger.Error($"Invalid plugin manifest: {manifestPath}");
+                    continue;
+                }
+                if (!string.IsNullOrWhiteSpace(manifest.Runtime) &&
+                    !manifest.Runtime.Equals("dotnet", StringComparison.OrdinalIgnoreCase))
+                    continue;
+                var assemblyPath = Path.Combine(pluginDirectory, manifest.EntryAssembly);
+                if (Load(assemblyPath, manifest.Id)) ++loaded;
+            }
+            catch (Exception exception)
+            {
+                Logger.Error($"Plugin manifest failed: {manifestPath}: {exception}");
+            }
+        }
+
         foreach (var path in Directory.EnumerateFiles(directory, "*.dll").Order(StringComparer.OrdinalIgnoreCase))
         {
             if (Load(path)) ++loaded;
@@ -39,7 +66,7 @@ internal sealed class PluginLoader
         return loaded;
     }
 
-    public bool Load(string path)
+    public bool Load(string path, string? expectedId = null)
     {
         PluginInstance? instance = null;
         try
@@ -57,6 +84,8 @@ internal sealed class PluginLoader
             var pluginId = plugin.Id;
             if (string.IsNullOrWhiteSpace(pluginId))
                 throw new InvalidOperationException("Plugin ID must not be empty.");
+            if (expectedId != null && !pluginId.Equals(expectedId, StringComparison.OrdinalIgnoreCase))
+                throw new InvalidOperationException($"Manifest ID '{expectedId}' does not match plugin ID '{pluginId}'.");
             instance = new PluginInstance(Path.GetFullPath(path), context, plugin, pluginId, new PluginResourceScope());
             lock (_gate)
             {
@@ -164,6 +193,15 @@ internal sealed class PluginLoader
                 .Where(type => type is { IsAbstract: false, IsPublic: true } && typeof(F4ForgePlugin).IsAssignableFrom(type))
                 .FirstOrDefault();
         }
+    }
+
+    private sealed class PluginManifest
+    {
+        [JsonPropertyName("id")] public string? Id { get; set; }
+        [JsonPropertyName("version")] public string? Version { get; set; }
+        [JsonPropertyName("entryAssembly")] public string? EntryAssembly { get; set; }
+        [JsonPropertyName("runtime")] public string? Runtime { get; set; }
+        [JsonPropertyName("minimumF4ForgeVersion")] public string? MinimumF4ForgeVersion { get; set; }
     }
 
     private sealed class PluginInstance
