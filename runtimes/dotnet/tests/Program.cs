@@ -7,9 +7,12 @@ using F4Forge.PluginFixture;
 
 internal static unsafe class Program
 {
+    private static readonly uint[] LogLevels = new uint[8];
+    private static int logCount;
+
     private static int Main()
     {
-        if (sizeof(NativeApi) != 104 || sizeof(F4ForgeEndpointDefinition) != 64 || sizeof(F4ForgeStringView) != 16 ||
+        if (sizeof(NativeApi) != 160 || sizeof(F4ForgeEndpointDefinition) != 64 || sizeof(F4ForgeStringView) != 16 ||
             sizeof(ManagedBootstrapArgs) != 56)
             return 5;
 
@@ -19,10 +22,11 @@ internal static unsafe class Program
 
         NativeApi host = new()
         {
-            AbiVersion = 1,
+            AbiVersion = 2,
             StructSize = (uint)sizeof(NativeApi),
             ResolveEndpoint = &ResolveEndpoint,
-            Invoke = &Invoke
+            Invoke = &Invoke,
+            Log = &Log
         };
         ManagedBootstrapArgs bootstrapArgs = new()
         {
@@ -33,6 +37,13 @@ internal static unsafe class Program
         };
         if (initialize((nint)(&bootstrapArgs)) != (int)F4ForgeResult.Success)
             return 11;
+
+        logCount = 0;
+        Logger.Trace("trace");
+        Logger.Warning("warning");
+        Logger.Error("error");
+        if (logCount != 3 || LogLevels[0] != 0 || LogLevels[1] != 3 || LogLevels[2] != 4)
+            return 15;
 
         var plugin = new TestPlugin();
         if (plugin.Id != "test.plugin")
@@ -113,6 +124,12 @@ internal static unsafe class Program
     [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
     private static int Invoke(ulong endpoint, void* request, uint requestSize, void* response, uint responseCapacity, uint* responseSize)
         => (int)F4ForgeResult.Success;
+
+    [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
+    private static void Log(uint level, F4ForgeStringView message)
+    {
+        if (logCount < LogLevels.Length) LogLevels[logCount++] = level;
+    }
 
     private sealed class TestPlugin : F4ForgePlugin
     {

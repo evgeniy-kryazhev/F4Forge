@@ -20,7 +20,7 @@ extern "C" {
 #define F4FORGE_NOEXCEPT
 #endif
 
-#define F4FORGE_ABI_VERSION 1u
+#define F4FORGE_ABI_VERSION 2u
 #define F4FORGE_RUNTIME_PROVIDER_ABI_VERSION 1u
 #define F4FORGE_INVALID_HANDLE UINT64_C(0)
 
@@ -34,6 +34,14 @@ typedef F4ForgeRawHandle F4ForgeInterceptorSubscriptionHandle;
 typedef F4ForgeRawHandle F4ForgeModuleHandle;
 typedef F4ForgeRawHandle F4ForgeRuntimeHandle;
 typedef F4ForgeRawHandle F4ForgePluginHandle;
+typedef F4ForgeRawHandle F4ForgeAsyncOperationHandle;
+
+typedef uint32_t F4ForgeAsyncOperationState;
+#define F4FORGE_ASYNC_OPERATION_PENDING 0u
+#define F4FORGE_ASYNC_OPERATION_RUNNING 1u
+#define F4FORGE_ASYNC_OPERATION_COMPLETED 2u
+#define F4FORGE_ASYNC_OPERATION_CANCELLED 3u
+#define F4FORGE_WAIT_INFINITE UINT32_MAX
 
 typedef struct F4ForgeStringView {
     const char* data;
@@ -127,6 +135,7 @@ typedef F4ForgeResult (F4FORGE_CALL* F4ForgeInvokeFn)(
     uint32_t* responseSize) F4FORGE_NOEXCEPT;
 
 typedef F4ForgeEventSubscriptionHandle (F4FORGE_CALL* F4ForgeSubscribeFn)(
+    F4ForgeModuleHandle subscriber,
     F4ForgeEndpointHandle endpoint,
     F4ForgeEventCallback callback,
     void* context) F4FORGE_NOEXCEPT;
@@ -135,6 +144,7 @@ typedef void (F4FORGE_CALL* F4ForgeUnsubscribeFn)(
     F4ForgeEventSubscriptionHandle subscription) F4FORGE_NOEXCEPT;
 
 typedef F4ForgeInterceptorSubscriptionHandle (F4FORGE_CALL* F4ForgeInterceptFn)(
+    F4ForgeModuleHandle interceptorOwner,
     F4ForgeEndpointHandle endpoint,
     F4ForgeInterceptorCallback callback,
     void* context) F4FORGE_NOEXCEPT;
@@ -165,6 +175,41 @@ typedef F4ForgeResult (F4FORGE_CALL* F4ForgeQueueTaskFn)(
     uint64_t taskHandle,
     void* context) F4FORGE_NOEXCEPT;
 
+typedef F4ForgeResult (F4FORGE_CALL* F4ForgeInvokeAsyncFn)(
+    F4ForgeModuleHandle caller,
+    F4ForgeEndpointHandle endpoint,
+    const void* request,
+    uint32_t requestSize,
+    F4ForgeAsyncOperationHandle* operation) F4FORGE_NOEXCEPT;
+
+typedef F4ForgeResult (F4FORGE_CALL* F4ForgeEmitAsyncFn)(
+    F4ForgeModuleHandle caller,
+    F4ForgeEndpointHandle endpoint,
+    const void* payload,
+    uint32_t payloadSize,
+    F4ForgeAsyncOperationHandle* operation) F4FORGE_NOEXCEPT;
+
+typedef F4ForgeResult (F4FORGE_CALL* F4ForgePollOperationFn)(
+    F4ForgeAsyncOperationHandle operation,
+    F4ForgeAsyncOperationState* state) F4FORGE_NOEXCEPT;
+
+typedef F4ForgeResult (F4FORGE_CALL* F4ForgeWaitOperationFn)(
+    F4ForgeAsyncOperationHandle operation,
+    uint32_t timeoutMilliseconds) F4FORGE_NOEXCEPT;
+
+typedef F4ForgeResult (F4FORGE_CALL* F4ForgeGetOperationResultFn)(
+    F4ForgeAsyncOperationHandle operation,
+    F4ForgeResult* invocationResult,
+    void* response,
+    uint32_t responseCapacity,
+    uint32_t* responseSize) F4FORGE_NOEXCEPT;
+
+typedef F4ForgeResult (F4FORGE_CALL* F4ForgeCancelOperationFn)(
+    F4ForgeAsyncOperationHandle operation) F4FORGE_NOEXCEPT;
+
+typedef F4ForgeResult (F4FORGE_CALL* F4ForgeReleaseOperationFn)(
+    F4ForgeAsyncOperationHandle operation) F4FORGE_NOEXCEPT;
+
 typedef struct F4ForgeHostApi {
     // cppcheck-suppress uninitMemberVarNoCtor
     uint32_t abiVersion;
@@ -182,6 +227,13 @@ typedef struct F4ForgeHostApi {
     F4ForgeQueryCapabilityFn queryCapability;
     F4ForgeQueueTaskFn queueTask;
     F4ForgeLogFn log;
+    F4ForgeInvokeAsyncFn invokeAsync;
+    F4ForgeEmitAsyncFn emitAsync;
+    F4ForgePollOperationFn pollOperation;
+    F4ForgeWaitOperationFn waitOperation;
+    F4ForgeGetOperationResultFn getOperationResult;
+    F4ForgeCancelOperationFn cancelOperation;
+    F4ForgeReleaseOperationFn releaseOperation;
 } F4ForgeHostApi;
 
 typedef const F4ForgeHostApi* (F4FORGE_CALL* F4ForgeGetHostApiFn)(void) F4FORGE_NOEXCEPT;
@@ -205,7 +257,8 @@ static_assert(offsetof(F4ForgeHostApi, abiVersion) == 0);
 static_assert(offsetof(F4ForgeHostApi, structSize) == 4);
 static_assert(offsetof(F4ForgeHostApi, resolveEndpoint) == 8);
 static_assert(offsetof(F4ForgeHostApi, invoke) == 16);
-static_assert(sizeof(F4ForgeHostApi) == 104);
+static_assert(offsetof(F4ForgeHostApi, invokeAsync) == 104);
+static_assert(sizeof(F4ForgeHostApi) == 160);
 static_assert(offsetof(F4ForgeEndpointDefinition, name) == 32);
 static_assert(offsetof(F4ForgeEndpointDefinition, thunk) == 48);
 static_assert(sizeof(F4ForgeEndpointDefinition) == 64);

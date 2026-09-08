@@ -98,7 +98,11 @@ internal sealed class PluginLoader
                 _plugins.Add(pluginId, instance);
             }
             plugin.OnLoad();
-            lock (_gate) instance.State = PluginState.Active;
+            if (!instance.Activate())
+            {
+                instance.Stop();
+                return false;
+            }
             Logger.Info($"Managed plugin loaded: {pluginId}");
             return true;
         }
@@ -123,8 +127,8 @@ internal sealed class PluginLoader
         PluginInstance? old;
         lock (_gate)
         {
-            if (!_plugins.Remove(id, out old)) return false;
-            old.State = PluginState.Quiescing;
+            if (!_plugins.TryGetValue(id, out old) || old.State != PluginState.Active) return false;
+            _plugins.Remove(id);
         }
 
         var path = old.Path;
@@ -138,18 +142,17 @@ internal sealed class PluginLoader
         lock (_gate) snapshot = _plugins.Values.ToArray();
         foreach (var instance in snapshot)
         {
-            if (instance.State != PluginState.Active) continue;
+            if (!instance.TryAcquireDispatchLease(out var lease)) continue;
+            using (lease)
             try
             {
                 callback(instance.Plugin);
-                instance.Failures = 0;
+                instance.ResetFailures();
             }
             catch
             {
-                ++instance.Failures;
-                if (instance.Failures >= _failureThreshold)
+                if (instance.RecordFailure(_failureThreshold) >= _failureThreshold)
                 {
-                    instance.State = PluginState.Disabled;
                     instance.Scope.Dispose();
                 }
             }
@@ -206,6 +209,11 @@ internal sealed class PluginLoader
 
     private sealed class PluginInstance
     {
+        private readonly object _lifecycleGate = new();
+        private int _inFlight;
+        private PluginState _state = PluginState.Loading;
+        private int _failures;
+
         public PluginInstance(string path, PluginLoadContext context, F4ForgePlugin plugin, string id, PluginResourceScope scope)
         {
             Path = path;
@@ -220,22 +228,90 @@ internal sealed class PluginLoader
         public F4ForgePlugin Plugin { get; }
         public string Id { get; }
         public PluginResourceScope Scope { get; }
-        public PluginState State { get; set; } = PluginState.Loading;
-        public int Failures { get; set; }
+        public PluginState State
+        {
+            get { lock (_lifecycleGate) return _state; }
+        }
+
+        public bool Activate()
+        {
+            lock (_lifecycleGate)
+            {
+                if (_state != PluginState.Loading) return false;
+                _state = PluginState.Active;
+                return true;
+            }
+        }
+
+        public bool TryAcquireDispatchLease(out IDisposable? lease)
+        {
+            lock (_lifecycleGate)
+            {
+                if (_state != PluginState.Active)
+                {
+                    lease = null;
+                    return false;
+                }
+                ++_inFlight;
+                lease = new DispatchLease(this);
+                return true;
+            }
+        }
+
+        public void ResetFailures()
+        {
+            lock (_lifecycleGate) _failures = 0;
+        }
+
+        public int RecordFailure(int failureThreshold)
+        {
+            lock (_lifecycleGate)
+            {
+                ++_failures;
+                if (_failures >= failureThreshold) _state = PluginState.Disabled;
+                return _failures;
+            }
+        }
 
         public void Stop()
         {
-            if (State == PluginState.Unloaded) return;
-            var wasLoaded = State is PluginState.Active or PluginState.Disabled;
-            State = PluginState.Quiescing;
+            bool wasLoaded;
+            lock (_lifecycleGate)
+            {
+                if (_state is PluginState.Unloaded or PluginState.Quiescing) return;
+                wasLoaded = _state is PluginState.Active or PluginState.Disabled;
+                _state = PluginState.Quiescing;
+                while (_inFlight != 0) Monitor.Wait(_lifecycleGate);
+            }
             if (wasLoaded)
             {
                 try { Plugin.OnUnload(); }
                 catch { }
             }
             Scope.Dispose();
-            State = PluginState.Unloaded;
+            lock (_lifecycleGate) _state = PluginState.Unloaded;
             Context.Unload();
+        }
+
+        private void ReleaseDispatchLease()
+        {
+            lock (_lifecycleGate)
+            {
+                --_inFlight;
+                if (_inFlight == 0) Monitor.PulseAll(_lifecycleGate);
+            }
+        }
+
+        private sealed class DispatchLease : IDisposable
+        {
+            private PluginInstance? _instance;
+
+            public DispatchLease(PluginInstance instance) { _instance = instance; }
+
+            public void Dispose()
+            {
+                Interlocked.Exchange(ref _instance, null)?.ReleaseDispatchLease();
+            }
         }
     }
 }

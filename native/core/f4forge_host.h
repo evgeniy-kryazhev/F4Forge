@@ -1,5 +1,6 @@
 #pragma once
 
+#include "async/async_operation.h"
 #include "f4forge_abi.h"
 #include "modules/module_manager.h"
 #include "registry/event_registry.h"
@@ -23,6 +24,8 @@ public:
     CapabilityRegistry& Capabilities() noexcept;
     ModuleManager& Modules() noexcept;
     RuntimeManager& Runtimes() noexcept;
+    void SetGameThreadScheduler(GameThreadScheduler* scheduler) noexcept;
+    AsyncOperationRegistry& Operations() noexcept;
     using LogSink = void (*)(uint32_t level, std::string_view message) noexcept;
     void SetLogSink(LogSink sink) noexcept;
 
@@ -57,16 +60,46 @@ private:
         F4ForgeRuntimeHandle runtime,
         uint64_t taskHandle,
         void* context) F4FORGE_NOEXCEPT;
+    static F4ForgeResult F4FORGE_CALL InvokeAsync(
+        F4ForgeModuleHandle caller,
+        F4ForgeEndpointHandle endpoint,
+        const void* request,
+        uint32_t requestSize,
+        F4ForgeAsyncOperationHandle* operation) F4FORGE_NOEXCEPT;
+    static F4ForgeResult F4FORGE_CALL EmitAsync(
+        F4ForgeModuleHandle caller,
+        F4ForgeEndpointHandle endpoint,
+        const void* payload,
+        uint32_t payloadSize,
+        F4ForgeAsyncOperationHandle* operation) F4FORGE_NOEXCEPT;
+    static F4ForgeResult F4FORGE_CALL PollOperation(
+        F4ForgeAsyncOperationHandle operation,
+        F4ForgeAsyncOperationState* state) F4FORGE_NOEXCEPT;
+    static F4ForgeResult F4FORGE_CALL WaitOperation(
+        F4ForgeAsyncOperationHandle operation,
+        uint32_t timeoutMilliseconds) F4FORGE_NOEXCEPT;
+    static F4ForgeResult F4FORGE_CALL GetOperationResult(
+        F4ForgeAsyncOperationHandle operation,
+        F4ForgeResult* invocationResult,
+        void* response,
+        uint32_t responseCapacity,
+        uint32_t* responseSize) F4FORGE_NOEXCEPT;
+    static F4ForgeResult F4FORGE_CALL CancelOperation(
+        F4ForgeAsyncOperationHandle operation) F4FORGE_NOEXCEPT;
+    static F4ForgeResult F4FORGE_CALL ReleaseOperation(
+        F4ForgeAsyncOperationHandle operation) F4FORGE_NOEXCEPT;
     static void F4FORGE_CALL Log(
         uint32_t level,
         F4ForgeStringView message) F4FORGE_NOEXCEPT;
     static F4ForgeEventSubscriptionHandle F4FORGE_CALL Subscribe(
+        F4ForgeModuleHandle subscriber,
         F4ForgeEndpointHandle endpoint,
         F4ForgeEventCallback callback,
         void* context) F4FORGE_NOEXCEPT;
     static void F4FORGE_CALL Unsubscribe(
         F4ForgeEventSubscriptionHandle subscription) F4FORGE_NOEXCEPT;
     static F4ForgeInterceptorSubscriptionHandle F4FORGE_CALL Intercept(
+        F4ForgeModuleHandle interceptorOwner,
         F4ForgeEndpointHandle endpoint,
         F4ForgeInterceptorCallback callback,
         void* context) F4FORGE_NOEXCEPT;
@@ -77,8 +110,9 @@ private:
     EventRegistry _events;
     InterceptorRegistry _interceptors;
     CapabilityRegistry _capabilities;
-    ModuleManager _modules;
     RuntimeManager _runtimes;
+    AsyncOperationRegistry _operations;
+    ModuleManager _modules;
     F4ForgeHostApi _api{};
     std::atomic<LogSink> _logSink{ nullptr };
 };

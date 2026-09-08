@@ -44,9 +44,9 @@ internal unsafe struct NativeApi
     public uint StructSize;
     public delegate* unmanaged[Cdecl]<F4ForgeStringView, uint, ulong> ResolveEndpoint;
     public delegate* unmanaged[Cdecl]<ulong, void*, uint, void*, uint, uint*, int> Invoke;
-    public delegate* unmanaged[Cdecl]<ulong, delegate* unmanaged[Cdecl]<ulong, ulong, void*, uint, void*, void>, void*, ulong> Subscribe;
+    public delegate* unmanaged[Cdecl]<ulong, ulong, delegate* unmanaged[Cdecl]<ulong, ulong, void*, uint, void*, void>, void*, ulong> Subscribe;
     public delegate* unmanaged[Cdecl]<ulong, void> Unsubscribe;
-    public delegate* unmanaged[Cdecl]<ulong, delegate* unmanaged[Cdecl]<ulong, ulong, void*, uint, void*, int>, void*, ulong> Intercept;
+    public delegate* unmanaged[Cdecl]<ulong, ulong, delegate* unmanaged[Cdecl]<ulong, ulong, void*, uint, void*, int>, void*, ulong> Intercept;
     public delegate* unmanaged[Cdecl]<ulong, void> RemoveInterceptor;
     public delegate* unmanaged[Cdecl]<ulong, F4ForgeEndpointDefinition*, ulong*, int> RegisterEndpoint;
     public delegate* unmanaged[Cdecl]<ulong, F4ForgeStringView, uint, ulong*, int> RegisterModule;
@@ -54,4 +54,11 @@ internal unsafe struct NativeApi
     public delegate* unmanaged[Cdecl]<F4ForgeStringView, uint, uint> QueryCapability;
     public delegate* unmanaged[Cdecl]<ulong, ulong, void*, int> QueueTask;
     public delegate* unmanaged[Cdecl]<uint, F4ForgeStringView, void> Log;
+    public delegate* unmanaged[Cdecl]<ulong, ulong, void*, uint, ulong*, int> InvokeAsync;
+    public delegate* unmanaged[Cdecl]<ulong, ulong, void*, uint, ulong*, int> EmitAsync;
+    public delegate* unmanaged[Cdecl]<ulong, uint*, int> PollOperation;
+    public delegate* unmanaged[Cdecl]<ulong, uint, int> WaitOperation;
+    public delegate* unmanaged[Cdecl]<ulong, int*, void*, uint, uint*, int> GetOperationResult;
+    public delegate* unmanaged[Cdecl]<ulong, int> CancelOperation;
+    public delegate* unmanaged[Cdecl]<ulong, int> ReleaseOperation;
 }

@@ -23,6 +23,14 @@ using ManagedExecuteTask = void (F4FORGE_CALL*)(uint64_t, uint64_t);
 using ManagedShutdown = void (F4FORGE_CALL*)();
 
 struct State final {
+    enum class Lifecycle : uint32_t {
+        Stopped,
+        Initializing,
+        Running,
+        ShuttingDown,
+        Failed
+    };
+
     std::mutex mutex;
     HMODULE providerModule{};
     HMODULE hostfxrModule{};
@@ -30,7 +38,7 @@ struct State final {
     ManagedInitialize initialize{};
     ManagedExecuteTask executeTask{};
     ManagedShutdown shutdown{};
-    bool initialized = false;
+    Lifecycle lifecycle = Lifecycle::Stopped;
 };
 
 State& GetState() noexcept
@@ -124,31 +132,43 @@ F4ForgeResult InitializeManaged(const F4ForgeRuntimeInitializeParams* params) no
 {
     if (params == nullptr || params->host == nullptr) return F4FORGE_RESULT_INVALID_ARGUMENT;
     auto& state = GetState();
-    std::lock_guard lock(state.mutex);
-    if (state.initialized) return F4FORGE_RESULT_SUCCESS;
+    {
+        std::lock_guard lock(state.mutex);
+        if (state.lifecycle == State::Lifecycle::Running) return F4FORGE_RESULT_SUCCESS;
+        if (state.lifecycle == State::Lifecycle::Initializing ||
+            state.lifecycle == State::Lifecycle::ShuttingDown)
+            return F4FORGE_RESULT_INACTIVE_RUNTIME;
+        state.lifecycle = State::Lifecycle::Initializing;
+    }
+
+    const auto fail = [&state](F4ForgeResult result) noexcept {
+        std::lock_guard lock(state.mutex);
+        state.lifecycle = State::Lifecycle::Failed;
+        return result;
+    };
 
     try {
         const auto root = Utf8ToWide(params->configDirectory);
         if (root.empty()) {
             LogHost(params->host, 4, "Dotnet provider: empty config directory");
-            return F4FORGE_RESULT_INVALID_ARGUMENT;
+            return fail(F4FORGE_RESULT_INVALID_ARGUMENT);
         }
         HMODULE providerModule = nullptr;
         if (!GetModuleHandleExW(
                 GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
                 reinterpret_cast<LPCWSTR>(&GetState), &providerModule))
-            return F4FORGE_RESULT_INTERNAL_ERROR;
+            return fail(F4FORGE_RESULT_INTERNAL_ERROR);
         state.providerModule = providerModule;
         std::filesystem::path cache;
         if (!PrepareManagedRuntime(providerModule, root, cache)) {
             LogHost(params->host, 4, "Dotnet provider: embedded runtime resources or external SDK unavailable");
-            return F4FORGE_RESULT_RUNTIME_UNAVAILABLE;
+            return fail(F4FORGE_RESULT_RUNTIME_UNAVAILABLE);
         }
         const auto assembly = cache / L"F4Forge.DotNet.Runtime.dll";
         const auto runtimeConfig = cache / L"F4Forge.DotNet.Runtime.runtimeconfig.json";
         if (!LoadHostFxr(state)) {
             LogHost(params->host, 4, "Dotnet provider: hostfxr could not be loaded");
-            return F4FORGE_RESULT_RUNTIME_UNAVAILABLE;
+            return fail(F4FORGE_RESULT_RUNTIME_UNAVAILABLE);
         }
 
         const auto initializeForConfig = GetHostFxrFunction<hostfxr_initialize_for_runtime_config_fn>(
@@ -157,30 +177,30 @@ F4ForgeResult InitializeManaged(const F4ForgeRuntimeInitializeParams* params) no
             state.hostfxrModule, "hostfxr_get_runtime_delegate");
         if (initializeForConfig == nullptr || getRuntimeDelegate == nullptr) {
             LogHost(params->host, 4, "Dotnet provider: hostfxr exports are unavailable");
-            return F4FORGE_RESULT_INTERNAL_ERROR;
+            return fail(F4FORGE_RESULT_INTERNAL_ERROR);
         }
         if (initializeForConfig(runtimeConfig.c_str(), nullptr, &state.hostContext) != 0)
-            return F4FORGE_RESULT_RUNTIME_UNAVAILABLE;
+            return fail(F4FORGE_RESULT_RUNTIME_UNAVAILABLE);
 
         void* loadAssembly = nullptr;
         if (getRuntimeDelegate(state.hostContext, hdt_load_assembly_and_get_function_pointer, &loadAssembly) != 0 ||
             loadAssembly == nullptr)
-            return F4FORGE_RESULT_INTERNAL_ERROR;
+            return fail(F4FORGE_RESULT_INTERNAL_ERROR);
         const auto loadAssemblyFunction = reinterpret_cast<LoadAssemblyAndGetFunctionPointer>(loadAssembly);
         const wchar_t* typeName = L"F4Forge.DotNet.Runtime.Bootstrap, F4Forge.DotNet.Runtime";
 
         void* initialize = nullptr;
         if (loadAssemblyFunction(assembly.c_str(), typeName, L"Initialize", UNMANAGEDCALLERSONLY_METHOD,
                 nullptr, &initialize) != 0 || initialize == nullptr)
-            return F4FORGE_RESULT_INTERNAL_ERROR;
+            return fail(F4FORGE_RESULT_INTERNAL_ERROR);
         void* executeTask = nullptr;
         if (loadAssemblyFunction(assembly.c_str(), typeName, L"ExecuteTask", UNMANAGEDCALLERSONLY_METHOD,
                 nullptr, &executeTask) != 0 || executeTask == nullptr)
-            return F4FORGE_RESULT_INTERNAL_ERROR;
+            return fail(F4FORGE_RESULT_INTERNAL_ERROR);
         void* shutdown = nullptr;
         if (loadAssemblyFunction(assembly.c_str(), typeName, L"Shutdown", UNMANAGEDCALLERSONLY_METHOD,
                 nullptr, &shutdown) != 0 || shutdown == nullptr)
-            return F4FORGE_RESULT_INTERNAL_ERROR;
+            return fail(F4FORGE_RESULT_INTERNAL_ERROR);
 
         state.initialize = reinterpret_cast<ManagedInitialize>(initialize);
         state.executeTask = reinterpret_cast<ManagedExecuteTask>(executeTask);
@@ -196,13 +216,16 @@ F4ForgeResult InitializeManaged(const F4ForgeRuntimeInitializeParams* params) no
         const auto result = state.initialize(const_cast<F4ForgeManagedBootstrapArgs*>(&bootstrapArgs));
         if (result != static_cast<int>(F4FORGE_RESULT_SUCCESS)) {
             LogHost(params->host, 4, "Dotnet provider: managed bootstrap initialization failed");
-            return static_cast<F4ForgeResult>(result);
+            return fail(static_cast<F4ForgeResult>(result));
         }
         LogHost(params->host, 2, "Dotnet provider: managed runtime initialized");
-        state.initialized = true;
+        {
+            std::lock_guard lock(state.mutex);
+            state.lifecycle = State::Lifecycle::Running;
+        }
         return F4FORGE_RESULT_SUCCESS;
     } catch (...) {
-        return F4FORGE_RESULT_INTERNAL_ERROR;
+        return fail(F4FORGE_RESULT_INTERNAL_ERROR);
     }
 }
 
@@ -215,9 +238,26 @@ void F4FORGE_CALL Shutdown(F4ForgeRuntimeHandle) F4FORGE_NOEXCEPT
 {
     try {
         auto& state = GetState();
-        if (state.shutdown != nullptr) state.shutdown();
-        state.initialized = false;
+        ManagedShutdown shutdown;
+        {
+            std::lock_guard lock(state.mutex);
+            if (state.lifecycle != State::Lifecycle::Running) return;
+            state.lifecycle = State::Lifecycle::ShuttingDown;
+            shutdown = state.shutdown;
+        }
+        if (shutdown != nullptr) shutdown();
+        {
+            std::lock_guard lock(state.mutex);
+            state.initialize = nullptr;
+            state.executeTask = nullptr;
+            state.shutdown = nullptr;
+            state.hostContext = nullptr;
+            state.lifecycle = State::Lifecycle::Stopped;
+        }
     } catch (...) {
+        auto& state = GetState();
+        std::lock_guard lock(state.mutex);
+        state.lifecycle = State::Lifecycle::Failed;
     }
 }
 
@@ -225,8 +265,14 @@ void F4FORGE_CALL ExecuteTask(const F4ForgeRuntimeTask* task) F4FORGE_NOEXCEPT
 {
     try {
         auto& state = GetState();
-        if (task == nullptr || state.executeTask == nullptr) return;
-        state.executeTask(task->runtime, task->taskHandle);
+        ManagedExecuteTask executeTask;
+        {
+            std::lock_guard lock(state.mutex);
+            if (state.lifecycle != State::Lifecycle::Running) return;
+            executeTask = state.executeTask;
+        }
+        if (task == nullptr || executeTask == nullptr) return;
+        executeTask(task->runtime, task->taskHandle);
     } catch (...) {
     }
 }

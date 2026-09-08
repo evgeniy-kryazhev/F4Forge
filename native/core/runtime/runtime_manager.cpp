@@ -178,6 +178,13 @@ RuntimeInstance* RuntimeManager::Find(F4ForgeRuntimeHandle runtime) noexcept
     return FindUnlocked(runtime);
 }
 
+bool RuntimeManager::IsActive(F4ForgeRuntimeHandle runtime) const noexcept
+{
+    std::lock_guard lock(_mutex);
+    const auto* instance = FindUnlocked(runtime);
+    return instance != nullptr && instance->state == RuntimeInstance::State::Active;
+}
+
 bool RuntimeManager::HasProvider(F4ForgeStringView id) const noexcept
 {
     if (id.data == nullptr) return false;
@@ -220,7 +227,7 @@ bool RuntimeManager::Equal(F4ForgeStringView left, F4ForgeStringView right) noex
         std::char_traits<char>::compare(left.data, right.data, left.length) == 0;
 }
 
-RuntimeInstance* RuntimeManager::FindUnlocked(F4ForgeRuntimeHandle runtime) noexcept
+RuntimeInstance* RuntimeManager::FindUnlocked(F4ForgeRuntimeHandle runtime) const noexcept
 {
     if (runtime == F4FORGE_INVALID_HANDLE) return nullptr;
     const auto it = std::find_if(_runtimes.begin(), _runtimes.begin() + _runtimeCount,

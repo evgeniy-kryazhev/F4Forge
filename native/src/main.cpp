@@ -1,5 +1,6 @@
 #include "../core/config/config.h"
 #include "../core/f4forge_host.h"
+#include "f4se_game_scheduler.h"
 
 #define WIN32_LEAN_AND_MEAN
 #include <Windows.h>
@@ -12,6 +13,8 @@
 #include <vector>
 
 namespace {
+
+f4forge::native::F4seGameScheduler gameScheduler;
 
 void NativeLog(uint32_t level, std::string_view message) noexcept
 {
@@ -84,6 +87,9 @@ F4SE_PLUGIN_LOAD(const F4SE::LoadInterface* a_f4se)
 		REX::INFO("F4Forge: plugin directory = {}", config.pluginDirectory.string());
 		REX::INFO("F4Forge: runtime directory = {}", config.runtimeDirectory.string());
 		auto& host = f4forge::core::F4ForgeHost::Instance();
+		gameScheduler.CaptureGameThread();
+		host.SetGameThreadScheduler(&gameScheduler);
+		host.Endpoints().SetGameThreadCheck(&f4forge::native::F4seGameScheduler::CheckGameThread);
 		host.SetLogSink(&NativeLog);
 		auto& runtimes = host.Runtimes();
 		const auto discovered = runtimes.DiscoverDirectory(config.runtimeDirectory);

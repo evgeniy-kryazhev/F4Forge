@@ -55,13 +55,14 @@ public:
         F4ForgeStringView configDirectory);
     F4ForgeResult Shutdown(F4ForgeRuntimeHandle runtime);
     RuntimeInstance* Find(F4ForgeRuntimeHandle runtime) noexcept;
+    bool IsActive(F4ForgeRuntimeHandle runtime) const noexcept;
     bool HasProvider(F4ForgeStringView id) const noexcept;
     uint32_t ProviderCount() const noexcept;
 
 private:
     static bool IsValidProvider(const RuntimeProvider& provider) noexcept;
     static bool Equal(F4ForgeStringView left, F4ForgeStringView right) noexcept;
-    RuntimeInstance* FindUnlocked(F4ForgeRuntimeHandle runtime) noexcept;
+    RuntimeInstance* FindUnlocked(F4ForgeRuntimeHandle runtime) const noexcept;
 
     mutable std::mutex _mutex;
     std::array<std::unique_ptr<RuntimeProvider>, MaxProviders> _providers{};

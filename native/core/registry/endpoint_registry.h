@@ -1,5 +1,6 @@
 #pragma once
 
+#include "../lifecycle/dispatch_owner.h"
 #include "f4forge_abi.h"
 #include "f4forge_handles.h"
 
@@ -11,12 +12,11 @@
 #include <shared_mutex>
 #include <string>
 #include <unordered_map>
+#include <vector>
 
 namespace f4forge::core {
 
-struct EndpointOwner {
-    std::atomic<bool> active{ true };
-};
+using EndpointOwner = DispatchOwner;
 
 class EndpointRegistry final {
 public:
@@ -34,14 +34,19 @@ public:
     F4ForgeEndpointHandle Resolve(F4ForgeStringView name, uint32_t version) const;
 
     uint32_t Kind(F4ForgeEndpointHandle endpoint) const noexcept;
+    uint32_t RequestSize(F4ForgeEndpointHandle endpoint) const noexcept;
+    uint32_t ResponseSize(F4ForgeEndpointHandle endpoint) const noexcept;
     uint32_t PayloadSize(F4ForgeEndpointHandle endpoint) const noexcept;
     EndpointOwner* Owner(F4ForgeEndpointHandle endpoint) const noexcept;
+    DispatchLease TryAcquireDispatchLease(F4ForgeEndpointHandle endpoint) const noexcept;
+    bool IsThreadAllowed(F4ForgeEndpointHandle endpoint) const noexcept;
+    bool IsGameOnly(F4ForgeEndpointHandle endpoint) const noexcept;
 
     F4ForgeResult Invoke(
         F4ForgeEndpointHandle endpoint,
         const void* request,
         uint32_t requestSize,
-        const void* response,
+        void* response,
         uint32_t responseCapacity,
         uint32_t* responseSize) const noexcept;
 
@@ -74,7 +79,7 @@ private:
         const Slot& slot,
         const void* request,
         uint32_t requestSize,
-        const void* response,
+        void* response,
         uint32_t responseCapacity,
         uint32_t* responseSize) noexcept;
     const Slot* GetSlot(F4ForgeEndpointHandle endpoint) const noexcept;
@@ -84,6 +89,8 @@ private:
     mutable std::shared_mutex _nameMutex;
     std::array<std::atomic<Slot*>, MaxSlots> _slots{};
     std::array<std::unique_ptr<Slot>, MaxSlots> _ownedSlots{};
+    std::vector<std::unique_ptr<Slot>> _retiredSlots;
+    std::vector<uint32_t> _freeIndices;
     std::unordered_map<std::string, F4ForgeEndpointHandle> _byName;
     uint32_t _nextIndex = 1;
     std::atomic<GameThreadCheck> _gameThreadCheck{ nullptr };

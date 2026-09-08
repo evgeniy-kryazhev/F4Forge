@@ -7,8 +7,15 @@
 #include <memory>
 #include <mutex>
 #include <string>
+#include <vector>
 
 namespace f4forge::core {
+
+class EventRegistry;
+class InterceptorRegistry;
+class CapabilityRegistry;
+class RuntimeManager;
+class AsyncOperationRegistry;
 
 struct ModuleState final {
     std::atomic<bool> active{ true };
@@ -20,7 +27,13 @@ struct ModuleState final {
 
 class ModuleManager final {
 public:
-    explicit ModuleManager(EndpointRegistry& endpoints) noexcept;
+    ModuleManager(
+        EndpointRegistry& endpoints,
+        EventRegistry& events,
+        InterceptorRegistry& interceptors,
+        CapabilityRegistry& capabilities,
+        RuntimeManager* runtimes = nullptr,
+        AsyncOperationRegistry* operations = nullptr) noexcept;
     ModuleManager(const ModuleManager&) = delete;
     ModuleManager& operator=(const ModuleManager&) = delete;
 
@@ -46,8 +59,15 @@ private:
     ModuleState* FindUnlocked(F4ForgeModuleHandle module) const noexcept;
 
     EndpointRegistry& _endpoints;
+    EventRegistry& _events;
+    InterceptorRegistry& _interceptors;
+    CapabilityRegistry& _capabilities;
+    RuntimeManager* _runtimes{};
+    AsyncOperationRegistry* _operations{};
     mutable std::mutex _mutex;
     std::array<Slot, MaxModules> _slots{};
+    std::vector<std::unique_ptr<ModuleState>> _retiredStates;
+    std::vector<uint32_t> _freeIndices;
     uint32_t _nextIndex = 1;
 };
 

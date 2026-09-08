@@ -14,19 +14,32 @@ F4ForgeResult EndpointRegistry::Register(
     EndpointOwner* owner,
     F4ForgeEndpointHandle* endpoint)
 {
-    if (endpoint == nullptr || owner == nullptr || !owner->active.load(std::memory_order_acquire))
+    if (endpoint == nullptr || owner == nullptr)
         return F4FORGE_RESULT_INVALID_ARGUMENT;
     if (!IsValidDefinition(definition)) return F4FORGE_RESULT_INVALID_ARGUMENT;
 
     const auto key = MakeKey(definition.name, definition.version);
     std::lock_guard registrationLock(_registrationMutex);
+    auto ownerLease = owner->TryAcquireDispatchLease();
+    if (!ownerLease) return F4FORGE_RESULT_INACTIVE_MODULE;
     {
         std::unique_lock nameLock(_nameMutex);
         if (_byName.contains(key)) return F4FORGE_RESULT_ALREADY_REGISTERED;
     }
-    if (_nextIndex >= MaxSlots) return F4FORGE_RESULT_INTERNAL_ERROR;
+    uint32_t index = 0;
+    uint32_t generation = 1;
+    if (!_freeIndices.empty()) {
+        index = _freeIndices.back();
+        _freeIndices.pop_back();
+        generation = _ownedSlots[index]->generation.load(std::memory_order_acquire);
+        _retiredSlots.push_back(std::move(_ownedSlots[index]));
+    } else {
+        if (_nextIndex >= MaxSlots) return F4FORGE_RESULT_INTERNAL_ERROR;
+        index = _nextIndex++;
+    }
 
     auto slot = std::make_unique<Slot>();
+    slot->generation.store(generation, std::memory_order_relaxed);
     slot->kind = definition.kind;
     slot->version = definition.version;
     slot->flags = definition.flags;
@@ -39,7 +52,6 @@ F4ForgeResult EndpointRegistry::Register(
     slot->context = definition.context;
     slot->owner = owner;
 
-    const auto index = _nextIndex++;
     const auto handle = f4forge::MakeHandle(slot->generation.load(std::memory_order_relaxed), index);
     auto* slotPointer = slot.get();
     _ownedSlots[index] = std::move(slot);
@@ -89,11 +101,53 @@ EndpointOwner* EndpointRegistry::Owner(F4ForgeEndpointHandle endpoint) const noe
     return slot->owner;
 }
 
+uint32_t EndpointRegistry::RequestSize(F4ForgeEndpointHandle endpoint) const noexcept
+{
+    const auto* slot = GetSlot(endpoint);
+    if (slot == nullptr || !slot->active.load(std::memory_order_acquire)) return 0;
+    if (f4forge::HandleGeneration(endpoint) != slot->generation.load(std::memory_order_acquire)) return 0;
+    return slot->requestSize;
+}
+
+uint32_t EndpointRegistry::ResponseSize(F4ForgeEndpointHandle endpoint) const noexcept
+{
+    const auto* slot = GetSlot(endpoint);
+    if (slot == nullptr || !slot->active.load(std::memory_order_acquire)) return 0;
+    if (f4forge::HandleGeneration(endpoint) != slot->generation.load(std::memory_order_acquire)) return 0;
+    return slot->responseSize;
+}
+
+DispatchLease EndpointRegistry::TryAcquireDispatchLease(F4ForgeEndpointHandle endpoint) const noexcept
+{
+    const auto* slot = GetSlot(endpoint);
+    if (slot == nullptr || !slot->active.load(std::memory_order_acquire)) return {};
+    if (f4forge::HandleGeneration(endpoint) != slot->generation.load(std::memory_order_acquire)) return {};
+    if (slot->owner == nullptr) return {};
+    return slot->owner->TryAcquireDispatchLease();
+}
+
+bool EndpointRegistry::IsThreadAllowed(F4ForgeEndpointHandle endpoint) const noexcept
+{
+    const auto* slot = GetSlot(endpoint);
+    if (slot == nullptr || !slot->active.load(std::memory_order_acquire)) return false;
+    if (f4forge::HandleGeneration(endpoint) != slot->generation.load(std::memory_order_acquire)) return false;
+    return IsThreadAllowed(*slot);
+}
+
+bool EndpointRegistry::IsGameOnly(F4ForgeEndpointHandle endpoint) const noexcept
+{
+    const auto* slot = GetSlot(endpoint);
+    if (slot == nullptr || !slot->active.load(std::memory_order_acquire)) return false;
+    if (f4forge::HandleGeneration(endpoint) != slot->generation.load(std::memory_order_acquire)) return false;
+    return slot->threadPolicy == F4FORGE_THREAD_GAME_ONLY;
+}
+
 F4ForgeResult EndpointRegistry::Invoke(
     F4ForgeEndpointHandle endpoint,
     const void* request,
     uint32_t requestSize,
-    const void* response,
+    // cppcheck-suppress constParameterPointer
+    void* response,
     uint32_t responseCapacity,
     uint32_t* responseSize) const noexcept
 {
@@ -103,13 +157,16 @@ F4ForgeResult EndpointRegistry::Invoke(
     if (generation != slot->generation.load(std::memory_order_acquire)) return F4FORGE_RESULT_STALE_HANDLE;
     if (!slot->active.load(std::memory_order_acquire)) return F4FORGE_RESULT_INACTIVE_ENDPOINT;
     if (slot->kind != F4FORGE_ENDPOINT_METHOD) return F4FORGE_RESULT_INVALID_ARGUMENT;
-    if (slot->owner == nullptr || !slot->owner->active.load(std::memory_order_acquire))
+    if (slot->owner == nullptr || !slot->owner->IsActive())
         return F4FORGE_RESULT_INACTIVE_MODULE;
     if (!IsThreadAllowed(*slot)) return F4FORGE_RESULT_WRONG_THREAD;
     if (!ValidateBuffers(*slot, request, requestSize, response, responseCapacity, responseSize))
         return requestSize != slot->requestSize
             ? F4FORGE_RESULT_INVALID_REQUEST_SIZE
             : F4FORGE_RESULT_INVALID_RESPONSE_CAPACITY;
+
+    auto lease = slot->owner->TryAcquireDispatchLease();
+    if (!lease) return F4FORGE_RESULT_INACTIVE_MODULE;
 
     try {
         return slot->thunk(slot->context, request, requestSize, response, responseCapacity, responseSize);
@@ -126,12 +183,16 @@ void EndpointRegistry::InvalidateOwner(EndpointOwner* owner)
         auto* slot = _slots[index].load(std::memory_order_acquire);
         if (slot == nullptr || slot->owner != owner) continue;
         slot->active.store(false, std::memory_order_release);
-        slot->generation.fetch_add(1, std::memory_order_acq_rel);
+        const auto generation = slot->generation.load(std::memory_order_acquire);
+        if (generation != UINT32_MAX) {
+            slot->generation.fetch_add(1, std::memory_order_acq_rel);
+            _freeIndices.push_back(index);
+        }
         const auto key = MakeKey({ slot->name.data(), static_cast<uint32_t>(slot->name.size()) }, slot->version);
         std::unique_lock nameLock(_nameMutex);
         _byName.erase(key);
     }
-    owner->active.store(false, std::memory_order_release);
+    owner->BeginQuiescing();
 }
 
 void EndpointRegistry::SetGameThreadCheck(GameThreadCheck check) noexcept
@@ -163,7 +224,8 @@ bool EndpointRegistry::ValidateBuffers(
     const Slot& slot,
     const void* request,
     uint32_t requestSize,
-    const void* response,
+    // cppcheck-suppress constParameterPointer
+    void* response,
     uint32_t responseCapacity,
     uint32_t* responseSize) noexcept
 {
@@ -190,7 +252,7 @@ bool EndpointRegistry::IsThreadAllowed(const Slot& slot) const noexcept
 {
     if (slot.threadPolicy != F4FORGE_THREAD_GAME_ONLY) return true;
     const auto check = _gameThreadCheck.load(std::memory_order_acquire);
-    return check == nullptr || check() != 0;
+    return check != nullptr && check() != 0;
 }
 
 }

@@ -10,7 +10,7 @@ int main()
     api.abiVersion = F4FORGE_ABI_VERSION;
     api.structSize = sizeof(api);
 
-    assert(api.abiVersion == 1);
+    assert(api.abiVersion == F4FORGE_ABI_VERSION);
     assert(api.structSize == sizeof(F4ForgeHostApi));
     assert(f4forge::HandleGeneration(f4forge::MakeHandle(42, 9)) == 42);
     assert(f4forge::HandleIndex(f4forge::MakeHandle(42, 9)) == 9);

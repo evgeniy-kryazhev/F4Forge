@@ -28,6 +28,9 @@ F4ForgeResult F4FORGE_CALL Echo(
     return F4FORGE_RESULT_SUCCESS;
 }
 
+int32_t F4FORGE_CALL AllowGameThread() noexcept { return 1; }
+int32_t F4FORGE_CALL DenyGameThread() noexcept { return 0; }
+
 }
 
 int main()
@@ -70,6 +73,34 @@ int main()
     assert(registry.Invoke(endpoint, &request, sizeof(request), &response, sizeof(response), &responseSize)
         == F4FORGE_RESULT_STALE_HANDLE);
     assert(registry.Resolve({ "test.echo", 10 }, 1) == F4FORGE_INVALID_HANDLE);
+
+    f4forge::core::EndpointOwner reusedOwner;
+    F4ForgeEndpointHandle reusedEndpoint = F4FORGE_INVALID_HANDLE;
+    const auto reusedRegisterResult = registry.Register(definition, &reusedOwner, &reusedEndpoint);
+    assert(reusedRegisterResult == F4FORGE_RESULT_SUCCESS);
+    assert(f4forge::HandleIndex(reusedEndpoint) == f4forge::HandleIndex(endpoint));
+    assert(f4forge::HandleGeneration(reusedEndpoint) != f4forge::HandleGeneration(endpoint));
+    assert(registry.Invoke(endpoint, &request, sizeof(request), &response, sizeof(response), &responseSize)
+        == F4FORGE_RESULT_STALE_HANDLE);
+
+    f4forge::core::EndpointOwner gameOwner;
+    F4ForgeEndpointDefinition gameDefinition{
+        sizeof(F4ForgeEndpointDefinition), F4FORGE_ENDPOINT_METHOD, 1, F4FORGE_ENDPOINT_NONE,
+        F4FORGE_THREAD_GAME_ONLY, sizeof(Request), sizeof(Response), 0,
+        { "test.game", sizeof("test.game") - 1 }, &Echo, nullptr
+    };
+    F4ForgeEndpointHandle gameEndpoint = F4FORGE_INVALID_HANDLE;
+    const auto gameRegisterResult = registry.Register(gameDefinition, &gameOwner, &gameEndpoint);
+    assert(gameRegisterResult == F4FORGE_RESULT_SUCCESS);
+    registry.SetGameThreadCheck(nullptr);
+    assert(registry.Invoke(gameEndpoint, &request, sizeof(request), &response, sizeof(response), &responseSize)
+        == F4FORGE_RESULT_WRONG_THREAD);
+    registry.SetGameThreadCheck(&AllowGameThread);
+    assert(registry.Invoke(gameEndpoint, &request, sizeof(request), &response, sizeof(response), &responseSize)
+        == F4FORGE_RESULT_SUCCESS);
+    registry.SetGameThreadCheck(&DenyGameThread);
+    assert(registry.Invoke(gameEndpoint, &request, sizeof(request), &response, sizeof(response), &responseSize)
+        == F4FORGE_RESULT_WRONG_THREAD);
 
     return 0;
 }

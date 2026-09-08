@@ -49,6 +49,8 @@ int main()
     f4forge::core::EventRegistry events(endpoints);
     f4forge::core::InterceptorRegistry interceptors(endpoints);
     f4forge::core::EndpointOwner owner;
+    f4forge::core::EndpointOwner subscriberOwner;
+    f4forge::core::EndpointOwner interceptorOwner;
 
     F4ForgeEndpointDefinition eventDefinition{
         sizeof(F4ForgeEndpointDefinition), F4FORGE_ENDPOINT_EVENT, 1, F4FORGE_ENDPOINT_NONE,
@@ -60,7 +62,7 @@ int main()
     assert(eventRegisterResult == F4FORGE_RESULT_SUCCESS);
 
     EventState state{};
-    const auto subscription = events.Subscribe(eventEndpoint, &OnEvent, &state);
+    const auto subscription = events.Subscribe(&subscriberOwner, eventEndpoint, &OnEvent, &state);
     assert(subscription != F4FORGE_INVALID_HANDLE);
     uint32_t value = 7;
     assert(events.Emit(eventEndpoint, &value, sizeof(value)) == F4FORGE_RESULT_SUCCESS);
@@ -68,7 +70,17 @@ int main()
     events.Unsubscribe(subscription);
     assert(events.Emit(eventEndpoint, &value, sizeof(value)) == F4FORGE_RESULT_SUCCESS);
     assert(state.calls == 1);
+    const auto reusedSubscription = events.Subscribe(&subscriberOwner, eventEndpoint, &OnEvent, &state);
+    assert(reusedSubscription != F4FORGE_INVALID_HANDLE);
+    assert(f4forge::HandleIndex(reusedSubscription) == f4forge::HandleIndex(subscription));
+    assert(f4forge::HandleGeneration(reusedSubscription) != f4forge::HandleGeneration(subscription));
+    assert(events.Emit(eventEndpoint, &value, sizeof(value)) == F4FORGE_RESULT_SUCCESS);
+    assert(state.calls == 2);
+    events.Unsubscribe(reusedSubscription);
     assert(events.Emit(eventEndpoint, &value, 0) == F4FORGE_RESULT_INVALID_REQUEST_SIZE);
+    subscriberOwner.BeginQuiescing();
+    assert(events.Emit(eventEndpoint, &value, sizeof(value)) == F4FORGE_RESULT_SUCCESS);
+    assert(state.calls == 2);
 
     F4ForgeEndpointDefinition interceptorDefinition{
         sizeof(F4ForgeEndpointDefinition), F4FORGE_ENDPOINT_INTERCEPTOR, 1,
@@ -78,12 +90,22 @@ int main()
     F4ForgeEndpointHandle interceptorEndpoint = F4FORGE_INVALID_HANDLE;
     const auto interceptorRegisterResult = endpoints.Register(interceptorDefinition, &owner, &interceptorEndpoint);
     assert(interceptorRegisterResult == F4FORGE_RESULT_SUCCESS);
-    const auto interceptor = interceptors.Intercept(interceptorEndpoint, &OnInterceptor, nullptr);
+    const auto interceptor = interceptors.Intercept(&interceptorOwner, interceptorEndpoint, &OnInterceptor, nullptr);
     assert(interceptor != F4FORGE_INVALID_HANDLE);
     assert(interceptors.Emit(interceptorEndpoint, &value, sizeof(value)) == F4FORGE_RESULT_SUCCESS);
     assert(value == 8);
     interceptors.Remove(interceptor);
     assert(interceptors.Emit(interceptorEndpoint, &value, sizeof(value)) == F4FORGE_RESULT_SUCCESS);
     assert(value == 8);
+    const auto reusedInterceptor = interceptors.Intercept(
+        &interceptorOwner, interceptorEndpoint, &OnInterceptor, nullptr);
+    assert(reusedInterceptor != F4FORGE_INVALID_HANDLE);
+    assert(f4forge::HandleIndex(reusedInterceptor) == f4forge::HandleIndex(interceptor));
+    assert(f4forge::HandleGeneration(reusedInterceptor) != f4forge::HandleGeneration(interceptor));
+    assert(interceptors.Emit(interceptorEndpoint, &value, sizeof(value)) == F4FORGE_RESULT_SUCCESS);
+    assert(value == 9);
+    interceptorOwner.BeginQuiescing();
+    assert(interceptors.Emit(interceptorEndpoint, &value, sizeof(value)) == F4FORGE_RESULT_SUCCESS);
+    assert(value == 9);
     return 0;
 }
