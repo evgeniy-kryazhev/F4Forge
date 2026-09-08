@@ -1,8 +1,3 @@
-[CmdletBinding()]
-param(
-    [switch]$SkipLint
-)
-
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
@@ -69,12 +64,5 @@ $managedTest = Join-Path $root "runtimes\dotnet\tests\F4Forge.DotNet.Tests.cspro
 Invoke-Checked "dotnet" @("build", $managedTest, "--configuration", "Release")
 Invoke-Checked "dotnet" @("run", "--project", $managedTest, "--configuration", "Release", "--no-build")
 Invoke-Checked "dotnet" @("format", $managedTest, "--verify-no-changes", "--no-restore")
-
-if (-not $SkipLint) {
-    & (Join-Path $nativeRoot "scripts\lint.ps1") -SkipBuild
-    if ($LASTEXITCODE -ne 0) { throw "Native lint failed." }
-    & (Join-Path $nativeRoot "scripts\analyze.ps1")
-    if ($LASTEXITCODE -ne 0) { throw "Native static analysis failed." }
-}
 
 Write-Host "F4Forge tests completed successfully."

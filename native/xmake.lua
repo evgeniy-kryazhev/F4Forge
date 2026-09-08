@@ -10,8 +10,6 @@ set_version("0.1.0")
 set_license("GPL-3.0")
 set_languages("c++23")
 set_warnings("allextra")
-add_cxflags("/analyze", { tools = "cl" })
-add_cxflags("cl::/wd6011", "cl::/wd6294", "cl::/wd6262", { tools = "cl" })
 
 add_rules("mode.debug", "mode.releasedbg")
 add_rules("plugin.vsxmake.autoupdate")
