@@ -8,7 +8,7 @@ permissions:
   contents: read
 
 jobs:
-  build-test-analyze:
+  build-test:
     runs-on: windows-latest
 
     steps:
@@ -23,36 +23,18 @@ jobs:
         with:
           dotnet-version: 10.0.x
 
-      - name: Install xmake and cppcheck
+      - name: Install xmake
         shell: pwsh
         run: |
           winget install --id Xmake-io.Xmake --exact --accept-source-agreements --accept-package-agreements
-          winget install --id Cppcheck.Cppcheck --exact --version 2.20.0 --force --accept-source-agreements --accept-package-agreements
 
           $machinePath = [Environment]::GetEnvironmentVariable("Path", "Machine")
           $userPath = [Environment]::GetEnvironmentVariable("Path", "User")
           $env:Path = "$machinePath;$userPath"
 
           $xmake = Get-Command xmake -ErrorAction Stop
-          $cppcheck = Get-Command cppcheck -ErrorAction Stop
           (Split-Path -Parent $xmake.Source) | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
-          (Split-Path -Parent $cppcheck.Source) | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
-
-          $cppcheckDir = Split-Path -Parent $cppcheck.Source
-          $stdCfg = Get-ChildItem -Path $cppcheckDir -Filter "std.cfg" -File -Recurse -ErrorAction SilentlyContinue |
-              Select-Object -First 1
-          if ($null -eq $stdCfg) {
-              throw "Cppcheck std.cfg was not found below $cppcheckDir"
-          }
-
-          $localCfgDir = Join-Path $cppcheckDir "cfg"
-          New-Item -ItemType Directory -Path $localCfgDir -Force | Out-Null
-          if ($stdCfg.DirectoryName -ne $localCfgDir) {
-              Copy-Item -Path (Join-Path $stdCfg.DirectoryName "*.cfg") -Destination $localCfgDir -Force
-          }
-
           xmake --version
-          cppcheck --version
 
       - name: Build and test
         shell: pwsh
@@ -62,6 +44,86 @@ jobs:
         shell: pwsh
         working-directory: native
         run: xmake project -k compile_commands
+
+      - name: Upload compile commands
+        uses: actions/upload-artifact@v4
+        with:
+          name: compile-commands
+          path: native/compile_commands.json
+          if-no-files-found: error
+
+  analyze:
+    needs: build-test
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 1
+
+      - name: Download compile commands
+        uses: actions/download-artifact@v4
+        with:
+          name: compile-commands
+          path: native
+
+      - name: Install Cppcheck
+        shell: pwsh
+        run: |
+          winget install --id Cppcheck.Cppcheck --exact --version 2.20.0 --force --accept-source-agreements --accept-package-agreements
+
+          $machinePath = [Environment]::GetEnvironmentVariable("Path", "Machine")
+          $userPath = [Environment]::GetEnvironmentVariable("Path", "User")
+          $env:Path = "$machinePath;$userPath"
+
+          $registryRoots = @(
+              "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*",
+              "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*",
+              "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*"
+          )
+          $installRoots = @(
+              (Join-Path $env:ProgramFiles "Cppcheck"),
+              (Join-Path ${env:ProgramFiles(x86)} "Cppcheck"),
+              (Join-Path $env:LOCALAPPDATA "Programs\Cppcheck")
+          )
+          $installRoots += Get-ItemProperty -Path $registryRoots -ErrorAction SilentlyContinue |
+              Where-Object { $_.DisplayName -like "Cppcheck*" -and $_.InstallLocation } |
+              ForEach-Object { $_.InstallLocation }
+
+          $cppcheck = $null
+          foreach ($root in ($installRoots | Where-Object { $_ } | Select-Object -Unique)) {
+              if (-not (Test-Path -LiteralPath $root)) {
+                  continue
+              }
+              foreach ($candidate in (Get-ChildItem -LiteralPath $root -Filter "cppcheck.exe" -File -Recurse -ErrorAction SilentlyContinue)) {
+                  $stdCfg = Get-ChildItem -LiteralPath $candidate.DirectoryName -Filter "std.cfg" -File -Recurse -ErrorAction SilentlyContinue |
+                      Select-Object -First 1
+                  if ($null -ne $stdCfg) {
+                      $cppcheck = [pscustomobject]@{ Executable = $candidate; StdCfg = $stdCfg }
+                      break
+                  }
+              }
+              if ($null -ne $cppcheck) {
+                  break
+              }
+          }
+
+          if ($null -eq $cppcheck) {
+              throw "A Cppcheck installation with std.cfg was not found. PATH candidates: $((where.exe cppcheck 2>$null) -join ', ')"
+          }
+
+          $cppcheckDir = $cppcheck.Executable.DirectoryName
+          $localCfgDir = Join-Path $cppcheckDir "cfg"
+          New-Item -ItemType Directory -Path $localCfgDir -Force | Out-Null
+          if ([IO.Path]::GetFullPath($cppcheck.StdCfg.DirectoryName) -ne [IO.Path]::GetFullPath($localCfgDir)) {
+              Copy-Item -Path (Join-Path $cppcheck.StdCfg.DirectoryName "*.cfg") -Destination $localCfgDir -Force
+          }
+
+          $env:Path = "$cppcheckDir;$env:Path"
+          $cppcheckDir | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+          & $cppcheck.Executable.FullName --version
 
       - name: Cppcheck
         shell: pwsh
