@@ -34,8 +34,10 @@ public static unsafe class Bootstrap
                 nativeApi = args->Host;
                 Logger.Sink = message => WriteLog(nativeApi, message);
                 var pluginDirectory = ReadUtf8(args->PluginDirectory);
+                Logger.Info($"Managed plugin directory: {pluginDirectory}");
                 pluginLoader = new PluginLoader();
-                pluginLoader.LoadDirectory(pluginDirectory);
+                var loadedPlugins = pluginLoader.LoadDirectory(pluginDirectory);
+                Logger.Info($"Managed plugins loaded: {loadedPlugins}");
                 initialized = true;
             }
             return (int)F4ForgeResult.Success;

@@ -115,8 +115,13 @@ uint32_t RuntimeManager::InitializeAll(
     for (uint32_t index = 0; index < count; ++index) {
         F4ForgeRuntimeHandle runtime = F4FORGE_INVALID_HANDLE;
         const F4ForgeStringView id{ ids[index].data(), static_cast<uint32_t>(ids[index].size()) };
-        if (Initialize(id, host, pluginDirectory, configDirectory, &runtime) == F4FORGE_RESULT_SUCCESS)
+        const auto result = Initialize(id, host, pluginDirectory, configDirectory, &runtime);
+        if (result == F4FORGE_RESULT_SUCCESS)
             ++initialized;
+        else if (host->log != nullptr) {
+            const std::string message = "Runtime initialization failed: " + ids[index];
+            host->log(4, { message.data(), static_cast<uint32_t>(message.size()) });
+        }
     }
     return initialized;
 }

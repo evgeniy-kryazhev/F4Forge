@@ -24,12 +24,17 @@ internal sealed class PluginLoader
 
     public int LoadDirectory(string directory)
     {
-        if (!Directory.Exists(directory)) return 0;
+        if (!Directory.Exists(directory))
+        {
+            Logger.Warning($"Managed plugin directory does not exist: {directory}");
+            return 0;
+        }
         var loaded = 0;
         foreach (var path in Directory.EnumerateFiles(directory, "*.dll").Order(StringComparer.OrdinalIgnoreCase))
         {
             if (Load(path)) ++loaded;
         }
+        Logger.Info($"Managed plugin DLLs discovered: {Directory.EnumerateFiles(directory, "*.dll").Count()}");
         return loaded;
     }
 
@@ -54,15 +59,18 @@ internal sealed class PluginLoader
             {
                 if (_plugins.ContainsKey(plugin.Id))
                 {
+                    Logger.Error($"Duplicate managed plugin id: {plugin.Id}");
                     instance.Stop();
                     return false;
                 }
                 _plugins.Add(plugin.Id, instance);
             }
+            Logger.Info($"Managed plugin loaded: {plugin.Id}");
             return true;
         }
-        catch
+        catch (Exception exception)
         {
+            Logger.Error($"Managed plugin failed: {path}: {exception}");
             instance?.Stop();
             return false;
         }
