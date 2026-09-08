@@ -6,10 +6,10 @@
 #ifdef ERROR
 #undef ERROR
 #endif
-#include <array>
 #include <filesystem>
 #include <string>
 #include <string_view>
+#include <vector>
 
 namespace {
 
@@ -51,7 +51,7 @@ std::filesystem::path FrameworkDirectory()
         return {};
     }
 
-    std::array<wchar_t, 32768> buffer{};
+    std::vector<wchar_t> buffer(32768);
     const auto length = GetModuleFileNameW(module, buffer.data(), static_cast<DWORD>(buffer.size()));
     if (length == 0 || length >= buffer.size()) {
         REX::ERROR("F4Forge: GetModuleFileNameW failed ({})", GetLastError());

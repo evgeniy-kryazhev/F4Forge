@@ -55,11 +55,11 @@ std::wstring Utf8ToWide(F4ForgeStringView value)
 bool LoadHostFxr(State& state)
 {
     std::vector<std::filesystem::path> roots;
-    wchar_t buffer[32768]{};
+    std::vector<wchar_t> buffer(32768);
     for (const wchar_t* variable : { L"DOTNET_ROOT", L"DOTNET_ROOT(x64)", L"ProgramW6432", L"ProgramFiles" }) {
-        const auto length = GetEnvironmentVariableW(variable, buffer, static_cast<DWORD>(std::size(buffer)));
+        const auto length = GetEnvironmentVariableW(variable, buffer.data(), static_cast<DWORD>(buffer.size()));
         if (length == 0 || length >= std::size(buffer)) continue;
-        std::filesystem::path root(buffer, buffer + length);
+        std::filesystem::path root(buffer.data(), buffer.data() + length);
         if (root.filename() != L"dotnet") root /= L"dotnet";
         if (std::find(roots.begin(), roots.end(), root) == roots.end()) roots.push_back(std::move(root));
     }

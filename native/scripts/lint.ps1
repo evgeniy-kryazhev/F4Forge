@@ -21,9 +21,15 @@ try {
 
     $files = @(
         Get-ChildItem -LiteralPath $nativeRoot -Recurse -File -Include *.c, *.cc, *.cpp, *.h, *.hpp |
-            Where-Object { $_.FullName -notmatch "\\(lib|build|\.xmake)\\" }
+            Where-Object {
+                $_.Extension -in @(".c", ".cc", ".cpp", ".h", ".hpp") -and
+                    $_.FullName -notmatch "\\(lib|build|\.xmake)\\"
+            }
         Get-ChildItem -LiteralPath $providerRoot -Recurse -File -Include *.cc, *.cpp, *.h, *.hpp |
-            Where-Object { $_.FullName -notmatch "\\(bin|obj|build)\\" }
+            Where-Object {
+                $_.Extension -in @(".cc", ".cpp", ".h", ".hpp") -and
+                    $_.FullName -notmatch "\\(bin|obj|build)\\"
+            }
     )
 
     foreach ($file in $files) {
