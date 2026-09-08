@@ -10,5 +10,6 @@
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\runtimes\dotnet\sdk\F4Forge.DotNet.Sdk.csproj" />
+    <None Include="f4forge.plugin.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>
