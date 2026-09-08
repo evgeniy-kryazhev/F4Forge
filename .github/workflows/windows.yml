@@ -35,8 +35,8 @@ jobs:
 
           $xmake = Get-Command xmake -ErrorAction Stop
           $cppcheck = Get-Command cppcheck -ErrorAction Stop
-          $xmake.Directory.FullName | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
-          $cppcheck.Directory.FullName | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+          (Split-Path -Parent $xmake.Source) | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+          (Split-Path -Parent $cppcheck.Source) | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
           xmake --version
           cppcheck --version
 
