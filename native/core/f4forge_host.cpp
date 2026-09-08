@@ -91,6 +91,12 @@ RuntimeManager& F4ForgeHost::Runtimes() noexcept
     return _runtimes;
 }
 
+F4ForgeResult F4ForgeHost::Shutdown() noexcept
+{
+    _operations.Shutdown();
+    return _runtimes.ShutdownAll();
+}
+
 void F4ForgeHost::SetGameThreadScheduler(GameThreadScheduler* scheduler) noexcept
 {
     _operations.SetScheduler(scheduler);

@@ -58,6 +58,7 @@ public:
         F4ForgeStringView pluginDirectory,
         F4ForgeStringView configDirectory);
     F4ForgeResult Shutdown(F4ForgeRuntimeHandle runtime);
+    F4ForgeResult ShutdownAll();
     void SetModuleShutdownCallback(std::function<bool(F4ForgeRuntimeHandle)> callback) noexcept;
     RuntimeInstance* Find(F4ForgeRuntimeHandle runtime) noexcept;
     bool IsActive(F4ForgeRuntimeHandle runtime) const noexcept;

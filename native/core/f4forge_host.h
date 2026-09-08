@@ -24,6 +24,7 @@ public:
     CapabilityRegistry& Capabilities() noexcept;
     ModuleManager& Modules() noexcept;
     RuntimeManager& Runtimes() noexcept;
+    F4ForgeResult Shutdown() noexcept;
     void SetGameThreadScheduler(GameThreadScheduler* scheduler) noexcept;
     AsyncOperationRegistry& Operations() noexcept;
     using LogSink = void (*)(uint32_t level, std::string_view message) noexcept;

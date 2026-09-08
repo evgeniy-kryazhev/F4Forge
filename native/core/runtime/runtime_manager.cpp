@@ -232,6 +232,29 @@ F4ForgeResult RuntimeManager::Shutdown(F4ForgeRuntimeHandle runtime)
     return result;
 }
 
+F4ForgeResult RuntimeManager::ShutdownAll()
+{
+    std::vector<F4ForgeRuntimeHandle> runtimes;
+    {
+        std::lock_guard lock(_mutex);
+        for (uint32_t index = 1; index < _slotCount; ++index) {
+            const auto& slot = _runtimes[index];
+            if (!slot.instance) continue;
+            if (slot.instance->state != RuntimeInstance::State::Active &&
+                slot.instance->state != RuntimeInstance::State::Quarantined)
+                continue;
+            runtimes.push_back(slot.instance->handle);
+        }
+    }
+
+    F4ForgeResult result = F4FORGE_RESULT_SUCCESS;
+    for (const auto runtime : runtimes) {
+        const auto shutdownResult = Shutdown(runtime);
+        if (shutdownResult != F4FORGE_RESULT_SUCCESS) result = shutdownResult;
+    }
+    return result;
+}
+
 void RuntimeManager::SetModuleShutdownCallback(
     std::function<bool(F4ForgeRuntimeHandle)> callback) noexcept
 {

@@ -97,6 +97,8 @@ The framework prevents new dispatch leases after an owner enters quiescing and w
 
 Plugins must not retain unmanaged threads, static references, or external callbacks after unload. The framework tracks resources explicitly registered through `F4ForgePluginContext`; arbitrary plugin-created roots remain the plugin's responsibility.
 
+The native host exposes an explicit `F4ForgeHost::Shutdown()` lifecycle boundary for integrations and tests. F4SE does not provide an exit-process message, so native plugin process termination must not be treated as a guaranteed managed `OnUnload` trigger.
+
 ## License
 
 F4Forge is released under the MIT License. See `LICENSE`. Third-party dependencies retain their own licenses.

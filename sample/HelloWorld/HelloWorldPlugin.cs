@@ -8,7 +8,12 @@ public sealed class HelloWorldPlugin : F4ForgePlugin
 
     public override void OnLoad(F4ForgePluginContext context)
     {
-        context.CancellationToken.ThrowIfCancellationRequested();
         Logger.Info("Hello world from F4Forge!");
     }
+
+    public override void OnUnload()
+    {
+        Logger.Info("Goodbye world from F4Forge!");
+    }
+
 }

@@ -379,6 +379,7 @@ int main()
     assert(!providerModuleStillActive);
     assert(api.invoke(shutdownEndpoint, nullptr, 0, &gameResponse, sizeof(gameResponse), nullptr)
         == F4FORGE_RESULT_STALE_HANDLE);
+    assert(host.Shutdown() == F4FORGE_RESULT_SUCCESS);
 
     return 0;
 }
