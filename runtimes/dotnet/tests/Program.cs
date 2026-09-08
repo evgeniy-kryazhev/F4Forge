@@ -53,6 +53,10 @@ internal static unsafe class Program
         var loader = new PluginLoader(2);
         if (loader.LoadDirectory(pluginDirectory) != 1 || loader.Count != 1 || !loader.IsActive("fixture.plugin"))
             return 6;
+        var duplicatePath = Path.Combine(pluginDirectory, "Duplicate.dll");
+        File.Copy(typeof(FixturePlugin).Assembly.Location, duplicatePath);
+        if (loader.Load(duplicatePath) || loader.Count != 1)
+            return 12;
         var failurePath = typeof(FailurePlugin).Assembly.Location;
         if (loader.Load(failurePath))
             return 9;

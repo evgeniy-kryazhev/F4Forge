@@ -5,6 +5,7 @@ namespace F4Forge.DotNet.Runtime;
 
 internal enum PluginState
 {
+    Loading,
     Active,
     Quiescing,
     Disabled,
@@ -53,25 +54,37 @@ internal sealed class PluginLoader
             }
 
             var plugin = (F4ForgePlugin)Activator.CreateInstance(pluginType)!;
-            instance = new PluginInstance(Path.GetFullPath(path), context, plugin, new PluginResourceScope());
-            plugin.OnLoad();
+            var pluginId = plugin.Id;
+            if (string.IsNullOrWhiteSpace(pluginId))
+                throw new InvalidOperationException("Plugin ID must not be empty.");
+            instance = new PluginInstance(Path.GetFullPath(path), context, plugin, pluginId, new PluginResourceScope());
             lock (_gate)
             {
-                if (_plugins.ContainsKey(plugin.Id))
+                if (_plugins.ContainsKey(pluginId))
                 {
-                    Logger.Error($"Duplicate managed plugin id: {plugin.Id}");
+                    Logger.Error($"Duplicate managed plugin id: {pluginId}");
                     instance.Stop();
                     return false;
                 }
-                _plugins.Add(plugin.Id, instance);
+                _plugins.Add(pluginId, instance);
             }
-            Logger.Info($"Managed plugin loaded: {plugin.Id}");
+            plugin.OnLoad();
+            lock (_gate) instance.State = PluginState.Active;
+            Logger.Info($"Managed plugin loaded: {pluginId}");
             return true;
         }
         catch (Exception exception)
         {
             Logger.Error($"Managed plugin failed: {path}: {exception}");
-            instance?.Stop();
+            if (instance != null)
+            {
+                lock (_gate)
+                {
+                    if (_plugins.TryGetValue(instance.Id, out var current) && ReferenceEquals(current, instance))
+                        _plugins.Remove(instance.Id);
+                }
+                instance.Stop();
+            }
             return false;
         }
     }
@@ -155,27 +168,33 @@ internal sealed class PluginLoader
 
     private sealed class PluginInstance
     {
-        public PluginInstance(string path, PluginLoadContext context, F4ForgePlugin plugin, PluginResourceScope scope)
+        public PluginInstance(string path, PluginLoadContext context, F4ForgePlugin plugin, string id, PluginResourceScope scope)
         {
             Path = path;
             Context = context;
             Plugin = plugin;
+            Id = id;
             Scope = scope;
         }
 
         public string Path { get; }
         public PluginLoadContext Context { get; }
         public F4ForgePlugin Plugin { get; }
+        public string Id { get; }
         public PluginResourceScope Scope { get; }
-        public PluginState State { get; set; } = PluginState.Active;
+        public PluginState State { get; set; } = PluginState.Loading;
         public int Failures { get; set; }
 
         public void Stop()
         {
             if (State == PluginState.Unloaded) return;
+            var wasLoaded = State is PluginState.Active or PluginState.Disabled;
             State = PluginState.Quiescing;
-            try { Plugin.OnUnload(); }
-            catch { }
+            if (wasLoaded)
+            {
+                try { Plugin.OnUnload(); }
+                catch { }
+            }
             Scope.Dispose();
             State = PluginState.Unloaded;
             Context.Unload();
