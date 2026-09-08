@@ -35,6 +35,7 @@ struct State final {
     HMODULE providerModule{};
     HMODULE hostfxrModule{};
     hostfxr_handle hostContext{};
+    hostfxr_close_fn closeHostContext{};
     ManagedInitialize initialize{};
     ManagedExecuteTask executeTask{};
     ManagedShutdown shutdown{};
@@ -45,6 +46,24 @@ State& GetState() noexcept
 {
     static State state;
     return state;
+}
+
+void CleanupHostFxr(State& state) noexcept
+{
+    hostfxr_close_fn closeContext{};
+    hostfxr_handle context{};
+    HMODULE module{};
+    {
+        std::lock_guard lock(state.mutex);
+        closeContext = state.closeHostContext;
+        context = state.hostContext;
+        module = state.hostfxrModule;
+        state.closeHostContext = nullptr;
+        state.hostContext = nullptr;
+        state.hostfxrModule = nullptr;
+    }
+    if (closeContext != nullptr && context != nullptr) closeContext(context);
+    if (module != nullptr) FreeLibrary(module);
 }
 
 std::wstring Utf8ToWide(F4ForgeStringView value)
@@ -142,6 +161,7 @@ F4ForgeResult InitializeManaged(const F4ForgeRuntimeInitializeParams* params) no
     }
 
     const auto fail = [&state](F4ForgeResult result) noexcept {
+        CleanupHostFxr(state);
         std::lock_guard lock(state.mutex);
         state.lifecycle = State::Lifecycle::Failed;
         return result;
@@ -175,7 +195,8 @@ F4ForgeResult InitializeManaged(const F4ForgeRuntimeInitializeParams* params) no
             state.hostfxrModule, "hostfxr_initialize_for_runtime_config");
         const auto getRuntimeDelegate = GetHostFxrFunction<hostfxr_get_runtime_delegate_fn>(
             state.hostfxrModule, "hostfxr_get_runtime_delegate");
-        if (initializeForConfig == nullptr || getRuntimeDelegate == nullptr) {
+        state.closeHostContext = GetHostFxrFunction<hostfxr_close_fn>(state.hostfxrModule, "hostfxr_close");
+        if (initializeForConfig == nullptr || getRuntimeDelegate == nullptr || state.closeHostContext == nullptr) {
             LogHost(params->host, 4, "Dotnet provider: hostfxr exports are unavailable");
             return fail(F4FORGE_RESULT_INTERNAL_ERROR);
         }
@@ -246,12 +267,12 @@ void F4FORGE_CALL Shutdown(F4ForgeRuntimeHandle) F4FORGE_NOEXCEPT
             shutdown = state.shutdown;
         }
         if (shutdown != nullptr) shutdown();
+        CleanupHostFxr(state);
         {
             std::lock_guard lock(state.mutex);
             state.initialize = nullptr;
             state.executeTask = nullptr;
             state.shutdown = nullptr;
-            state.hostContext = nullptr;
             state.lifecycle = State::Lifecycle::Stopped;
         }
     } catch (...) {
