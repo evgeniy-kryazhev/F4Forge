@@ -27,7 +27,7 @@ jobs:
         shell: pwsh
         run: |
           winget install --id Xmake-io.Xmake --exact --accept-source-agreements --accept-package-agreements
-          winget install --id Cppcheck.Cppcheck --exact --version 2.20.0 --accept-source-agreements --accept-package-agreements
+          winget install --id Cppcheck.Cppcheck --exact --version 2.20.0 --force --accept-source-agreements --accept-package-agreements
 
           $machinePath = [Environment]::GetEnvironmentVariable("Path", "Machine")
           $userPath = [Environment]::GetEnvironmentVariable("Path", "User")
@@ -37,6 +37,20 @@ jobs:
           $cppcheck = Get-Command cppcheck -ErrorAction Stop
           (Split-Path -Parent $xmake.Source) | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
           (Split-Path -Parent $cppcheck.Source) | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+
+          $cppcheckDir = Split-Path -Parent $cppcheck.Source
+          $stdCfg = Get-ChildItem -Path $cppcheckDir -Filter "std.cfg" -File -Recurse -ErrorAction SilentlyContinue |
+              Select-Object -First 1
+          if ($null -eq $stdCfg) {
+              throw "Cppcheck std.cfg was not found below $cppcheckDir"
+          }
+
+          $localCfgDir = Join-Path $cppcheckDir "cfg"
+          New-Item -ItemType Directory -Path $localCfgDir -Force | Out-Null
+          if ($stdCfg.DirectoryName -ne $localCfgDir) {
+              Copy-Item -Path (Join-Path $stdCfg.DirectoryName "*.cfg") -Destination $localCfgDir -Force
+          }
+
           xmake --version
           cppcheck --version
 
