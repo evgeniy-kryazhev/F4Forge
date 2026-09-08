@@ -19,7 +19,7 @@ public:
     F4ForgeEventSubscriptionHandle Subscribe(
         F4ForgeEndpointHandle endpoint,
         F4ForgeEventCallback callback,
-        void* context) noexcept;
+        void* context);
 
     void Unsubscribe(F4ForgeEventSubscriptionHandle subscription) noexcept;
 

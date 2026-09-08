@@ -8,7 +8,7 @@ F4ForgeResult ModuleManager::Register(
     F4ForgeRuntimeHandle runtime,
     F4ForgeStringView id,
     uint32_t version,
-    F4ForgeModuleHandle* module) noexcept
+    F4ForgeModuleHandle* module)
 {
     if (module == nullptr || id.data == nullptr || id.length == 0 || version == 0)
         return F4FORGE_RESULT_INVALID_ARGUMENT;
@@ -34,7 +34,7 @@ F4ForgeResult ModuleManager::Register(
     return F4FORGE_RESULT_SUCCESS;
 }
 
-F4ForgeResult ModuleManager::Unregister(F4ForgeModuleHandle module) noexcept
+F4ForgeResult ModuleManager::Unregister(F4ForgeModuleHandle module)
 {
     std::lock_guard lock(_mutex);
     auto* state = FindUnlocked(module);

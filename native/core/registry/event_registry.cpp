@@ -10,7 +10,7 @@ EventRegistry::EventRegistry(const EndpointRegistry& endpoints) noexcept : _endp
 F4ForgeEventSubscriptionHandle EventRegistry::Subscribe(
     F4ForgeEndpointHandle endpoint,
     F4ForgeEventCallback callback,
-    void* context) noexcept
+    void* context)
 {
     if (callback == nullptr || _endpoints.Kind(endpoint) != F4FORGE_ENDPOINT_EVENT)
         return F4FORGE_INVALID_HANDLE;

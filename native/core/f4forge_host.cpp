@@ -76,7 +76,11 @@ F4ForgeEndpointHandle F4FORGE_CALL F4ForgeHost::ResolveEndpoint(
     F4ForgeStringView name,
     uint32_t version) F4FORGE_NOEXCEPT
 {
-    return Instance()._endpoints.Resolve(name, version);
+    try {
+        return Instance()._endpoints.Resolve(name, version);
+    } catch (...) {
+        return F4FORGE_INVALID_HANDLE;
+    }
 }
 
 F4ForgeResult F4FORGE_CALL F4ForgeHost::Invoke(
@@ -87,7 +91,11 @@ F4ForgeResult F4FORGE_CALL F4ForgeHost::Invoke(
     uint32_t responseCapacity,
     uint32_t* responseSize) F4FORGE_NOEXCEPT
 {
-    return Instance()._endpoints.Invoke(endpoint, request, requestSize, response, responseCapacity, responseSize);
+    try {
+        return Instance()._endpoints.Invoke(endpoint, request, requestSize, response, responseCapacity, responseSize);
+    } catch (...) {
+        return F4FORGE_RESULT_INTERNAL_ERROR;
+    }
 }
 
 F4ForgeResult F4FORGE_CALL F4ForgeHost::RegisterEndpoint(
@@ -96,8 +104,12 @@ F4ForgeResult F4FORGE_CALL F4ForgeHost::RegisterEndpoint(
     F4ForgeEndpointHandle* endpoint) F4FORGE_NOEXCEPT
 {
     if (definition == nullptr) return F4FORGE_RESULT_INVALID_ARGUMENT;
-    auto& host = Instance();
-    return host._endpoints.Register(*definition, host._modules.Owner(module), endpoint);
+    try {
+        auto& host = Instance();
+        return host._endpoints.Register(*definition, host._modules.Owner(module), endpoint);
+    } catch (...) {
+        return F4FORGE_RESULT_INTERNAL_ERROR;
+    }
 }
 
 F4ForgeResult F4FORGE_CALL F4ForgeHost::RegisterModule(
@@ -106,19 +118,31 @@ F4ForgeResult F4FORGE_CALL F4ForgeHost::RegisterModule(
     uint32_t version,
     F4ForgeModuleHandle* module) F4FORGE_NOEXCEPT
 {
-    return Instance()._modules.Register(runtime, id, version, module);
+    try {
+        return Instance()._modules.Register(runtime, id, version, module);
+    } catch (...) {
+        return F4FORGE_RESULT_INTERNAL_ERROR;
+    }
 }
 
 F4ForgeResult F4FORGE_CALL F4ForgeHost::UnregisterModule(F4ForgeModuleHandle module) F4FORGE_NOEXCEPT
 {
-    return Instance()._modules.Unregister(module);
+    try {
+        return Instance()._modules.Unregister(module);
+    } catch (...) {
+        return F4FORGE_RESULT_INTERNAL_ERROR;
+    }
 }
 
 uint32_t F4FORGE_CALL F4ForgeHost::QueryCapability(
     F4ForgeStringView id,
     uint32_t minimumVersion) F4FORGE_NOEXCEPT
 {
-    return Instance()._capabilities.Query(id, minimumVersion);
+    try {
+        return Instance()._capabilities.Query(id, minimumVersion);
+    } catch (...) {
+        return 0;
+    }
 }
 
 F4ForgeResult F4FORGE_CALL F4ForgeHost::QueueTask(
@@ -150,12 +174,19 @@ F4ForgeEventSubscriptionHandle F4FORGE_CALL F4ForgeHost::Subscribe(
     F4ForgeEventCallback callback,
     void* context) F4FORGE_NOEXCEPT
 {
-    return Instance()._events.Subscribe(endpoint, callback, context);
+    try {
+        return Instance()._events.Subscribe(endpoint, callback, context);
+    } catch (...) {
+        return F4FORGE_INVALID_HANDLE;
+    }
 }
 
 void F4FORGE_CALL F4ForgeHost::Unsubscribe(F4ForgeEventSubscriptionHandle subscription) F4FORGE_NOEXCEPT
 {
-    Instance()._events.Unsubscribe(subscription);
+    try {
+        Instance()._events.Unsubscribe(subscription);
+    } catch (...) {
+    }
 }
 
 F4ForgeInterceptorSubscriptionHandle F4FORGE_CALL F4ForgeHost::Intercept(
@@ -163,12 +194,19 @@ F4ForgeInterceptorSubscriptionHandle F4FORGE_CALL F4ForgeHost::Intercept(
     F4ForgeInterceptorCallback callback,
     void* context) F4FORGE_NOEXCEPT
 {
-    return Instance()._interceptors.Intercept(endpoint, callback, context);
+    try {
+        return Instance()._interceptors.Intercept(endpoint, callback, context);
+    } catch (...) {
+        return F4FORGE_INVALID_HANDLE;
+    }
 }
 
 void F4FORGE_CALL F4ForgeHost::RemoveInterceptor(F4ForgeInterceptorSubscriptionHandle subscription) F4FORGE_NOEXCEPT
 {
-    Instance()._interceptors.Remove(subscription);
+    try {
+        Instance()._interceptors.Remove(subscription);
+    } catch (...) {
+    }
 }
 
 }

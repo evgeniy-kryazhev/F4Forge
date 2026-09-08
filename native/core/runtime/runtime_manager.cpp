@@ -5,7 +5,7 @@
 
 namespace f4forge::core {
 
-F4ForgeResult RuntimeManager::RegisterProvider(const RuntimeProvider& provider) noexcept
+F4ForgeResult RuntimeManager::RegisterProvider(const RuntimeProvider& provider)
 {
     if (!IsValidProvider(provider)) return F4FORGE_RESULT_INVALID_ARGUMENT;
     std::lock_guard lock(_mutex);
@@ -19,7 +19,7 @@ F4ForgeResult RuntimeManager::RegisterProvider(const RuntimeProvider& provider) 
     return F4FORGE_RESULT_SUCCESS;
 }
 
-uint32_t RuntimeManager::DiscoverDirectory(const std::filesystem::path& directory) noexcept
+uint32_t RuntimeManager::DiscoverDirectory(const std::filesystem::path& directory)
 {
     uint32_t discovered = 0;
     try {
@@ -60,7 +60,7 @@ F4ForgeResult RuntimeManager::Initialize(
     const F4ForgeHostApi* host,
     F4ForgeStringView pluginDirectory,
     F4ForgeStringView configDirectory,
-    F4ForgeRuntimeHandle* runtime) noexcept
+    F4ForgeRuntimeHandle* runtime)
 {
     if (runtime == nullptr || host == nullptr || id.data == nullptr || id.length == 0)
         return F4FORGE_RESULT_INVALID_ARGUMENT;
@@ -99,7 +99,7 @@ F4ForgeResult RuntimeManager::Initialize(
 uint32_t RuntimeManager::InitializeAll(
     const F4ForgeHostApi* host,
     F4ForgeStringView pluginDirectory,
-    F4ForgeStringView configDirectory) noexcept
+    F4ForgeStringView configDirectory)
 {
     if (host == nullptr) return 0;
     std::array<std::string, MaxProviders> ids{};
@@ -131,7 +131,7 @@ uint32_t RuntimeManager::InitializeAll(
     return initialized;
 }
 
-F4ForgeResult RuntimeManager::Shutdown(F4ForgeRuntimeHandle runtime) noexcept
+F4ForgeResult RuntimeManager::Shutdown(F4ForgeRuntimeHandle runtime)
 {
     std::lock_guard lock(_mutex);
     auto* instance = FindUnlocked(runtime);

@@ -4,7 +4,7 @@
 
 namespace f4forge::core {
 
-F4ForgeResult CapabilityRegistry::Register(F4ForgeStringView id, uint32_t version, EndpointOwner* owner) noexcept
+F4ForgeResult CapabilityRegistry::Register(F4ForgeStringView id, uint32_t version, EndpointOwner* owner)
 {
     if (id.data == nullptr || id.length == 0 || version == 0 || owner == nullptr)
         return F4FORGE_RESULT_INVALID_ARGUMENT;
@@ -31,7 +31,7 @@ void CapabilityRegistry::InvalidateOwner(EndpointOwner* owner) noexcept
     }
 }
 
-uint32_t CapabilityRegistry::Query(F4ForgeStringView id, uint32_t minimumVersion) const noexcept
+uint32_t CapabilityRegistry::Query(F4ForgeStringView id, uint32_t minimumVersion) const
 {
     if (id.data == nullptr || id.length == 0) return 0;
     std::shared_lock lock(_mutex);

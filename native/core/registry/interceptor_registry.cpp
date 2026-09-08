@@ -10,7 +10,7 @@ InterceptorRegistry::InterceptorRegistry(const EndpointRegistry& endpoints) noex
 F4ForgeInterceptorSubscriptionHandle InterceptorRegistry::Intercept(
     F4ForgeEndpointHandle endpoint,
     F4ForgeInterceptorCallback callback,
-    void* context) noexcept
+    void* context)
 {
     if (callback == nullptr || _endpoints.Kind(endpoint) != F4FORGE_ENDPOINT_INTERCEPTOR)
         return F4FORGE_INVALID_HANDLE;

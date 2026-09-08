@@ -29,9 +29,9 @@ public:
     F4ForgeResult Register(
         const F4ForgeEndpointDefinition& definition,
         EndpointOwner* owner,
-        F4ForgeEndpointHandle* endpoint) noexcept;
+        F4ForgeEndpointHandle* endpoint);
 
-    F4ForgeEndpointHandle Resolve(F4ForgeStringView name, uint32_t version) const noexcept;
+    F4ForgeEndpointHandle Resolve(F4ForgeStringView name, uint32_t version) const;
 
     uint32_t Kind(F4ForgeEndpointHandle endpoint) const noexcept;
     uint32_t PayloadSize(F4ForgeEndpointHandle endpoint) const noexcept;
@@ -45,7 +45,7 @@ public:
         uint32_t responseCapacity,
         uint32_t* responseSize) const noexcept;
 
-    void InvalidateOwner(EndpointOwner* owner) noexcept;
+    void InvalidateOwner(EndpointOwner* owner);
     void SetGameThreadCheck(GameThreadCheck check) noexcept;
 
 private:

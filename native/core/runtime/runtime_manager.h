@@ -32,19 +32,19 @@ public:
     RuntimeManager(const RuntimeManager&) = delete;
     RuntimeManager& operator=(const RuntimeManager&) = delete;
 
-    F4ForgeResult RegisterProvider(const RuntimeProvider& provider) noexcept;
-    uint32_t DiscoverDirectory(const std::filesystem::path& directory) noexcept;
+    F4ForgeResult RegisterProvider(const RuntimeProvider& provider);
+    uint32_t DiscoverDirectory(const std::filesystem::path& directory);
     F4ForgeResult Initialize(
         F4ForgeStringView id,
         const F4ForgeHostApi* host,
         F4ForgeStringView pluginDirectory,
         F4ForgeStringView configDirectory,
-        F4ForgeRuntimeHandle* runtime) noexcept;
+        F4ForgeRuntimeHandle* runtime);
     uint32_t InitializeAll(
         const F4ForgeHostApi* host,
         F4ForgeStringView pluginDirectory,
-        F4ForgeStringView configDirectory) noexcept;
-    F4ForgeResult Shutdown(F4ForgeRuntimeHandle runtime) noexcept;
+        F4ForgeStringView configDirectory);
+    F4ForgeResult Shutdown(F4ForgeRuntimeHandle runtime);
     RuntimeInstance* Find(F4ForgeRuntimeHandle runtime) noexcept;
     bool HasProvider(F4ForgeStringView id) const noexcept;
     uint32_t ProviderCount() const noexcept;

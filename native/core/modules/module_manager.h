@@ -28,9 +28,9 @@ public:
         F4ForgeRuntimeHandle runtime,
         F4ForgeStringView id,
         uint32_t version,
-        F4ForgeModuleHandle* module) noexcept;
+        F4ForgeModuleHandle* module);
 
-    F4ForgeResult Unregister(F4ForgeModuleHandle module) noexcept;
+    F4ForgeResult Unregister(F4ForgeModuleHandle module);
     ModuleState* Find(F4ForgeModuleHandle module) const noexcept;
     bool IsActive(F4ForgeModuleHandle module) const noexcept;
     EndpointOwner* Owner(F4ForgeModuleHandle module) const noexcept;

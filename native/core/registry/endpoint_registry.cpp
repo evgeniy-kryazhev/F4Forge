@@ -12,7 +12,7 @@ EndpointRegistry::EndpointRegistry() noexcept
 F4ForgeResult EndpointRegistry::Register(
     const F4ForgeEndpointDefinition& definition,
     EndpointOwner* owner,
-    F4ForgeEndpointHandle* endpoint) noexcept
+    F4ForgeEndpointHandle* endpoint)
 {
     if (endpoint == nullptr || owner == nullptr || !owner->active.load(std::memory_order_acquire))
         return F4FORGE_RESULT_INVALID_ARGUMENT;
@@ -52,7 +52,7 @@ F4ForgeResult EndpointRegistry::Register(
     return F4FORGE_RESULT_SUCCESS;
 }
 
-F4ForgeEndpointHandle EndpointRegistry::Resolve(F4ForgeStringView name, uint32_t version) const noexcept
+F4ForgeEndpointHandle EndpointRegistry::Resolve(F4ForgeStringView name, uint32_t version) const
 {
     if (name.data == nullptr && name.length != 0) return F4FORGE_INVALID_HANDLE;
     const auto key = MakeKey(name, version);
@@ -118,7 +118,7 @@ F4ForgeResult EndpointRegistry::Invoke(
     }
 }
 
-void EndpointRegistry::InvalidateOwner(EndpointOwner* owner) noexcept
+void EndpointRegistry::InvalidateOwner(EndpointOwner* owner)
 {
     if (owner == nullptr) return;
     std::lock_guard registrationLock(_registrationMutex);

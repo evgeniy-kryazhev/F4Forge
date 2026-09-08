@@ -19,7 +19,7 @@ public:
     F4ForgeInterceptorSubscriptionHandle Intercept(
         F4ForgeEndpointHandle endpoint,
         F4ForgeInterceptorCallback callback,
-        void* context) noexcept;
+        void* context);
 
     void Remove(F4ForgeInterceptorSubscriptionHandle subscription) noexcept;
 
