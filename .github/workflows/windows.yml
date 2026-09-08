@@ -27,6 +27,7 @@ jobs:
         shell: pwsh
         run: |
           choco install xmake cppcheck --no-progress --yes
+          "$env:ChocolateyInstall\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
 
       - name: Build and test
         shell: pwsh
