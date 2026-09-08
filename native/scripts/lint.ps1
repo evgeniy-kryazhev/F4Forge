@@ -6,6 +6,7 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
 $nativeRoot = (Resolve-Path (Join-Path $PSScriptRoot ".."))
+$providerRoot = (Resolve-Path (Join-Path $nativeRoot "..\runtimes\dotnet\native-provider"))
 $clangFormat = Get-Command clang-format -ErrorAction SilentlyContinue
 $clangTidy = Get-Command clang-tidy -ErrorAction SilentlyContinue
 if ($null -eq $clangFormat) { throw "clang-format is required for native linting." }
@@ -18,11 +19,15 @@ try {
         if ($LASTEXITCODE -ne 0) { throw "Failed to generate compile_commands.json." }
     }
 
-    $files = Get-ChildItem -LiteralPath $nativeRoot -Recurse -File -Include *.c, *.cc, *.cpp, *.h, *.hpp |
-        Where-Object { $_.FullName -notmatch "\\(lib|build|\.xmake)\\" }
+    $files = @(
+        Get-ChildItem -LiteralPath $nativeRoot -Recurse -File -Include *.c, *.cc, *.cpp, *.h, *.hpp |
+            Where-Object { $_.FullName -notmatch "\\(lib|build|\.xmake)\\" }
+        Get-ChildItem -LiteralPath $providerRoot -Recurse -File -Include *.cc, *.cpp, *.h, *.hpp |
+            Where-Object { $_.FullName -notmatch "\\(bin|obj|build)\\" }
+    )
 
     foreach ($file in $files) {
-        & $clangFormat.Source --dry-run --Werror --style=file -- $file.FullName
+        & $clangFormat.Source --dry-run --Werror --style="file:$nativeRoot\.clang-format" -- $file.FullName
         if ($LASTEXITCODE -ne 0) { throw "clang-format check failed for $($file.FullName)." }
     }
 

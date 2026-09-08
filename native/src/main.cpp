@@ -39,7 +39,7 @@ void NativeLog(uint32_t level, std::string_view message) noexcept
 	}
 }
 
-std::filesystem::path FrameworkDirectory() noexcept
+std::filesystem::path FrameworkDirectory()
 {
     HMODULE module = nullptr;
     if (!GetModuleHandleExW(
