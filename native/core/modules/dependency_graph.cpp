@@ -9,7 +9,7 @@ namespace f4forge::core {
 
 DependencyGraphResult DependencyGraph::Add(ModuleMetadata metadata)
 {
-    if (metadata.id.empty() || metadata.version == 0) return DependencyGraphResult::DuplicateModule;
+    if (metadata.id.empty() || metadata.version == 0) return DependencyGraphResult::InvalidMetadata;
     const auto duplicate = std::find_if(_modules.begin(), _modules.end(), [&](const auto& current) {
         return current.id == metadata.id;
     });
@@ -22,12 +22,19 @@ DependencyGraphResult DependencyGraph::Finalize(std::vector<std::string>& order)
 {
     order.clear();
     std::unordered_map<std::string, size_t> providers;
+    std::unordered_set<std::string> moduleIds;
     std::unordered_set<std::string> capabilities{ "core" };
     for (size_t index = 0; index < _modules.size(); ++index) {
         providers.emplace(_modules[index].id, index);
+        moduleIds.insert(_modules[index].id);
+    }
+    for (size_t index = 0; index < _modules.size(); ++index) {
         for (const auto& provided : _modules[index].provided) {
+            if (provided.empty()) return DependencyGraphResult::InvalidMetadata;
+            if (moduleIds.contains(provided)) return DependencyGraphResult::CapabilityCollision;
+            if (!capabilities.insert(provided).second)
+                return DependencyGraphResult::DuplicateCapability;
             providers.emplace(provided, index);
-            capabilities.insert(provided);
         }
     }
 

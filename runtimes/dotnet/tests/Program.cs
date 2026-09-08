@@ -61,9 +61,29 @@ internal static unsafe class Program
         Directory.CreateDirectory(pluginDirectory);
         var copiedFixture = Path.Combine(pluginDirectory, "Fixture.dll");
         File.Copy(typeof(FixturePlugin).Assembly.Location, copiedFixture);
-        var loader = new PluginLoader(2);
+        var loader = new PluginLoader(2, allowManifestlessPlugins: true);
         if (loader.LoadDirectory(pluginDirectory) != 1 || loader.Count != 1 || !loader.IsActive("fixture.plugin"))
             return 6;
+        var manifestOnlyLoader = new PluginLoader();
+        if (manifestOnlyLoader.LoadDirectory(pluginDirectory) != 0)
+            return 26;
+        var quarantineLoader = new PluginLoader();
+        if (quarantineLoader.Load(copiedFixture) == false)
+            return 21;
+        var callbackEntered = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var releaseCallback = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var dispatchTask = Task.Run(() => quarantineLoader.Dispatch(_ =>
+        {
+            callbackEntered.TrySetResult(true);
+            releaseCallback.Task.GetAwaiter().GetResult();
+        }));
+        if (!callbackEntered.Task.Wait(TimeSpan.FromSeconds(1))) return 22;
+        var unloadTask = Task.Run(quarantineLoader.UnloadAll);
+        if (!unloadTask.Wait(TimeSpan.FromSeconds(1)) ||
+            !quarantineLoader.IsQuarantined("fixture.plugin")) return 23;
+        releaseCallback.TrySetResult(true);
+        if (!dispatchTask.Wait(TimeSpan.FromSeconds(1)) ||
+            !SpinWait.SpinUntil(() => !quarantineLoader.IsQuarantined("fixture.plugin"), 1000)) return 24;
         var duplicatePath = Path.Combine(pluginDirectory, "Duplicate.dll");
         File.Copy(typeof(FixturePlugin).Assembly.Location, duplicatePath);
         if (loader.Load(duplicatePath) || loader.Count != 1)
@@ -147,6 +167,8 @@ internal static unsafe class Program
         loader.Dispatch(_ => throw new InvalidOperationException("callback failure"));
         if (loader.IsActive("fixture.plugin"))
             return 10;
+        if (!loader.Reload("fixture.plugin") || !loader.IsActive("fixture.plugin"))
+            return 25;
         loader.UnloadAll();
         if (loader.Count != 0)
             return 8;

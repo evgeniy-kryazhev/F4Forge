@@ -24,5 +24,21 @@ int main()
     const auto secondCycleAddResult = cycle.Add({ "b", 1, { "a" }, {} });
     assert(secondCycleAddResult == f4forge::core::DependencyGraphResult::Success);
     assert(cycle.Finalize(order) == f4forge::core::DependencyGraphResult::CycleDetected);
+
+    f4forge::core::DependencyGraph duplicateCapability;
+    const auto duplicateFirst = duplicateCapability.Add({ "a", 1, {}, { "shared" } });
+    const auto duplicateSecond = duplicateCapability.Add({ "b", 1, {}, { "shared" } });
+    assert(duplicateFirst == f4forge::core::DependencyGraphResult::Success);
+    assert(duplicateSecond == f4forge::core::DependencyGraphResult::Success);
+    assert(duplicateCapability.Finalize(order) ==
+        f4forge::core::DependencyGraphResult::DuplicateCapability);
+
+    f4forge::core::DependencyGraph capabilityCollision;
+    const auto collisionFirst = capabilityCollision.Add({ "a", 1, {}, {} });
+    const auto collisionSecond = capabilityCollision.Add({ "b", 1, {}, { "a" } });
+    assert(collisionFirst == f4forge::core::DependencyGraphResult::Success);
+    assert(collisionSecond == f4forge::core::DependencyGraphResult::Success);
+    assert(capabilityCollision.Finalize(order) ==
+        f4forge::core::DependencyGraphResult::CapabilityCollision);
     return 0;
 }

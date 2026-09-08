@@ -90,7 +90,7 @@ int main()
     assert(shutdownResult == F4FORGE_RESULT_SUCCESS);
     assert(shutdownCalls == 1);
     const auto duplicateShutdownResult = manager.Shutdown(runtime);
-    assert(duplicateShutdownResult == F4FORGE_RESULT_INACTIVE_RUNTIME);
+    assert(duplicateShutdownResult == F4FORGE_RESULT_INVALID_HANDLE);
     F4ForgeRuntimeHandle restartedRuntime = F4FORGE_INVALID_HANDLE;
     const auto restartInitializeResult = manager.Initialize(
         { "test", 4 }, &host, {}, {}, &restartedRuntime);
@@ -101,6 +101,17 @@ int main()
     const auto initializeAllResult = manager.InitializeAll(&host, { "plugins", 7 }, { "config", 6 });
     assert(initializeAllResult == 2);
     assert(initializeCalls == 2);
+    const auto restartedShutdownResult = manager.Shutdown(restartedRuntime);
+    assert(restartedShutdownResult == F4FORGE_RESULT_SUCCESS);
+    for (uint32_t cycle = 0; cycle < 1000; ++cycle) {
+        F4ForgeRuntimeHandle cycleRuntime = F4FORGE_INVALID_HANDLE;
+        const auto cycleInitializeResult = manager.Initialize(
+            { "test", 4 }, &host, {}, {}, &cycleRuntime);
+        assert(cycleInitializeResult == F4FORGE_RESULT_SUCCESS);
+        const auto cycleShutdownResult = manager.Shutdown(cycleRuntime);
+        assert(cycleShutdownResult == F4FORGE_RESULT_SUCCESS);
+        assert(!manager.IsActive(cycleRuntime));
+    }
     assert(manager.DiscoverDirectory("C:/F4Forge/missing-runtime-directory") == 0);
     return 0;
 }

@@ -44,6 +44,12 @@ private:
 class DispatchOwner {
 public:
     using DeferredTeardown = std::function<void()>;
+    enum class State : uint32_t {
+        Active,
+        Quiescing,
+        Unloaded,
+        Quarantined
+    };
 
     DispatchOwner() noexcept = default;
     DispatchOwner(const DispatchOwner&) = delete;
@@ -64,10 +70,22 @@ public:
             std::lock_guard lock(_mutex);
             active.store(false, std::memory_order_release);
             _quiescing = true;
+            if (_state == State::Active) _state = State::Quiescing;
             if (teardown && !_teardown) _teardown = std::move(teardown);
             if (_inFlight == 0) ready = TakeTeardownUnlocked();
         }
         InvokeTeardown(std::move(ready));
+    }
+
+    bool WaitForQuiescence(std::chrono::milliseconds timeout) noexcept
+    {
+        std::unique_lock lock(_mutex);
+        if (_inFlight == 0) return true;
+        if (!_condition.wait_for(lock, timeout, [this] { return _inFlight == 0; })) {
+            _state = State::Quarantined;
+            return false;
+        }
+        return true;
     }
 
     void MarkUnloaded() noexcept
@@ -75,11 +93,23 @@ public:
         std::lock_guard lock(_mutex);
         _quiescing = true;
         active.store(false, std::memory_order_release);
+        _state = State::Unloaded;
     }
 
     bool IsActive() const noexcept
     {
         return active.load(std::memory_order_acquire);
+    }
+
+    State LifecycleState() const noexcept
+    {
+        std::lock_guard lock(_mutex);
+        return _state;
+    }
+
+    bool IsQuarantined() const noexcept
+    {
+        return LifecycleState() == State::Quarantined;
     }
 
     std::atomic<bool> active{ true };
@@ -120,6 +150,7 @@ private:
     uint32_t _inFlight{};
     bool _quiescing{};
     bool _teardownStarted{};
+    State _state{ State::Active };
     DeferredTeardown _teardown;
 };
 

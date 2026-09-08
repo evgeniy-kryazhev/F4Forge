@@ -6,6 +6,8 @@
 #include "../runtime/runtime_manager.h"
 #include "../async/async_operation.h"
 
+#include <chrono>
+
 namespace f4forge::core {
 
 ModuleManager::ModuleManager(
@@ -98,21 +100,27 @@ F4ForgeResult ModuleManager::Unregister(F4ForgeModuleHandle module)
     return F4FORGE_RESULT_SUCCESS;
 }
 
-void ModuleManager::UnregisterRuntime(F4ForgeRuntimeHandle runtime)
+bool ModuleManager::UnregisterRuntime(F4ForgeRuntimeHandle runtime)
 {
-    std::vector<F4ForgeModuleHandle> modules;
+    std::vector<std::pair<F4ForgeModuleHandle, ModuleState*>> modules;
     {
         std::lock_guard lock(_mutex);
         for (uint32_t index = 1; index < _nextIndex; ++index) {
             const auto& slot = _slots[index];
-            if (!slot.state || !slot.state->active.load(std::memory_order_acquire) ||
-                slot.state->runtime != runtime)
+            if (!slot.state || slot.state->runtime != runtime)
                 continue;
-            modules.push_back(f4forge::MakeHandle(
-                slot.generation.load(std::memory_order_acquire), index));
+            modules.emplace_back(
+                f4forge::MakeHandle(slot.generation.load(std::memory_order_acquire), index),
+                slot.state.get());
         }
     }
-    for (const auto module : modules) Unregister(module);
+    bool quiesced = true;
+    for (const auto& [module, state] : modules) {
+        if (state->active.load(std::memory_order_acquire)) Unregister(module);
+        if (!state->endpointOwner.WaitForQuiescence(std::chrono::milliseconds(100)))
+            quiesced = false;
+    }
+    return quiesced;
 }
 
 ModuleState* ModuleManager::Find(F4ForgeModuleHandle module) const noexcept

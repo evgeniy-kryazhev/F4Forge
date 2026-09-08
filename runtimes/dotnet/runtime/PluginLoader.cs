@@ -11,20 +11,30 @@ internal enum PluginState
     Active,
     Quiescing,
     Disabled,
+    Quarantined,
     Unloaded
 }
 
-internal sealed class PluginLoader
+internal unsafe sealed class PluginLoader
 {
     private const string FrameworkVersion = "0.1.0";
     private readonly object _gate = new();
     private readonly Dictionary<string, PluginInstance> _plugins = new(StringComparer.OrdinalIgnoreCase);
+    private readonly List<PluginInstance> _quarantined = [];
     private readonly int _failureThreshold;
+    private readonly bool _allowManifestlessPlugins;
+    private readonly NativeApi* _host;
+    private readonly ulong _runtime;
+    private static readonly TimeSpan QuiescenceTimeout = TimeSpan.FromMilliseconds(100);
     private static readonly AsyncLocal<int> DispatchDepth = new();
 
-    public PluginLoader(int failureThreshold = 3)
+    public PluginLoader(int failureThreshold = 3, bool allowManifestlessPlugins = false,
+        NativeApi* host = null, ulong runtime = 0)
     {
         _failureThreshold = Math.Max(1, failureThreshold);
+        _allowManifestlessPlugins = allowManifestlessPlugins;
+        _host = host;
+        _runtime = runtime;
     }
 
     public int LoadDirectory(string directory)
@@ -70,11 +80,15 @@ internal sealed class PluginLoader
             if (Load(candidate.Path, candidate.Manifest.Id)) ++loaded;
         }
 
-        foreach (var path in Directory.EnumerateFiles(directory, "*.dll").Order(StringComparer.OrdinalIgnoreCase))
+        var legacyPaths = Directory.EnumerateFiles(directory, "*.dll")
+            .Order(StringComparer.OrdinalIgnoreCase).ToArray();
+        if (!_allowManifestlessPlugins && legacyPaths.Length != 0)
+            Logger.Warning($"Ignoring {legacyPaths.Length} manifestless plugin DLL(s); legacy mode is disabled.");
+        foreach (var path in _allowManifestlessPlugins ? legacyPaths : [])
         {
             if (Load(path)) ++loaded;
         }
-        Logger.Info($"Managed plugin DLLs discovered: {Directory.EnumerateFiles(directory, "*.dll").Count()}");
+        Logger.Info($"Managed plugin DLLs discovered: {legacyPaths.Length}");
         return loaded;
     }
 
@@ -94,6 +108,11 @@ internal sealed class PluginLoader
     private static bool ValidateManifest(PluginManifest manifest, string path)
     {
         var id = string.IsNullOrWhiteSpace(manifest.Id) ? path : manifest.Id;
+        if (string.IsNullOrWhiteSpace(manifest.Id))
+        {
+            Logger.Error($"Plugin manifest must declare an id: {path}.");
+            return false;
+        }
         if (!TryParseVersion(manifest.Version, out _))
         {
             Logger.Error($"Plugin '{id}' has malformed version in {path}.");
@@ -212,8 +231,7 @@ internal sealed class PluginLoader
                 string.Equals(item.Manifest.Id, dependency, StringComparison.OrdinalIgnoreCase) ||
                 (item.Manifest.ProvidedCapabilities ?? [])
                     .Any(capability => string.Equals(capability, dependency, StringComparison.OrdinalIgnoreCase)));
-            if (provider == null || string.IsNullOrWhiteSpace(provider.Manifest.Id) ||
-                !IsActive(provider.Manifest.Id!)) return false;
+            if (provider == null || !IsActive(provider.Manifest.Id!)) return false;
         }
         return true;
     }
@@ -238,7 +256,8 @@ internal sealed class PluginLoader
                 throw new InvalidOperationException("Plugin ID must not be empty.");
             if (expectedId != null && !pluginId.Equals(expectedId, StringComparison.OrdinalIgnoreCase))
                 throw new InvalidOperationException($"Manifest ID '{expectedId}' does not match plugin ID '{pluginId}'.");
-            instance = new PluginInstance(Path.GetFullPath(path), context, plugin, pluginId, new PluginResourceScope());
+            instance = new PluginInstance(Path.GetFullPath(path), context, plugin, pluginId,
+                new PluginResourceScope(), _host, _runtime);
             lock (_gate)
             {
                 if (_plugins.ContainsKey(pluginId))
@@ -279,12 +298,13 @@ internal sealed class PluginLoader
         PluginInstance? old;
         lock (_gate)
         {
-            if (!_plugins.TryGetValue(id, out old) || old.State != PluginState.Active) return false;
+            if (!_plugins.TryGetValue(id, out old) ||
+                old.State is not (PluginState.Active or PluginState.Disabled)) return false;
             _plugins.Remove(id);
         }
 
         var path = old.Path;
-        old.Stop();
+        if (!old.Stop()) return false;
         return Load(path);
     }
 
@@ -302,12 +322,14 @@ internal sealed class PluginLoader
                 callback(instance.Plugin);
                 instance.ResetFailures();
             }
-            catch
+            catch (Exception exception)
             {
-                if (instance.RecordFailure(_failureThreshold) >= _failureThreshold)
-                {
-                    instance.Scope.Dispose();
-                }
+                var failures = instance.RecordFailure(_failureThreshold);
+                Logger.Error($"Managed plugin callback failed: plugin={instance.Id}, " +
+                    $"exception={exception.GetType().FullName}, failures={failures}, " +
+                    $"threshold={_failureThreshold}: {exception}");
+                if (failures >= _failureThreshold)
+                    Logger.Warning($"Managed plugin disabled: plugin={instance.Id}, threshold={_failureThreshold}.");
             }
             finally
             {
@@ -324,7 +346,14 @@ internal sealed class PluginLoader
             snapshot = _plugins.Values.ToArray();
             _plugins.Clear();
         }
-        foreach (var instance in snapshot) instance.Stop();
+        foreach (var instance in snapshot)
+        {
+            if (!instance.Stop())
+            {
+                lock (_gate)
+                    if (!_quarantined.Contains(instance)) _quarantined.Add(instance);
+            }
+        }
     }
 
     public int Count
@@ -336,6 +365,13 @@ internal sealed class PluginLoader
     {
         lock (_gate)
             return _plugins.TryGetValue(id, out var instance) && instance.State == PluginState.Active;
+    }
+
+    public bool IsQuarantined(string id)
+    {
+        lock (_gate) return _quarantined.Any(instance =>
+            instance.Id.Equals(id, StringComparison.OrdinalIgnoreCase) &&
+            instance.State == PluginState.Quarantined);
     }
 
     private static Type? FindPluginType(Assembly assembly, string? expectedId = null)
@@ -390,17 +426,27 @@ internal sealed class PluginLoader
         private int _failures;
         private bool _teardownStarted;
 
-        public PluginInstance(string path, PluginLoadContext context, F4ForgePlugin plugin, string id, PluginResourceScope scope)
+        public PluginInstance(string path, PluginLoadContext context, F4ForgePlugin plugin, string id,
+            PluginResourceScope scope, NativeApi* host, ulong runtime)
         {
             Path = path;
             Context = context;
             Plugin = plugin;
             Id = id;
             Scope = scope;
-            ContextInfo = new F4ForgePluginContext(
-                F4Forge.DotNet.Sdk.ModuleHandle.Invalid,
-                scope.Add,
-                scope.CancellationToken);
+            var bridge = host == null ? null : new NativeHostBridge(host, runtime, id);
+            if (bridge != null)
+            {
+                scope.Add(bridge);
+                ContextInfo = new F4ForgePluginContext(
+                    bridge.Module, scope.Add, bridge, scope.CancellationToken);
+            }
+            else
+            {
+                ContextInfo = new F4ForgePluginContext(
+                    F4Forge.DotNet.Sdk.ModuleHandle.Invalid,
+                    scope.Add, null, scope.CancellationToken);
+            }
         }
 
         public string Path { get; }
@@ -454,24 +500,44 @@ internal sealed class PluginLoader
             }
         }
 
-        public void Stop()
+        public bool Stop()
         {
             bool wasLoaded;
             bool finalize;
+            bool wait;
             lock (_lifecycleGate)
             {
-                if (_state == PluginState.Unloaded) return;
-                if (_state == PluginState.Quiescing)
+                if (_state == PluginState.Unloaded) return true;
+                if (_state == PluginState.Quiescing || _state == PluginState.Quarantined)
                 {
-                    if (DispatchDepth.Value == 0) _stopped.Task.GetAwaiter().GetResult();
-                    return;
+                    wasLoaded = false;
+                    finalize = false;
+                    wait = DispatchDepth.Value == 0;
                 }
-                wasLoaded = _state is PluginState.Active or PluginState.Disabled;
-                _state = PluginState.Quiescing;
-                finalize = _inFlight == 0;
+                else
+                {
+                    wasLoaded = _state is PluginState.Active or PluginState.Disabled;
+                    _state = PluginState.Quiescing;
+                    finalize = _inFlight == 0;
+                    wait = !finalize && DispatchDepth.Value == 0;
+                }
             }
-            if (finalize) FinalizeStop(wasLoaded);
-            else if (DispatchDepth.Value == 0) _stopped.Task.GetAwaiter().GetResult();
+            if (!wait && !finalize) return false;
+            if (finalize) {
+                FinalizeStop(wasLoaded);
+                return true;
+            }
+            return WaitForStop();
+        }
+
+        private bool WaitForStop()
+        {
+            if (_stopped.Task.Wait(QuiescenceTimeout)) return true;
+            lock (_lifecycleGate)
+            {
+                if (_state != PluginState.Unloaded) _state = PluginState.Quarantined;
+            }
+            return false;
         }
 
         private void FinalizeStop(bool wasLoaded)
@@ -484,7 +550,10 @@ internal sealed class PluginLoader
             if (wasLoaded)
             {
                 try { Plugin.OnUnload(); }
-                catch { }
+                catch (Exception exception)
+                {
+                    Logger.Error($"Managed plugin OnUnload failed: plugin={Id}: {exception}");
+                }
             }
             Scope.Dispose();
             lock (_lifecycleGate) _state = PluginState.Unloaded;
@@ -498,7 +567,8 @@ internal sealed class PluginLoader
             lock (_lifecycleGate)
             {
                 --_inFlight;
-                finalize = _inFlight == 0 && _state == PluginState.Quiescing;
+                finalize = _inFlight == 0 &&
+                    _state is PluginState.Quiescing or PluginState.Quarantined;
             }
             if (finalize) FinalizeStop(true);
         }

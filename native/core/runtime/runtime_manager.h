@@ -1,6 +1,7 @@
 #pragma once
 
 #include "f4forge_runtime_abi.h"
+#include "f4forge_handles.h"
 
 #include <array>
 #include <cstdint>
@@ -9,6 +10,7 @@
 #include <memory>
 #include <mutex>
 #include <string>
+#include <vector>
 
 namespace f4forge::core {
 
@@ -25,6 +27,7 @@ struct RuntimeInstance final {
         Active,
         ShuttingDown,
         Inactive,
+        Quarantined,
         Failed
     };
 
@@ -55,7 +58,7 @@ public:
         F4ForgeStringView pluginDirectory,
         F4ForgeStringView configDirectory);
     F4ForgeResult Shutdown(F4ForgeRuntimeHandle runtime);
-    void SetModuleShutdownCallback(std::function<void(F4ForgeRuntimeHandle)> callback) noexcept;
+    void SetModuleShutdownCallback(std::function<bool(F4ForgeRuntimeHandle)> callback) noexcept;
     RuntimeInstance* Find(F4ForgeRuntimeHandle runtime) noexcept;
     bool IsActive(F4ForgeRuntimeHandle runtime) const noexcept;
     bool HasProvider(F4ForgeStringView id) const noexcept;
@@ -68,11 +71,16 @@ private:
 
     mutable std::mutex _mutex;
     std::array<std::unique_ptr<RuntimeProvider>, MaxProviders> _providers{};
-    std::array<std::unique_ptr<RuntimeInstance>, MaxRuntimes> _runtimes{};
+    struct Slot final {
+        uint32_t generation{ 1 };
+        std::unique_ptr<RuntimeInstance> instance;
+    };
+
+    std::array<Slot, MaxRuntimes> _runtimes{};
     uint32_t _providerCount = 0;
-    uint32_t _runtimeCount = 0;
-    uint64_t _nextRuntimeHandle = 1;
-    std::function<void(F4ForgeRuntimeHandle)> _moduleShutdown;
+    uint32_t _slotCount = 1;
+    std::vector<uint32_t> _freeIndices;
+    std::function<bool(F4ForgeRuntimeHandle)> _moduleShutdown;
 };
 
 }

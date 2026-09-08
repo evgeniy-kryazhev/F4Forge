@@ -99,4 +99,4 @@ Plugins must not retain unmanaged threads, static references, or external callba
 
 ## License
 
-F4Forge is released under the GNU General Public License version 3. See `LICENSE`. Third-party dependencies retain their own licenses.
+F4Forge is released under the MIT License. See `LICENSE`. Third-party dependencies retain their own licenses.

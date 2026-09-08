@@ -7,7 +7,7 @@ option_end()
 
 set_project("F4Forge")
 set_version("0.1.0")
-set_license("GPL-3.0")
+set_license("MIT")
 set_languages("c++23")
 set_warnings("allextra")
 
@@ -49,6 +49,12 @@ target("F4ForgeModuleTests")
     set_kind("binary")
     add_files("core/async/*.cpp", "core/registry/*.cpp", "core/runtime/runtime_manager.cpp", "core/modules/module_manager.cpp", "tests/modules/ModuleManagerTests.cpp")
     add_includedirs("abi", "core")
+    add_cxxflags("/WX", "/permissive-", "/EHsc", "/utf-8", { public = false })
+
+target("F4ForgeLifecycleTests")
+    set_kind("binary")
+    add_files("tests/lifecycle/DispatchOwnerTests.cpp")
+    add_includedirs("core")
     add_cxxflags("/WX", "/permissive-", "/EHsc", "/utf-8", { public = false })
 
 target("F4ForgeDependencyTests")

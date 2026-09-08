@@ -15,7 +15,10 @@ struct ModuleMetadata final {
 
 enum class DependencyGraphResult : uint32_t {
     Success,
+    InvalidMetadata,
     DuplicateModule,
+    DuplicateCapability,
+    CapabilityCollision,
     MissingDependency,
     CycleDetected
 };
