@@ -62,6 +62,12 @@ target("F4ForgeEventTests")
     add_includedirs("abi", "core")
     add_cxxflags("/WX", "/permissive-", "/EHsc", "/utf-8", { public = false })
 
+target("F4ForgeCapabilityTests")
+    set_kind("binary")
+    add_files("core/registry/capability_registry.cpp", "tests/registry/CapabilityRegistryTests.cpp")
+    add_includedirs("abi", "core")
+    add_cxxflags("/WX", "/permissive-", "/EHsc", "/utf-8", { public = false })
+
 target("F4ForgeRuntimeTests")
     set_kind("binary")
     add_files("core/runtime/runtime_manager.cpp", "tests/runtime/RuntimeManagerTests.cpp")

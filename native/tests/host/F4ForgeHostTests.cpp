@@ -22,6 +22,8 @@ int main()
     assert(api.registerEndpoint != nullptr);
     assert(api.registerModule != nullptr);
     assert(api.unregisterModule != nullptr);
+    assert(api.queryCapability({ "core", sizeof("core") - 1 }, 1) == 1);
+    assert(api.queryCapability({ "missing", sizeof("missing") - 1 }, 1) == 0);
 
     F4ForgeModuleHandle module = F4FORGE_INVALID_HANDLE;
     assert(api.registerModule(1, { "host.test", sizeof("host.test") - 1 }, 1, &module)

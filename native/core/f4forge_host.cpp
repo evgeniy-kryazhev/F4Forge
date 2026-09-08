@@ -24,6 +24,17 @@ F4ForgeHost::F4ForgeHost() noexcept : _events(_endpoints), _interceptors(_endpoi
     _api.queryCapability = &QueryCapability;
     _api.queueTask = &QueueTask;
     _api.log = &Log;
+
+    static EndpointOwner coreOwner;
+    static constexpr F4ForgeStringView coreCapabilities[] = {
+        { "core", sizeof("core") - 1 },
+        { "core.registry", sizeof("core.registry") - 1 },
+        { "core.runtime", sizeof("core.runtime") - 1 },
+        { "core.thread", sizeof("core.thread") - 1 },
+        { "core.lifecycle", sizeof("core.lifecycle") - 1 }
+    };
+    for (const auto capability : coreCapabilities)
+        _capabilities.Register(capability, 1, &coreOwner);
 }
 
 const F4ForgeHostApi& F4ForgeHost::Api() const noexcept
@@ -44,6 +55,11 @@ EventRegistry& F4ForgeHost::Events() noexcept
 InterceptorRegistry& F4ForgeHost::Interceptors() noexcept
 {
     return _interceptors;
+}
+
+CapabilityRegistry& F4ForgeHost::Capabilities() noexcept
+{
+    return _capabilities;
 }
 
 ModuleManager& F4ForgeHost::Modules() noexcept
@@ -99,10 +115,10 @@ F4ForgeResult F4FORGE_CALL F4ForgeHost::UnregisterModule(F4ForgeModuleHandle mod
 }
 
 uint32_t F4FORGE_CALL F4ForgeHost::QueryCapability(
-    F4ForgeStringView,
-    uint32_t) F4FORGE_NOEXCEPT
+    F4ForgeStringView id,
+    uint32_t minimumVersion) F4FORGE_NOEXCEPT
 {
-    return 0;
+    return Instance()._capabilities.Query(id, minimumVersion);
 }
 
 F4ForgeResult F4FORGE_CALL F4ForgeHost::QueueTask(

@@ -3,6 +3,7 @@
 #include "f4forge_abi.h"
 #include "modules/module_manager.h"
 #include "registry/event_registry.h"
+#include "registry/capability_registry.h"
 #include "registry/interceptor_registry.h"
 #include "runtime/runtime_manager.h"
 
@@ -16,6 +17,7 @@ public:
     EndpointRegistry& Endpoints() noexcept;
     EventRegistry& Events() noexcept;
     InterceptorRegistry& Interceptors() noexcept;
+    CapabilityRegistry& Capabilities() noexcept;
     ModuleManager& Modules() noexcept;
     RuntimeManager& Runtimes() noexcept;
 
@@ -69,6 +71,7 @@ private:
     EndpointRegistry _endpoints;
     EventRegistry _events;
     InterceptorRegistry _interceptors;
+    CapabilityRegistry _capabilities;
     ModuleManager _modules;
     RuntimeManager _runtimes;
     F4ForgeHostApi _api{};
