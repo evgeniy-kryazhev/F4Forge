@@ -16,7 +16,7 @@ function Invoke-Checked {
     }
 }
 
-Invoke-Checked "powershell" @(
+Invoke-Checked "pwsh" @(
     "-NoProfile",
     "-ExecutionPolicy", "Bypass",
     "-File", (Join-Path $root "scripts\build.ps1")
