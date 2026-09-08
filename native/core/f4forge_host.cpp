@@ -51,6 +51,11 @@ ModuleManager& F4ForgeHost::Modules() noexcept
     return _modules;
 }
 
+RuntimeManager& F4ForgeHost::Runtimes() noexcept
+{
+    return _runtimes;
+}
+
 F4ForgeEndpointHandle F4FORGE_CALL F4ForgeHost::ResolveEndpoint(
     F4ForgeStringView name,
     uint32_t version) F4FORGE_NOEXCEPT

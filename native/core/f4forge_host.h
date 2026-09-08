@@ -4,6 +4,7 @@
 #include "modules/module_manager.h"
 #include "registry/event_registry.h"
 #include "registry/interceptor_registry.h"
+#include "runtime/runtime_manager.h"
 
 namespace f4forge::core {
 
@@ -16,6 +17,7 @@ public:
     EventRegistry& Events() noexcept;
     InterceptorRegistry& Interceptors() noexcept;
     ModuleManager& Modules() noexcept;
+    RuntimeManager& Runtimes() noexcept;
 
 private:
     F4ForgeHost() noexcept;
@@ -68,6 +70,7 @@ private:
     EventRegistry _events;
     InterceptorRegistry _interceptors;
     ModuleManager _modules;
+    RuntimeManager _runtimes;
     F4ForgeHostApi _api{};
 };
 

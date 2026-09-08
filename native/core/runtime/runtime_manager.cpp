@@ -96,6 +96,31 @@ F4ForgeResult RuntimeManager::Initialize(
     return F4FORGE_RESULT_SUCCESS;
 }
 
+uint32_t RuntimeManager::InitializeAll(
+    const F4ForgeHostApi* host,
+    F4ForgeStringView pluginDirectory,
+    F4ForgeStringView configDirectory) noexcept
+{
+    if (host == nullptr) return 0;
+    std::array<std::string, MaxProviders> ids{};
+    uint32_t count = 0;
+    {
+        std::lock_guard lock(_mutex);
+        count = _providerCount;
+        for (uint32_t index = 0; index < count; ++index)
+            ids[index].assign(_providers[index]->info.id.data, _providers[index]->info.id.length);
+    }
+
+    uint32_t initialized = 0;
+    for (uint32_t index = 0; index < count; ++index) {
+        F4ForgeRuntimeHandle runtime = F4FORGE_INVALID_HANDLE;
+        const F4ForgeStringView id{ ids[index].data(), static_cast<uint32_t>(ids[index].size()) };
+        if (Initialize(id, host, pluginDirectory, configDirectory, &runtime) == F4FORGE_RESULT_SUCCESS)
+            ++initialized;
+    }
+    return initialized;
+}
+
 F4ForgeResult RuntimeManager::Shutdown(F4ForgeRuntimeHandle runtime) noexcept
 {
     std::lock_guard lock(_mutex);

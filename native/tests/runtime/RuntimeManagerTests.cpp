@@ -63,6 +63,8 @@ int main()
     assert(manager.Shutdown(runtime) == F4FORGE_RESULT_INACTIVE_RUNTIME);
     assert(manager.Initialize({ "missing", 7 }, &host, {}, {}, &runtime)
         == F4FORGE_RESULT_RUNTIME_UNAVAILABLE);
+    assert(manager.InitializeAll(&host, { "plugins", 7 }, { "config", 6 }) == 1);
+    assert(initializeCalls == 2);
     assert(manager.DiscoverDirectory("C:/F4Forge/missing-runtime-directory") == 0);
     return 0;
 }

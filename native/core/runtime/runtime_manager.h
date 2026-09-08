@@ -40,6 +40,10 @@ public:
         F4ForgeStringView pluginDirectory,
         F4ForgeStringView configDirectory,
         F4ForgeRuntimeHandle* runtime) noexcept;
+    uint32_t InitializeAll(
+        const F4ForgeHostApi* host,
+        F4ForgeStringView pluginDirectory,
+        F4ForgeStringView configDirectory) noexcept;
     F4ForgeResult Shutdown(F4ForgeRuntimeHandle runtime) noexcept;
     RuntimeInstance* Find(F4ForgeRuntimeHandle runtime) noexcept;
     bool HasProvider(F4ForgeStringView id) const noexcept;
