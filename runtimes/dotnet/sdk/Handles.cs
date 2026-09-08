@@ -20,6 +20,12 @@ public readonly record struct AsyncOperationHandle(ulong Value)
     public bool IsValid => Value != 0;
 }
 
+public readonly record struct ModuleHandle(ulong Value)
+{
+    public static ModuleHandle Invalid => new(0);
+    public bool IsValid => Value != 0;
+}
+
 public enum F4ForgeResult : uint
 {
     Success = 0,

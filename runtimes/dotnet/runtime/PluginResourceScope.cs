@@ -21,7 +21,8 @@ internal sealed class PluginResourceScope : IDisposable
     public void Dispose()
     {
         if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
-        _cancellation.Cancel();
+        try { _cancellation.Cancel(); }
+        catch (Exception) { }
         IDisposable[] resources;
         lock (_resources)
             resources = _resources.ToArray();

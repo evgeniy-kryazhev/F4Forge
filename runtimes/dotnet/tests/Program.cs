@@ -83,6 +83,34 @@ internal static unsafe class Program
         if (manifestLoader.LoadDirectory(manifestRoot) != 1 || !manifestLoader.IsActive("fixture.plugin"))
             return 14;
         manifestLoader.UnloadAll();
+
+        var incompatibleRoot = Path.Combine(Path.GetTempPath(), "f4forge-incompatible-tests", Guid.NewGuid().ToString("N"));
+        var incompatibleDirectory = Path.Combine(incompatibleRoot, "IncompatiblePlugin");
+        Directory.CreateDirectory(incompatibleDirectory);
+        File.Copy(typeof(FixturePlugin).Assembly.Location, Path.Combine(incompatibleDirectory, "Plugin.dll"));
+        File.WriteAllText(Path.Combine(incompatibleDirectory, "f4forge.plugin.json"),
+            "{\"id\":\"fixture.plugin\",\"entryAssembly\":\"Plugin.dll\",\"minimumF4ForgeVersion\":\"99.0.0\"}");
+        if (new PluginLoader().LoadDirectory(incompatibleRoot) != 0)
+            return 16;
+
+        var malformedRoot = Path.Combine(Path.GetTempPath(), "f4forge-malformed-tests", Guid.NewGuid().ToString("N"));
+        var malformedDirectory = Path.Combine(malformedRoot, "MalformedPlugin");
+        Directory.CreateDirectory(malformedDirectory);
+        File.Copy(typeof(FixturePlugin).Assembly.Location, Path.Combine(malformedDirectory, "Plugin.dll"));
+        File.WriteAllText(Path.Combine(malformedDirectory, "f4forge.plugin.json"),
+            "{\"id\":\"fixture.plugin\",\"entryAssembly\":\"Plugin.dll\",\"minimumF4ForgeVersion\":\"not-a-version\"}");
+        if (new PluginLoader().LoadDirectory(malformedRoot) != 0)
+            return 17;
+
+        var missingDependencyRoot = Path.Combine(Path.GetTempPath(), "f4forge-dependency-tests", Guid.NewGuid().ToString("N"));
+        var missingDependencyDirectory = Path.Combine(missingDependencyRoot, "DependentPlugin");
+        Directory.CreateDirectory(missingDependencyDirectory);
+        File.Copy(typeof(FixturePlugin).Assembly.Location, Path.Combine(missingDependencyDirectory, "Plugin.dll"));
+        File.WriteAllText(Path.Combine(missingDependencyDirectory, "f4forge.plugin.json"),
+            "{\"id\":\"fixture.plugin\",\"entryAssembly\":\"Plugin.dll\",\"dependencies\":[\"missing.plugin\"]}");
+        if (new PluginLoader().LoadDirectory(missingDependencyRoot) != 0)
+            return 18;
+
         if (!loader.Reload("fixture.plugin") || loader.Count != 1)
             return 7;
         loader.Dispatch(_ => throw new InvalidOperationException("callback failure"));

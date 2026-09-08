@@ -16,6 +16,7 @@ internal enum PluginState
 
 internal sealed class PluginLoader
 {
+    private const string FrameworkVersion = "0.1.0";
     private readonly object _gate = new();
     private readonly Dictionary<string, PluginInstance> _plugins = new(StringComparer.OrdinalIgnoreCase);
     private readonly int _failureThreshold;
@@ -32,7 +33,7 @@ internal sealed class PluginLoader
             Logger.Warning($"Managed plugin directory does not exist: {directory}");
             return 0;
         }
-        var loaded = 0;
+        var candidates = new List<PluginCandidate>();
 
         foreach (var pluginDirectory in Directory.EnumerateDirectories(directory).Order(StringComparer.OrdinalIgnoreCase))
         {
@@ -40,17 +41,16 @@ internal sealed class PluginLoader
             if (!File.Exists(manifestPath)) continue;
             try
             {
-                var manifest = JsonSerializer.Deserialize<PluginManifest>(File.ReadAllText(manifestPath));
-                if (manifest == null || string.IsNullOrWhiteSpace(manifest.EntryAssembly))
+                var manifest = ReadManifest(manifestPath);
+                if (manifest == null || !ValidateManifest(manifest, manifestPath)) continue;
+                var root = Path.GetFullPath(pluginDirectory);
+                var assemblyPath = Path.GetFullPath(Path.Combine(root, manifest.EntryAssembly!));
+                if (!IsWithinDirectory(root, assemblyPath) || !File.Exists(assemblyPath))
                 {
-                    Logger.Error($"Invalid plugin manifest: {manifestPath}");
+                    Logger.Error($"Plugin entry assembly is outside its directory or missing: {manifestPath}");
                     continue;
                 }
-                if (!string.IsNullOrWhiteSpace(manifest.Runtime) &&
-                    !manifest.Runtime.Equals("dotnet", StringComparison.OrdinalIgnoreCase))
-                    continue;
-                var assemblyPath = Path.Combine(pluginDirectory, manifest.EntryAssembly);
-                if (Load(assemblyPath, manifest.Id)) ++loaded;
+                candidates.Add(new PluginCandidate(assemblyPath, manifest));
             }
             catch (Exception exception)
             {
@@ -58,12 +58,109 @@ internal sealed class PluginLoader
             }
         }
 
+        var loaded = 0;
+        foreach (var candidate in OrderCandidates(candidates))
+            if (Load(candidate.Path, candidate.Manifest.Id)) ++loaded;
+
         foreach (var path in Directory.EnumerateFiles(directory, "*.dll").Order(StringComparer.OrdinalIgnoreCase))
         {
             if (Load(path)) ++loaded;
         }
         Logger.Info($"Managed plugin DLLs discovered: {Directory.EnumerateFiles(directory, "*.dll").Count()}");
         return loaded;
+    }
+
+    private static PluginManifest? ReadManifest(string path)
+    {
+        var manifest = JsonSerializer.Deserialize<PluginManifest>(File.ReadAllText(path));
+        if (manifest == null || string.IsNullOrWhiteSpace(manifest.EntryAssembly))
+        {
+            Logger.Error($"Invalid plugin manifest: {path}");
+            return null;
+        }
+        if (!string.IsNullOrWhiteSpace(manifest.Runtime) &&
+            !manifest.Runtime.Equals("dotnet", StringComparison.OrdinalIgnoreCase)) return null;
+        return manifest;
+    }
+
+    private static bool ValidateManifest(PluginManifest manifest, string path)
+    {
+        var id = string.IsNullOrWhiteSpace(manifest.Id) ? path : manifest.Id;
+        if (!TryParseVersion(manifest.Version, out _))
+        {
+            Logger.Error($"Plugin '{id}' has malformed version in {path}.");
+            return false;
+        }
+        if (!TryParseVersion(manifest.MinimumF4ForgeVersion, out var minimum))
+        {
+            Logger.Error($"Plugin '{id}' has malformed minimumF4ForgeVersion in {path}.");
+            return false;
+        }
+        if (minimum > new Version(FrameworkVersion))
+        {
+            Logger.Error($"Plugin '{id}' requires F4Forge {minimum}, current framework version is {FrameworkVersion}.");
+            return false;
+        }
+        return true;
+    }
+
+    private static bool TryParseVersion(string? value, out Version version)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            version = new Version(0, 0);
+            return true;
+        }
+        return Version.TryParse(value, out version!);
+    }
+
+    private static bool IsWithinDirectory(string directory, string path)
+    {
+        var root = Path.TrimEndingDirectorySeparator(directory) + Path.DirectorySeparatorChar;
+        return path.StartsWith(root, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static List<PluginCandidate> OrderCandidates(IReadOnlyList<PluginCandidate> candidates)
+    {
+        var providers = new Dictionary<string, PluginCandidate>(StringComparer.OrdinalIgnoreCase);
+        foreach (var candidate in candidates)
+        {
+            if (!string.IsNullOrWhiteSpace(candidate.Manifest.Id))
+                providers[candidate.Manifest.Id!] = candidate;
+            foreach (var capability in candidate.Manifest.ProvidedCapabilities ?? [])
+                if (!providers.TryAdd(capability, candidate))
+                    Logger.Error($"Duplicate managed capability provider: {capability}");
+        }
+
+        var visiting = new HashSet<PluginCandidate>();
+        var visited = new HashSet<PluginCandidate>();
+        var ordered = new List<PluginCandidate>();
+        bool Visit(PluginCandidate candidate)
+        {
+            if (visited.Contains(candidate)) return true;
+            if (!visiting.Add(candidate))
+            {
+                Logger.Error($"Managed plugin dependency cycle includes '{candidate.Manifest.Id}'.");
+                return false;
+            }
+            foreach (var dependency in candidate.Manifest.Dependencies ?? [])
+            {
+                if (!providers.TryGetValue(dependency, out var provider))
+                {
+                    Logger.Error($"Managed plugin '{candidate.Manifest.Id}' is missing dependency '{dependency}'.");
+                    return false;
+                }
+                if (!Visit(provider)) return false;
+            }
+            visiting.Remove(candidate);
+            visited.Add(candidate);
+            ordered.Add(candidate);
+            return true;
+        }
+
+        foreach (var candidate in candidates)
+            if (!Visit(candidate)) ordered.Remove(candidate);
+        return ordered;
     }
 
     public bool Load(string path, string? expectedId = null)
@@ -97,7 +194,7 @@ internal sealed class PluginLoader
                 }
                 _plugins.Add(pluginId, instance);
             }
-            plugin.OnLoad();
+            plugin.OnLoad(instance.ContextInfo);
             if (!instance.Activate())
             {
                 instance.Stop();
@@ -205,7 +302,11 @@ internal sealed class PluginLoader
         [JsonPropertyName("entryAssembly")] public string? EntryAssembly { get; set; }
         [JsonPropertyName("runtime")] public string? Runtime { get; set; }
         [JsonPropertyName("minimumF4ForgeVersion")] public string? MinimumF4ForgeVersion { get; set; }
+        [JsonPropertyName("dependencies")] public string[]? Dependencies { get; set; }
+        [JsonPropertyName("providedCapabilities")] public string[]? ProvidedCapabilities { get; set; }
     }
+
+    private sealed record PluginCandidate(string Path, PluginManifest Manifest);
 
     private sealed class PluginInstance
     {
@@ -221,6 +322,10 @@ internal sealed class PluginLoader
             Plugin = plugin;
             Id = id;
             Scope = scope;
+            ContextInfo = new F4ForgePluginContext(
+                F4Forge.DotNet.Sdk.ModuleHandle.Invalid,
+                scope.Add,
+                scope.CancellationToken);
         }
 
         public string Path { get; }
@@ -228,6 +333,7 @@ internal sealed class PluginLoader
         public F4ForgePlugin Plugin { get; }
         public string Id { get; }
         public PluginResourceScope Scope { get; }
+        public F4ForgePluginContext ContextInfo { get; }
         public PluginState State
         {
             get { lock (_lifecycleGate) return _state; }
