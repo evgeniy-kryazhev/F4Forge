@@ -4,6 +4,7 @@
 
 #include <array>
 #include <cstdint>
+#include <filesystem>
 #include <memory>
 #include <mutex>
 #include <string>
@@ -13,6 +14,7 @@ namespace f4forge::core {
 struct RuntimeProvider final {
     F4ForgeRuntimeInfo info{};
     F4ForgeRuntimeProvider provider{};
+    void* nativeModule{};
 };
 
 struct RuntimeInstance final {
@@ -31,6 +33,7 @@ public:
     RuntimeManager& operator=(const RuntimeManager&) = delete;
 
     F4ForgeResult RegisterProvider(const RuntimeProvider& provider) noexcept;
+    uint32_t DiscoverDirectory(const std::filesystem::path& directory) noexcept;
     F4ForgeResult Initialize(
         F4ForgeStringView id,
         const F4ForgeHostApi* host,
@@ -40,6 +43,7 @@ public:
     F4ForgeResult Shutdown(F4ForgeRuntimeHandle runtime) noexcept;
     RuntimeInstance* Find(F4ForgeRuntimeHandle runtime) noexcept;
     bool HasProvider(F4ForgeStringView id) const noexcept;
+    uint32_t ProviderCount() const noexcept;
 
 private:
     static bool IsValidProvider(const RuntimeProvider& provider) noexcept;

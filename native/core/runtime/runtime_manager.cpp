@@ -1,5 +1,8 @@
 #include "runtime_manager.h"
 
+#define WIN32_LEAN_AND_MEAN
+#include <Windows.h>
+
 namespace f4forge::core {
 
 F4ForgeResult RuntimeManager::RegisterProvider(const RuntimeProvider& provider) noexcept
@@ -14,6 +17,42 @@ F4ForgeResult RuntimeManager::RegisterProvider(const RuntimeProvider& provider) 
     ownedProvider->provider.info = &ownedProvider->info;
     _providers[_providerCount++] = std::move(ownedProvider);
     return F4FORGE_RESULT_SUCCESS;
+}
+
+uint32_t RuntimeManager::DiscoverDirectory(const std::filesystem::path& directory) noexcept
+{
+    uint32_t discovered = 0;
+    try {
+        if (!std::filesystem::exists(directory)) return 0;
+        for (const auto& entry : std::filesystem::directory_iterator(directory)) {
+            if (!entry.is_regular_file() || entry.path().extension() != L".dll") continue;
+            const auto filename = entry.path().filename().wstring();
+            if (filename.rfind(L"F4Forge.Runtime.", 0) != 0) continue;
+
+            const auto module = LoadLibraryW(entry.path().c_str());
+            if (module == nullptr) continue;
+            const auto describe = reinterpret_cast<F4ForgeDescribeRuntimeFn>(
+                GetProcAddress(module, "F4ForgeDescribeRuntime"));
+            if (describe == nullptr) {
+                FreeLibrary(module);
+                continue;
+            }
+            const auto* providerTable = describe();
+            if (providerTable == nullptr || providerTable->info == nullptr) {
+                FreeLibrary(module);
+                continue;
+            }
+            RuntimeProvider provider{ *providerTable->info, *providerTable, module };
+            if (RegisterProvider(provider) != F4FORGE_RESULT_SUCCESS) {
+                FreeLibrary(module);
+                continue;
+            }
+            ++discovered;
+        }
+    } catch (...) {
+        return discovered;
+    }
+    return discovered;
 }
 
 F4ForgeResult RuntimeManager::Initialize(
@@ -81,6 +120,12 @@ bool RuntimeManager::HasProvider(F4ForgeStringView id) const noexcept
     for (uint32_t index = 0; index < _providerCount; ++index)
         if (Equal(_providers[index]->info.id, id)) return true;
     return false;
+}
+
+uint32_t RuntimeManager::ProviderCount() const noexcept
+{
+    std::lock_guard lock(_mutex);
+    return _providerCount;
 }
 
 bool RuntimeManager::IsValidProvider(const RuntimeProvider& provider) noexcept

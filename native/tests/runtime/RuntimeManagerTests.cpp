@@ -46,6 +46,7 @@ int main()
 
     f4forge::core::RuntimeManager manager;
     assert(manager.RegisterProvider(provider) == F4FORGE_RESULT_SUCCESS);
+    assert(manager.ProviderCount() == 1);
     assert(manager.HasProvider({ "test", 4 }));
     assert(manager.RegisterProvider(provider) == F4FORGE_RESULT_ALREADY_REGISTERED);
 
@@ -62,5 +63,6 @@ int main()
     assert(manager.Shutdown(runtime) == F4FORGE_RESULT_INACTIVE_RUNTIME);
     assert(manager.Initialize({ "missing", 7 }, &host, {}, {}, &runtime)
         == F4FORGE_RESULT_RUNTIME_UNAVAILABLE);
+    assert(manager.DiscoverDirectory("C:/F4Forge/missing-runtime-directory") == 0);
     return 0;
 }
