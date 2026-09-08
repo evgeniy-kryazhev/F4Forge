@@ -1,5 +1,7 @@
 #include "registry/event_registry.h"
 #include "registry/interceptor_registry.h"
+#include "registry/capability_registry.h"
+#include "modules/module_manager.h"
 
 #include <cassert>
 
@@ -15,6 +17,37 @@ struct EventState {
     uint32_t calls{};
     uint32_t value{};
 };
+
+struct ReentrantState {
+    f4forge::core::ModuleManager* modules{};
+    F4ForgeModuleHandle module{};
+    uint32_t calls{};
+};
+
+void F4FORGE_CALL UnregisterFromEvent(
+    F4ForgeEventSubscriptionHandle,
+    F4ForgeEndpointHandle,
+    const void*,
+    uint32_t,
+    void* context) noexcept
+{
+    auto& state = *static_cast<ReentrantState*>(context);
+    ++state.calls;
+    state.modules->Unregister(state.module);
+}
+
+F4ForgeResult F4FORGE_CALL UnregisterFromInterceptor(
+    F4ForgeInterceptorSubscriptionHandle,
+    F4ForgeEndpointHandle,
+    void*,
+    uint32_t,
+    void* context) noexcept
+{
+    auto& state = *static_cast<ReentrantState*>(context);
+    ++state.calls;
+    state.modules->Unregister(state.module);
+    return F4FORGE_RESULT_SUCCESS;
+}
 
 void F4FORGE_CALL OnEvent(
     F4ForgeEventSubscriptionHandle,
@@ -51,6 +84,8 @@ int main()
     f4forge::core::EndpointOwner owner;
     f4forge::core::EndpointOwner subscriberOwner;
     f4forge::core::EndpointOwner interceptorOwner;
+    f4forge::core::CapabilityRegistry capabilities;
+    f4forge::core::ModuleManager modules(endpoints, events, interceptors, capabilities);
 
     F4ForgeEndpointDefinition eventDefinition{
         sizeof(F4ForgeEndpointDefinition), F4FORGE_ENDPOINT_EVENT, 1, F4FORGE_ENDPOINT_NONE,
@@ -104,6 +139,40 @@ int main()
     assert(f4forge::HandleGeneration(reusedInterceptor) != f4forge::HandleGeneration(interceptor));
     assert(interceptors.Emit(interceptorEndpoint, &value, sizeof(value)) == F4FORGE_RESULT_SUCCESS);
     assert(value == 9);
+
+    F4ForgeModuleHandle eventModule = F4FORGE_INVALID_HANDLE;
+    assert(modules.Register(7, { "reentrant.event", sizeof("reentrant.event") - 1 }, 1, &eventModule)
+        == F4FORGE_RESULT_SUCCESS);
+    F4ForgeEndpointHandle reentrantEvent = F4FORGE_INVALID_HANDLE;
+    eventDefinition.name = { "reentrant.event.endpoint", sizeof("reentrant.event.endpoint") - 1 };
+    assert(endpoints.Register(eventDefinition, modules.Owner(eventModule), &reentrantEvent)
+        == F4FORGE_RESULT_SUCCESS);
+    ReentrantState eventReentrant{ &modules, eventModule };
+    const auto reentrantSubscription = events.Subscribe(
+        modules.Owner(eventModule), reentrantEvent, &UnregisterFromEvent, &eventReentrant);
+    assert(reentrantSubscription != F4FORGE_INVALID_HANDLE);
+    assert(events.Emit(reentrantEvent, &value, sizeof(value)) == F4FORGE_RESULT_SUCCESS);
+    assert(eventReentrant.calls == 1 && !modules.IsActive(eventModule));
+    assert(endpoints.Resolve({ "reentrant.event.endpoint", sizeof("reentrant.event.endpoint") - 1 }, 1)
+        == F4FORGE_INVALID_HANDLE);
+
+    F4ForgeModuleHandle interceptorModule = F4FORGE_INVALID_HANDLE;
+    assert(modules.Register(7, { "reentrant.interceptor", sizeof("reentrant.interceptor") - 1 }, 1,
+        &interceptorModule) == F4FORGE_RESULT_SUCCESS);
+    F4ForgeEndpointHandle reentrantInterceptor = F4FORGE_INVALID_HANDLE;
+    interceptorDefinition.name = {
+        "reentrant.interceptor.endpoint", sizeof("reentrant.interceptor.endpoint") - 1 };
+    assert(endpoints.Register(interceptorDefinition, modules.Owner(interceptorModule), &reentrantInterceptor)
+        == F4FORGE_RESULT_SUCCESS);
+    ReentrantState interceptorReentrant{ &modules, interceptorModule };
+    const auto reentrantInterceptorSubscription = interceptors.Intercept(
+        modules.Owner(interceptorModule), reentrantInterceptor,
+        &UnregisterFromInterceptor, &interceptorReentrant);
+    assert(reentrantInterceptorSubscription != F4FORGE_INVALID_HANDLE);
+    assert(interceptors.Emit(reentrantInterceptor, &value, sizeof(value)) == F4FORGE_RESULT_SUCCESS);
+    assert(interceptorReentrant.calls == 1 && !modules.IsActive(interceptorModule));
+    assert(endpoints.Resolve({ "reentrant.interceptor.endpoint", sizeof("reentrant.interceptor.endpoint") - 1 }, 1)
+        == F4FORGE_INVALID_HANDLE);
     interceptorOwner.BeginQuiescing();
     assert(interceptors.Emit(interceptorEndpoint, &value, sizeof(value)) == F4FORGE_RESULT_SUCCESS);
     assert(value == 9);

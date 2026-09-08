@@ -1,34 +1,26 @@
 #include "lifecycle/dispatch_owner.h"
+#include "test_harness.h"
 
-#include <atomic>
-#include <cassert>
 #include <chrono>
-#include <thread>
 
 int main()
 {
+    f4forge::test::Context test;
     f4forge::core::DispatchOwner owner;
-    std::atomic<bool> entered = false;
-    std::atomic<bool> release = false;
-    auto lease = owner.TryAcquireDispatchLease();
-    assert(lease);
+    auto outerLease = owner.TryAcquireDispatchLease();
+    auto nestedLease = owner.TryAcquireDispatchLease();
+    F4FORGE_CHECK(test, outerLease);
+    F4FORGE_CHECK(test, nestedLease);
 
-    std::thread callback([&] {
-        entered.store(true, std::memory_order_release);
-        while (!release.load(std::memory_order_acquire)) std::this_thread::yield();
-    });
-    while (!entered.load(std::memory_order_acquire)) std::this_thread::yield();
-
-    std::atomic<uint32_t> teardownCalls = 0;
+    uint32_t teardownCalls = 0;
     owner.BeginQuiescing([&] { ++teardownCalls; });
-    assert(!owner.TryAcquireDispatchLease());
-    assert(!owner.WaitForQuiescence(std::chrono::milliseconds(10)));
-    assert(owner.IsQuarantined());
+    F4FORGE_CHECK(test, !owner.TryAcquireDispatchLease());
+    F4FORGE_CHECK(test, !owner.WaitForQuiescence(std::chrono::milliseconds(10)));
+    F4FORGE_CHECK(test, owner.IsQuarantined());
 
-    release.store(true, std::memory_order_release);
-    callback.join();
-    lease.Reset();
-    assert(teardownCalls.load(std::memory_order_acquire) == 1);
-    assert(!owner.TryAcquireDispatchLease());
-    return 0;
+    nestedLease.Reset();
+    outerLease.Reset();
+    F4FORGE_CHECK(test, teardownCalls == 1);
+    F4FORGE_CHECK(test, !owner.TryAcquireDispatchLease());
+    return test.Failures() == 0 ? 0 : 1;
 }
