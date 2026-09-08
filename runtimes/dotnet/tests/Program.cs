@@ -71,9 +71,28 @@ internal static unsafe class Program
             return 8;
         GC.Collect();
         GC.WaitForPendingFinalizers();
+        var collectiblePath = typeof(FixturePlugin).Assembly.Location;
+        var contextReference = LoadAndUnloadContext(collectiblePath);
+        for (var attempt = 0; attempt < 3 && contextReference.IsAlive; ++attempt)
+        {
+            GC.Collect();
+            GC.WaitForPendingFinalizers();
+            GC.Collect();
+        }
+        if (contextReference.IsAlive)
+            return 13;
         delegate* unmanaged[Cdecl]<void> shutdown = &Bootstrap.Shutdown;
         shutdown();
         return 0;
+    }
+
+    private static WeakReference LoadAndUnloadContext(string path)
+    {
+        var context = new PluginLoadContext(path);
+        _ = context.LoadFromAssemblyPath(Path.GetFullPath(path));
+        var reference = new WeakReference(context);
+        context.Unload();
+        return reference;
     }
 
     [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
