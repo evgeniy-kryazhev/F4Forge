@@ -65,20 +65,27 @@ F4ForgeResult RuntimeManager::Initialize(
     if (runtime == nullptr || host == nullptr || id.data == nullptr || id.length == 0)
         return F4FORGE_RESULT_INVALID_ARGUMENT;
 
-    std::lock_guard lock(_mutex);
-    const RuntimeProvider* selected = nullptr;
-    for (uint32_t index = 0; index < _providerCount; ++index) {
-        if (Equal(_providers[index]->info.id, id)) {
-            selected = _providers[index].get();
-            break;
+    RuntimeInstance* instance = nullptr;
+    {
+        std::lock_guard lock(_mutex);
+        const RuntimeProvider* selected = nullptr;
+        for (uint32_t index = 0; index < _providerCount; ++index) {
+            if (Equal(_providers[index]->info.id, id)) {
+                selected = _providers[index].get();
+                break;
+            }
         }
-    }
-    if (selected == nullptr) return F4FORGE_RESULT_RUNTIME_UNAVAILABLE;
-    if (_runtimeCount >= MaxRuntimes) return F4FORGE_RESULT_INTERNAL_ERROR;
+        if (selected == nullptr) return F4FORGE_RESULT_RUNTIME_UNAVAILABLE;
+        if (_runtimeCount >= MaxRuntimes) return F4FORGE_RESULT_INTERNAL_ERROR;
 
-    auto instance = std::make_unique<RuntimeInstance>();
-    instance->handle = _nextRuntimeHandle++;
-    instance->provider = selected;
+        auto reserved = std::make_unique<RuntimeInstance>();
+        reserved->handle = _nextRuntimeHandle++;
+        reserved->provider = selected;
+        reserved->state = RuntimeInstance::State::Initializing;
+        instance = reserved.get();
+        _runtimes[_runtimeCount++] = std::move(reserved);
+    }
+
     F4ForgeRuntimeInitializeParams params{
         F4FORGE_RUNTIME_PROVIDER_ABI_VERSION,
         sizeof(F4ForgeRuntimeInitializeParams),
@@ -87,13 +94,21 @@ F4ForgeResult RuntimeManager::Initialize(
         pluginDirectory,
         configDirectory
     };
-    const auto result = selected->provider.initialize(&params);
-    if (result != F4FORGE_RESULT_SUCCESS) return result;
+    F4ForgeResult result = F4FORGE_RESULT_INTERNAL_ERROR;
+    try {
+        result = instance->provider->provider.initialize(&params);
+    } catch (...) {
+        result = F4FORGE_RESULT_INTERNAL_ERROR;
+    }
 
-    instance->active = true;
-    *runtime = instance->handle;
-    _runtimes[_runtimeCount++] = std::move(instance);
-    return F4FORGE_RESULT_SUCCESS;
+    std::lock_guard lock(_mutex);
+    if (result == F4FORGE_RESULT_SUCCESS) {
+        instance->state = RuntimeInstance::State::Active;
+        *runtime = instance->handle;
+    } else {
+        instance->state = RuntimeInstance::State::Failed;
+    }
+    return result;
 }
 
 uint32_t RuntimeManager::InitializeAll(
@@ -133,13 +148,29 @@ uint32_t RuntimeManager::InitializeAll(
 
 F4ForgeResult RuntimeManager::Shutdown(F4ForgeRuntimeHandle runtime)
 {
-    std::lock_guard lock(_mutex);
-    auto* instance = FindUnlocked(runtime);
-    if (instance == nullptr) return F4FORGE_RESULT_INVALID_HANDLE;
-    if (!instance->active) return F4FORGE_RESULT_INACTIVE_RUNTIME;
-    instance->active = false;
-    instance->provider->provider.shutdown(runtime);
-    return F4FORGE_RESULT_SUCCESS;
+    RuntimeInstance* instance = nullptr;
+    const RuntimeProvider* provider = nullptr;
+    {
+        std::lock_guard lock(_mutex);
+        instance = FindUnlocked(runtime);
+        if (instance == nullptr) return F4FORGE_RESULT_INVALID_HANDLE;
+        if (instance->state != RuntimeInstance::State::Active)
+            return F4FORGE_RESULT_INACTIVE_RUNTIME;
+        instance->state = RuntimeInstance::State::ShuttingDown;
+        provider = instance->provider;
+    }
+
+    F4ForgeResult result = F4FORGE_RESULT_SUCCESS;
+    try {
+        provider->provider.shutdown(runtime);
+    } catch (...) {
+        result = F4FORGE_RESULT_INTERNAL_ERROR;
+    }
+    {
+        std::lock_guard lock(_mutex);
+        instance->state = RuntimeInstance::State::Inactive;
+    }
+    return result;
 }
 
 RuntimeInstance* RuntimeManager::Find(F4ForgeRuntimeHandle runtime) noexcept

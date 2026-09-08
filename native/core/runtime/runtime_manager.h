@@ -18,9 +18,18 @@ struct RuntimeProvider final {
 };
 
 struct RuntimeInstance final {
+    enum class State : uint32_t {
+        Created,
+        Initializing,
+        Active,
+        ShuttingDown,
+        Inactive,
+        Failed
+    };
+
     F4ForgeRuntimeHandle handle{};
     const RuntimeProvider* provider{};
-    bool active = false;
+    State state = State::Created;
 };
 
 class RuntimeManager final {

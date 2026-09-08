@@ -11,18 +11,23 @@ namespace {
 
 uint32_t initializeCalls = 0;
 uint32_t shutdownCalls = 0;
+f4forge::core::RuntimeManager* callbackManager = nullptr;
 
 F4ForgeResult F4FORGE_CALL Initialize(const F4ForgeRuntimeInitializeParams* params) noexcept
 {
     assert(params != nullptr);
     assert(params->abiVersion == F4FORGE_RUNTIME_PROVIDER_ABI_VERSION);
     assert(params->host != nullptr);
+    assert(callbackManager != nullptr);
+    assert(callbackManager->ProviderCount() >= 1);
     ++initializeCalls;
     return F4FORGE_RESULT_SUCCESS;
 }
 
 void F4FORGE_CALL Shutdown(F4ForgeRuntimeHandle) noexcept
 {
+    assert(callbackManager != nullptr);
+    assert(callbackManager->ProviderCount() >= 1);
     ++shutdownCalls;
 }
 
@@ -50,6 +55,7 @@ int main()
     const f4forge::core::RuntimeProvider provider{ info, providerTable };
 
     f4forge::core::RuntimeManager manager;
+    callbackManager = &manager;
 
     std::array<wchar_t, 32768> modulePath{};
     const auto moduleLength = GetModuleFileNameW(nullptr, modulePath.data(), static_cast<DWORD>(modulePath.size()));
