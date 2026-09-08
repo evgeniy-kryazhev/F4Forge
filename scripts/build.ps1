@@ -7,7 +7,7 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
-$root = $PSScriptRoot
+$root = Split-Path -Parent $PSScriptRoot
 $nativeRoot = Join-Path $root "native"
 $runtimeProject = Join-Path $root "runtimes\dotnet\runtime\F4Forge.DotNet.Runtime.csproj"
 $buildRoot = Join-Path $root "build"

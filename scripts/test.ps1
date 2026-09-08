@@ -19,7 +19,7 @@ function Invoke-Checked {
 Invoke-Checked "powershell" @(
     "-NoProfile",
     "-ExecutionPolicy", "Bypass",
-    "-File", (Join-Path $root "build.ps1")
+    "-File", (Join-Path $root "scripts\build.ps1")
 )
 
 Push-Location $nativeRoot
