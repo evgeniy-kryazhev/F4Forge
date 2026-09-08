@@ -8,7 +8,7 @@ F4ForgeHost& F4ForgeHost::Instance() noexcept
     return host;
 }
 
-F4ForgeHost::F4ForgeHost() noexcept : _modules(_endpoints)
+F4ForgeHost::F4ForgeHost() noexcept : _events(_endpoints), _interceptors(_endpoints), _modules(_endpoints)
 {
     _api.abiVersion = F4FORGE_ABI_VERSION;
     _api.structSize = sizeof(F4ForgeHostApi);
@@ -34,6 +34,16 @@ const F4ForgeHostApi& F4ForgeHost::Api() const noexcept
 EndpointRegistry& F4ForgeHost::Endpoints() noexcept
 {
     return _endpoints;
+}
+
+EventRegistry& F4ForgeHost::Events() noexcept
+{
+    return _events;
+}
+
+InterceptorRegistry& F4ForgeHost::Interceptors() noexcept
+{
+    return _interceptors;
 }
 
 ModuleManager& F4ForgeHost::Modules() noexcept
@@ -103,27 +113,29 @@ void F4FORGE_CALL F4ForgeHost::Log(uint32_t, F4ForgeStringView) F4FORGE_NOEXCEPT
 }
 
 F4ForgeEventSubscriptionHandle F4FORGE_CALL F4ForgeHost::Subscribe(
-    F4ForgeEndpointHandle,
-    F4ForgeEventCallback,
-    void*) F4FORGE_NOEXCEPT
+    F4ForgeEndpointHandle endpoint,
+    F4ForgeEventCallback callback,
+    void* context) F4FORGE_NOEXCEPT
 {
-    return F4FORGE_INVALID_HANDLE;
+    return Instance()._events.Subscribe(endpoint, callback, context);
 }
 
-void F4FORGE_CALL F4ForgeHost::Unsubscribe(F4ForgeEventSubscriptionHandle) F4FORGE_NOEXCEPT
+void F4FORGE_CALL F4ForgeHost::Unsubscribe(F4ForgeEventSubscriptionHandle subscription) F4FORGE_NOEXCEPT
 {
+    Instance()._events.Unsubscribe(subscription);
 }
 
 F4ForgeInterceptorSubscriptionHandle F4FORGE_CALL F4ForgeHost::Intercept(
-    F4ForgeEndpointHandle,
-    F4ForgeInterceptorCallback,
-    void*) F4FORGE_NOEXCEPT
+    F4ForgeEndpointHandle endpoint,
+    F4ForgeInterceptorCallback callback,
+    void* context) F4FORGE_NOEXCEPT
 {
-    return F4FORGE_INVALID_HANDLE;
+    return Instance()._interceptors.Intercept(endpoint, callback, context);
 }
 
-void F4FORGE_CALL F4ForgeHost::RemoveInterceptor(F4ForgeInterceptorSubscriptionHandle) F4FORGE_NOEXCEPT
+void F4FORGE_CALL F4ForgeHost::RemoveInterceptor(F4ForgeInterceptorSubscriptionHandle subscription) F4FORGE_NOEXCEPT
 {
+    Instance()._interceptors.Remove(subscription);
 }
 
 }

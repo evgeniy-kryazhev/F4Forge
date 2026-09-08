@@ -47,6 +47,12 @@ target("F4ForgeModuleTests")
 
 target("F4ForgeHostTests")
     set_kind("binary")
-    add_files("core/registry/endpoint_registry.cpp", "core/modules/module_manager.cpp", "core/f4forge_host.cpp", "tests/host/F4ForgeHostTests.cpp")
+    add_files("core/registry/*.cpp", "core/modules/module_manager.cpp", "core/f4forge_host.cpp", "tests/host/F4ForgeHostTests.cpp")
+    add_includedirs("abi", "core")
+    add_cxxflags("/WX", "/permissive-", "/EHsc", "/utf-8", { public = false })
+
+target("F4ForgeEventTests")
+    set_kind("binary")
+    add_files("core/registry/*.cpp", "tests/registry/EventInterceptorRegistryTests.cpp")
     add_includedirs("abi", "core")
     add_cxxflags("/WX", "/permissive-", "/EHsc", "/utf-8", { public = false })

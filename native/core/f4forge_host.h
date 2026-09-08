@@ -2,6 +2,8 @@
 
 #include "f4forge_abi.h"
 #include "modules/module_manager.h"
+#include "registry/event_registry.h"
+#include "registry/interceptor_registry.h"
 
 namespace f4forge::core {
 
@@ -11,6 +13,8 @@ public:
 
     const F4ForgeHostApi& Api() const noexcept;
     EndpointRegistry& Endpoints() noexcept;
+    EventRegistry& Events() noexcept;
+    InterceptorRegistry& Interceptors() noexcept;
     ModuleManager& Modules() noexcept;
 
 private:
@@ -61,6 +65,8 @@ private:
         F4ForgeInterceptorSubscriptionHandle subscription) F4FORGE_NOEXCEPT;
 
     EndpointRegistry _endpoints;
+    EventRegistry _events;
+    InterceptorRegistry _interceptors;
     ModuleManager _modules;
     F4ForgeHostApi _api{};
 };

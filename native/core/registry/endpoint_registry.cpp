@@ -65,6 +65,30 @@ F4ForgeEndpointHandle EndpointRegistry::Resolve(F4ForgeStringView name, uint32_t
     return it->second;
 }
 
+uint32_t EndpointRegistry::Kind(F4ForgeEndpointHandle endpoint) const noexcept
+{
+    const auto* slot = GetSlot(endpoint);
+    if (slot == nullptr || !slot->active.load(std::memory_order_acquire)) return 0;
+    if (f4forge::HandleGeneration(endpoint) != slot->generation.load(std::memory_order_acquire)) return 0;
+    return slot->kind;
+}
+
+uint32_t EndpointRegistry::PayloadSize(F4ForgeEndpointHandle endpoint) const noexcept
+{
+    const auto* slot = GetSlot(endpoint);
+    if (slot == nullptr || !slot->active.load(std::memory_order_acquire)) return 0;
+    if (f4forge::HandleGeneration(endpoint) != slot->generation.load(std::memory_order_acquire)) return 0;
+    return slot->payloadSize;
+}
+
+EndpointOwner* EndpointRegistry::Owner(F4ForgeEndpointHandle endpoint) const noexcept
+{
+    const auto* slot = GetSlot(endpoint);
+    if (slot == nullptr || !slot->active.load(std::memory_order_acquire)) return nullptr;
+    if (f4forge::HandleGeneration(endpoint) != slot->generation.load(std::memory_order_acquire)) return nullptr;
+    return slot->owner;
+}
+
 F4ForgeResult EndpointRegistry::Invoke(
     F4ForgeEndpointHandle endpoint,
     const void* request,
@@ -78,6 +102,7 @@ F4ForgeResult EndpointRegistry::Invoke(
     const auto generation = f4forge::HandleGeneration(endpoint);
     if (generation != slot->generation.load(std::memory_order_acquire)) return F4FORGE_RESULT_STALE_HANDLE;
     if (!slot->active.load(std::memory_order_acquire)) return F4FORGE_RESULT_INACTIVE_ENDPOINT;
+    if (slot->kind != F4FORGE_ENDPOINT_METHOD) return F4FORGE_RESULT_INVALID_ARGUMENT;
     if (slot->owner == nullptr || !slot->owner->active.load(std::memory_order_acquire))
         return F4FORGE_RESULT_INACTIVE_MODULE;
     if (!IsThreadAllowed(*slot)) return F4FORGE_RESULT_WRONG_THREAD;

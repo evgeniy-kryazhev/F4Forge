@@ -33,6 +33,10 @@ public:
 
     F4ForgeEndpointHandle Resolve(F4ForgeStringView name, uint32_t version) const noexcept;
 
+    uint32_t Kind(F4ForgeEndpointHandle endpoint) const noexcept;
+    uint32_t PayloadSize(F4ForgeEndpointHandle endpoint) const noexcept;
+    EndpointOwner* Owner(F4ForgeEndpointHandle endpoint) const noexcept;
+
     F4ForgeResult Invoke(
         F4ForgeEndpointHandle endpoint,
         const void* request,
