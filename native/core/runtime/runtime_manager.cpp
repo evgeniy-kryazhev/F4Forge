@@ -27,7 +27,7 @@ uint32_t RuntimeManager::DiscoverDirectory(const std::filesystem::path& director
         for (const auto& entry : std::filesystem::directory_iterator(directory)) {
             if (!entry.is_regular_file() || entry.path().extension() != L".dll") continue;
             const auto filename = entry.path().filename().wstring();
-            if (filename.rfind(L"F4Forge.Runtime.", 0) != 0) continue;
+            if (_wcsicmp(filename.c_str(), L"F4Forge.Dotnet.dll") != 0) continue;
 
             const auto module = LoadLibraryW(entry.path().c_str());
             if (module == nullptr) continue;

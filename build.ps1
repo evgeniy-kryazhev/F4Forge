@@ -54,7 +54,7 @@ if ($Clean -and (Test-Path -LiteralPath $buildRoot)) {
 Push-Location $nativeRoot
 try {
     Invoke-Checked "xmake" @("f", "-y", "-p", "windows", "-a", "x64", "--dotnet_host_dir=$DotNetHostDir")
-    Invoke-Checked "xmake" @("-r", "-y", "F4Forge", "F4Forge.Runtime.DotNet")
+    Invoke-Checked "xmake" @("-r", "-y", "F4Forge", "F4Forge.Dotnet")
 }
 finally {
     Pop-Location
@@ -63,7 +63,7 @@ finally {
 Invoke-Checked "dotnet" @("build", $runtimeProject, "--configuration", "Release")
 
 $loader = Join-Path $nativeRoot "build\windows\x64\release\F4Forge.dll"
-$provider = Join-Path $root "runtimes\dotnet\native-provider\bin\F4Forge.Runtime.DotNet.dll"
+$provider = Join-Path $root "runtimes\dotnet\native-provider\bin\F4Forge.Dotnet.dll"
 $managedRoot = Join-Path $root "runtimes\dotnet\runtime\bin\Release\net10.0"
 $managedRuntime = Join-Path $managedRoot "F4Forge.DotNet.Runtime.dll"
 $runtimeConfig = Join-Path $managedRoot "F4Forge.DotNet.Runtime.runtimeconfig.json"
@@ -76,7 +76,7 @@ foreach ($required in @($loader, $provider, $managedRuntime, $runtimeConfig)) {
 
 New-Item -ItemType Directory -Path $packageRoot, $frameworkRoot -Force | Out-Null
 Copy-Item -LiteralPath $loader -Destination (Join-Path $packageRoot "F4Forge.dll") -Force
-Copy-Item -LiteralPath $provider -Destination (Join-Path $frameworkRoot "F4Forge.Runtime.DotNet.dll") -Force
+Copy-Item -LiteralPath $provider -Destination (Join-Path $frameworkRoot "F4Forge.Dotnet.dll") -Force
 Copy-Item -LiteralPath $managedRuntime -Destination (Join-Path $frameworkRoot "F4Forge.DotNet.Runtime.dll") -Force
 Copy-Item -LiteralPath $runtimeConfig -Destination (Join-Path $frameworkRoot "F4Forge.DotNet.Runtime.runtimeconfig.json") -Force
 
