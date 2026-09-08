@@ -27,7 +27,7 @@ jobs:
         shell: pwsh
         run: |
           winget install --id Xmake-io.Xmake --exact --accept-source-agreements --accept-package-agreements
-          winget install --id Cppcheck.Cppcheck --exact --accept-source-agreements --accept-package-agreements
+          winget install --id Cppcheck.Cppcheck --exact --version 2.20.0 --accept-source-agreements --accept-package-agreements
 
           $machinePath = [Environment]::GetEnvironmentVariable("Path", "Machine")
           $userPath = [Environment]::GetEnvironmentVariable("Path", "User")
