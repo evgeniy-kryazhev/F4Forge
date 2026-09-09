@@ -200,11 +200,11 @@ internal sealed unsafe class PluginLoader : IDisposable
             }
     }
 
-    private void DispatchGameDataReady() => DispatchLifecycle(plugin => plugin.OnGameDataReady());
-    private void DispatchGameLoaded() => DispatchLifecycle(plugin => plugin.OnGameLoaded());
-    private void DispatchNewGame() => DispatchLifecycle(plugin => plugin.OnNewGame());
+    private void DispatchGameDataReady() => DispatchLifecycle(events => events.PublishGameDataReady());
+    private void DispatchGameLoaded() => DispatchLifecycle(events => events.PublishGameLoaded());
+    private void DispatchNewGame() => DispatchLifecycle(events => events.PublishNewGame());
 
-    private void DispatchLifecycle(Action<F4ForgePlugin> callback)
+    private void DispatchLifecycle(Action<PluginEvents> callback)
     {
         PluginInstance[] snapshot;
         lock (_gate) snapshot = _plugins.Values.ToArray();
@@ -213,7 +213,7 @@ internal sealed unsafe class PluginLoader : IDisposable
             if (!instance.TryAcquireDispatchLease(out var lease)) continue;
             using (lease)
             {
-                try { callback(instance.Plugin); }
+                try { callback(instance.ContextInfo.Events); }
                 catch (Exception exception)
                 {
                     Logger.Error($"Managed lifecycle callback failed: plugin={instance.Id}: {exception}");

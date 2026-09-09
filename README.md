@@ -100,7 +100,13 @@ context.Events.KeyDown += args =>
 
 Handlers must not block. Autorepeat is reported by `KeyDownEventArgs.IsRepeat`; unknown codes use `Key.Unknown`. `KeyDownEventArgs.IsMenu` distinguishes main-menu input from gameplay input, and the two native input sinks are mutually exclusive.
 
-Lifecycle hooks are plugin methods rather than context events: `OnGameDataReady()`, `OnGameLoaded()` and `OnNewGame()`.
+Plugins can subscribe to lifecycle events through the same event collection:
+
+```csharp
+context.Events.GameDataReady += () => Logger.Info("Game data is ready");
+context.Events.GameLoaded += () => Logger.Info("A saved game was loaded");
+context.Events.NewGame += () => Logger.Info("A new game was started");
+```
 
 ## Hot Reload
 

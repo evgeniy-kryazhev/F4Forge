@@ -94,6 +94,16 @@ internal static unsafe class Program
         events.PublishKeyDown(new KeyDownEventArgs(InputDevice.Keyboard, Key.A, false, 0, false));
         if (firstHandlerCalls != 1 || lastHandlerCalls != 1) return 32;
 
+        var lifecycleCalls = 0;
+        events.GameDataReady += () => ++lifecycleCalls;
+        events.GameLoaded += () => throw new InvalidOperationException("lifecycle handler failure");
+        events.GameLoaded += () => ++lifecycleCalls;
+        events.NewGame += () => ++lifecycleCalls;
+        events.PublishGameDataReady();
+        events.PublishGameLoaded();
+        events.PublishNewGame();
+        if (lifecycleCalls != 3) return 33;
+
         var plugin = new TestPlugin();
         if (plugin.Id != "test.plugin")
             return 2;

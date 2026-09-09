@@ -14,10 +14,4 @@ public abstract class F4ForgePlugin
         OnLoad();
     }
 
-    public virtual void OnGameDataReady() { }
-
-    public virtual void OnGameLoaded() { }
-
-    public virtual void OnNewGame() { }
-
 }
