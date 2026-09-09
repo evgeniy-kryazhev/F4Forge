@@ -85,7 +85,7 @@ Resources registered with `context.Track` are disposed during unload. Plugin dis
 
 ## ABI and Threading Policy
 
-The current public host ABI is version 2. C ABI structures use fixed-width fields and explicit `structSize` checks. The runtime-provider ABI remains version 1 because its binary contract has not changed.
+The current public host ABI is version 2. C ABI structures use fixed-width fields and explicit `structSize` checks. The runtime-provider ABI remains version 1 because its binary contract has not changed. See [docs/abi.md](docs/abi.md) for the complete contract.
 
 Synchronous APIs never perform implicit cross-thread marshalling. `GAME_ONLY` calls from a worker thread return `F4FORGE_RESULT_WRONG_THREAD`. Explicit operation APIs such as `InvokeAsync` and `EmitAsync` provide scheduling and operation handles.
 

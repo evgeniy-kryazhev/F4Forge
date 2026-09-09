@@ -14,6 +14,9 @@ public abstract class F4ForgePlugin
         OnLoad();
     }
 
+    /// <summary>
+    /// Called during an explicit runtime unload or reload. Process termination is not a guaranteed callback boundary.
+    /// </summary>
     public virtual void OnUnload()
     {
     }

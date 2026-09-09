@@ -149,7 +149,12 @@ bool PrepareManagedRuntime(HMODULE module, const std::filesystem::path& root, st
 
 F4ForgeResult InitializeManaged(const F4ForgeRuntimeInitializeParams* params) noexcept
 {
-    if (params == nullptr || params->host == nullptr) return F4FORGE_RESULT_INVALID_ARGUMENT;
+    if (params == nullptr) return F4FORGE_RESULT_INVALID_ARGUMENT;
+    if (params->abiVersion != F4FORGE_RUNTIME_PROVIDER_ABI_VERSION)
+        return F4FORGE_RESULT_INVALID_ABI_VERSION;
+    if (!F4FORGE_HAS_FIELD(params->structSize, F4ForgeRuntimeInitializeParams, configDirectory))
+        return F4FORGE_RESULT_INVALID_STRUCT_SIZE;
+    if (params->host == nullptr) return F4FORGE_RESULT_INVALID_ARGUMENT;
     auto& state = GetState();
     {
         std::lock_guard lock(state.mutex);

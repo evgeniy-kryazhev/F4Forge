@@ -15,6 +15,19 @@ internal static unsafe class Program
         if (sizeof(NativeApi) != 168 || sizeof(F4ForgeEndpointDefinition) != 64 || sizeof(F4ForgeStringView) != 16 ||
             sizeof(ManagedBootstrapArgs) != 56)
             return 5;
+        if (Marshal.OffsetOf<NativeApi>(nameof(NativeApi.AbiVersion)) != 0 ||
+            Marshal.OffsetOf<NativeApi>(nameof(NativeApi.StructSize)) != 4 ||
+            Marshal.OffsetOf<NativeApi>(nameof(NativeApi.ResolveEndpoint)) != 8 ||
+            Marshal.OffsetOf<NativeApi>(nameof(NativeApi.Invoke)) != 16 ||
+            Marshal.OffsetOf<NativeApi>(nameof(NativeApi.InvokeAsync)) != 104 ||
+            Marshal.OffsetOf<NativeApi>(nameof(NativeApi.ReleaseOperation)) != 152 ||
+            Marshal.OffsetOf<NativeApi>(nameof(NativeApi.WaitModuleQuiescence)) != 160 ||
+            Marshal.OffsetOf<ManagedBootstrapArgs>(nameof(ManagedBootstrapArgs.Host)) != 8 ||
+            Marshal.OffsetOf<ManagedBootstrapArgs>(nameof(ManagedBootstrapArgs.Runtime)) != 48 ||
+            Marshal.OffsetOf<F4ForgeEndpointDefinition>(nameof(F4ForgeEndpointDefinition.Name)) != 32 ||
+            Marshal.OffsetOf<F4ForgeEndpointDefinition>(nameof(F4ForgeEndpointDefinition.Thunk)) != 48 ||
+            Marshal.OffsetOf<F4ForgeEndpointDefinition>(nameof(F4ForgeEndpointDefinition.Context)) != 56)
+            return 27;
 
         delegate* unmanaged[Cdecl]<nint, int> initialize = &Bootstrap.Initialize;
         if (initialize(0) != (int)F4ForgeResult.InvalidArgument)
@@ -35,6 +48,14 @@ internal static unsafe class Program
             Host = &host,
             Runtime = 1
         };
+        host.AbiVersion = 1;
+        if (initialize((nint)(&bootstrapArgs)) != (int)F4ForgeResult.InvalidAbiVersion)
+            return 28;
+        host.AbiVersion = 2;
+        host.StructSize = 159;
+        if (initialize((nint)(&bootstrapArgs)) != (int)F4ForgeResult.InvalidStructSize)
+            return 29;
+        host.StructSize = (uint)sizeof(NativeApi);
         if (initialize((nint)(&bootstrapArgs)) != (int)F4ForgeResult.Success)
             return 11;
 

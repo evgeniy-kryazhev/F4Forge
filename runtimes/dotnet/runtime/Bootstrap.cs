@@ -37,7 +37,9 @@ public static unsafe class Bootstrap
             if (args->StructSize < ManagedBootstrapMinimumSize) return (int)F4ForgeResult.InvalidStructSize;
             if (args->Runtime == 0) return (int)F4ForgeResult.InvalidArgument;
             if (args->Host == null) return (int)F4ForgeResult.InvalidArgument;
-            if (args->Host->AbiVersion != HostAbiVersion || args->Host->StructSize < NativeApiMinimumSize)
+            if (args->Host->AbiVersion != HostAbiVersion)
+                return (int)F4ForgeResult.InvalidAbiVersion;
+            if (args->Host->StructSize < NativeApiMinimumSize)
                 return (int)F4ForgeResult.InvalidStructSize;
             if (args->Host->ResolveEndpoint == null || args->Host->Invoke == null)
                 return (int)F4ForgeResult.InvalidArgument;
@@ -101,12 +103,15 @@ public static unsafe class Bootstrap
                 state = LifecycleState.ShuttingDown;
                 loader = pluginLoader;
                 pluginLoader = null;
+            }
+            loader?.UnloadAll();
+            lock (Gate)
+            {
                 Logger.Sink = null;
                 nativeApi = null;
                 runtimeHandle = 0;
+                state = LifecycleState.Stopped;
             }
-            loader?.UnloadAll();
-            lock (Gate) state = LifecycleState.Stopped;
         }
         catch
         {

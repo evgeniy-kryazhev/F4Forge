@@ -65,6 +65,12 @@ std::filesystem::path FrameworkDirectory()
 
 }
 
+extern "C" __declspec(dllexport) const F4ForgeHostApi* F4FORGE_CALL
+F4ForgeGetHostApi(void) F4FORGE_NOEXCEPT
+{
+    return &f4forge::core::F4ForgeHost::Instance().Api();
+}
+
 F4SE_PLUGIN_PRELOAD(const F4SE::PreLoadInterface* a_f4se)
 {
 	F4SE::Init(a_f4se);

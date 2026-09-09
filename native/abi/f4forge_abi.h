@@ -243,6 +243,11 @@ typedef struct F4ForgeHostApi {
 
 typedef const F4ForgeHostApi* (F4FORGE_CALL* F4ForgeGetHostApiFn)(void) F4FORGE_NOEXCEPT;
 
+#if defined(_MSC_VER)
+__declspec(dllexport)
+#endif
+const F4ForgeHostApi* F4FORGE_CALL F4ForgeGetHostApi(void) F4FORGE_NOEXCEPT;
+
 #ifdef __cplusplus
 }
 
@@ -258,13 +263,53 @@ static_assert(std::is_standard_layout_v<F4ForgeHostApi>);
 static_assert(std::is_trivial_v<F4ForgeHostApi>);
 static_assert(sizeof(F4ForgeStringView) == 16);
 static_assert(sizeof(F4ForgeByteView) == 16);
+static_assert(sizeof(F4ForgeResult) == 4);
+static_assert(sizeof(F4ForgeAsyncOperationState) == 4);
+static_assert(sizeof(F4ForgeRawHandle) == 8);
+static_assert(sizeof(F4ForgeEndpointHandle) == 8);
+static_assert(sizeof(F4ForgeEventSubscriptionHandle) == 8);
+static_assert(sizeof(F4ForgeInterceptorSubscriptionHandle) == 8);
+static_assert(sizeof(F4ForgeModuleHandle) == 8);
+static_assert(sizeof(F4ForgeRuntimeHandle) == 8);
+static_assert(sizeof(F4ForgePluginHandle) == 8);
+static_assert(sizeof(F4ForgeAsyncOperationHandle) == 8);
+static_assert(offsetof(F4ForgeStringView, data) == 0);
+static_assert(offsetof(F4ForgeStringView, length) == 8);
+static_assert(offsetof(F4ForgeByteView, data) == 0);
+static_assert(offsetof(F4ForgeByteView, length) == 8);
 static_assert(offsetof(F4ForgeHostApi, abiVersion) == 0);
 static_assert(offsetof(F4ForgeHostApi, structSize) == 4);
 static_assert(offsetof(F4ForgeHostApi, resolveEndpoint) == 8);
 static_assert(offsetof(F4ForgeHostApi, invoke) == 16);
+static_assert(offsetof(F4ForgeHostApi, subscribe) == 24);
+static_assert(offsetof(F4ForgeHostApi, unsubscribe) == 32);
+static_assert(offsetof(F4ForgeHostApi, intercept) == 40);
+static_assert(offsetof(F4ForgeHostApi, removeInterceptor) == 48);
+static_assert(offsetof(F4ForgeHostApi, registerEndpoint) == 56);
+static_assert(offsetof(F4ForgeHostApi, registerModule) == 64);
+static_assert(offsetof(F4ForgeHostApi, unregisterModule) == 72);
+static_assert(offsetof(F4ForgeHostApi, queryCapability) == 80);
+static_assert(offsetof(F4ForgeHostApi, queueTask) == 88);
+static_assert(offsetof(F4ForgeHostApi, log) == 96);
 static_assert(offsetof(F4ForgeHostApi, invokeAsync) == 104);
+static_assert(offsetof(F4ForgeHostApi, emitAsync) == 112);
+static_assert(offsetof(F4ForgeHostApi, pollOperation) == 120);
+static_assert(offsetof(F4ForgeHostApi, waitOperation) == 128);
+static_assert(offsetof(F4ForgeHostApi, getOperationResult) == 136);
+static_assert(offsetof(F4ForgeHostApi, cancelOperation) == 144);
+static_assert(offsetof(F4ForgeHostApi, releaseOperation) == 152);
+static_assert(offsetof(F4ForgeHostApi, waitModuleQuiescence) == 160);
 static_assert(sizeof(F4ForgeHostApi) == 168);
+static_assert(offsetof(F4ForgeEndpointDefinition, structSize) == 0);
+static_assert(offsetof(F4ForgeEndpointDefinition, kind) == 4);
+static_assert(offsetof(F4ForgeEndpointDefinition, version) == 8);
+static_assert(offsetof(F4ForgeEndpointDefinition, flags) == 12);
+static_assert(offsetof(F4ForgeEndpointDefinition, threadPolicy) == 16);
+static_assert(offsetof(F4ForgeEndpointDefinition, requestSize) == 20);
+static_assert(offsetof(F4ForgeEndpointDefinition, responseSize) == 24);
+static_assert(offsetof(F4ForgeEndpointDefinition, payloadSize) == 28);
 static_assert(offsetof(F4ForgeEndpointDefinition, name) == 32);
 static_assert(offsetof(F4ForgeEndpointDefinition, thunk) == 48);
+static_assert(offsetof(F4ForgeEndpointDefinition, context) == 56);
 static_assert(sizeof(F4ForgeEndpointDefinition) == 64);
 #endif
