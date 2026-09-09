@@ -11,9 +11,4 @@ public sealed class HelloWorldPlugin : F4ForgePlugin
         Logger.Info("Hello world from F4Forge!");
     }
 
-    public override void OnUnload()
-    {
-        Logger.Info("Goodbye world from F4Forge!");
-    }
-
 }

@@ -10,9 +10,6 @@ public sealed class FixturePlugin : F4ForgePlugin
     {
     }
 
-    public override void OnUnload()
-    {
-    }
 }
 
 public sealed class ZDependentPlugin : F4ForgePlugin

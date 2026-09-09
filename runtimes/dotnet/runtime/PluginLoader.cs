@@ -511,7 +511,6 @@ internal unsafe sealed class PluginLoader
 
         public bool Stop()
         {
-            bool wasLoaded;
             bool finalize;
             bool wait;
             lock (_lifecycleGate)
@@ -519,13 +518,11 @@ internal unsafe sealed class PluginLoader
                 if (_state == PluginState.Unloaded) return true;
                 if (_state == PluginState.Quiescing || _state == PluginState.Quarantined)
                 {
-                    wasLoaded = false;
                     finalize = false;
                     wait = DispatchDepth.Value == 0;
                 }
                 else
                 {
-                    wasLoaded = _state is PluginState.Active or PluginState.Disabled;
                     _state = PluginState.Quiescing;
                     finalize = _inFlight == 0;
                     wait = !finalize && DispatchDepth.Value == 0;
@@ -533,7 +530,7 @@ internal unsafe sealed class PluginLoader
             }
             if (!wait && !finalize) return false;
             if (finalize) {
-                FinalizeStop(wasLoaded);
+                FinalizeStop();
                 return State == PluginState.Unloaded;
             }
             return WaitForStop();
@@ -549,20 +546,12 @@ internal unsafe sealed class PluginLoader
             return false;
         }
 
-        private void FinalizeStop(bool wasLoaded)
+        private void FinalizeStop()
         {
             lock (_lifecycleGate)
             {
                 if (_teardownStarted || _state == PluginState.Unloaded) return;
                 _teardownStarted = true;
-            }
-            if (wasLoaded)
-            {
-                try { Plugin.OnUnload(); }
-                catch (Exception exception)
-                {
-                    Logger.Error($"Managed plugin OnUnload failed: plugin={Id}: {exception}");
-                }
             }
             Scope.Dispose();
             if (_bridge != null && !_bridge.IsQuiesced)
@@ -594,7 +583,7 @@ internal unsafe sealed class PluginLoader
                 finalize = _inFlight == 0 &&
                     _state is PluginState.Quiescing or PluginState.Quarantined;
             }
-            if (finalize) FinalizeStop(true);
+            if (finalize) FinalizeStop();
         }
 
         private sealed class DispatchLease : IDisposable

@@ -81,7 +81,7 @@ public sealed class ExamplePlugin : F4ForgePlugin
 }
 ```
 
-Resources registered with `context.Track` are disposed during unload. Plugin dispatch is quiesced before its collectible AssemblyLoadContext is unloaded.
+Resources registered with `context.Track` are disposed during plugin unload. Plugin dispatch is quiesced before its collectible AssemblyLoadContext is unloaded.
 
 ## ABI and Threading Policy
 
@@ -97,7 +97,7 @@ The framework prevents new dispatch leases after an owner enters quiescing and w
 
 Plugins must not retain unmanaged threads, static references, or external callbacks after unload. The framework tracks resources explicitly registered through `F4ForgePluginContext`; arbitrary plugin-created roots remain the plugin's responsibility.
 
-The native host exposes an explicit `F4ForgeHost::Shutdown()` lifecycle boundary for integrations and tests. F4SE does not provide an exit-process message, so native plugin process termination must not be treated as a guaranteed managed `OnUnload` trigger.
+The native host exposes an explicit `F4ForgeHost::Shutdown()` lifecycle boundary for integrations and tests. F4SE does not provide an exit-process message; process termination is handled by the operating system.
 
 ## License
 

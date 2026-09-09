@@ -44,4 +44,4 @@ Input views transfer no ownership. Endpoint names are copied when registered; ca
 
 `F4ForgeResult` is a stable 32-bit enum. `SUCCESS` is zero. Other values include invalid argument, invalid ABI version, invalid struct size, invalid/stale handle, inactive objects, wrong thread, unavailable runtime, timeout, not ready, cancellation and buffer-too-small results. Operation result retrieval has a retrieval status and a separate invocation result.
 
-`OnUnload` is called only through an explicit runtime shutdown or reload boundary. Process termination is not a guaranteed managed unload notification; F4SE has no exit-process message.
+Plugin resources are disposed during explicit runtime shutdown or reload. F4SE has no exit-process message; process termination is handled by the operating system.

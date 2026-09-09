@@ -74,10 +74,6 @@ internal static unsafe class Program
         if (!plugin.Loaded)
             return 3;
 
-        plugin.OnUnload();
-        if (plugin.Loaded)
-            return 4;
-
         var pluginDirectory = Path.Combine(Path.GetTempPath(), "f4forge-plugin-tests", Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(pluginDirectory);
         var copiedFixture = Path.Combine(pluginDirectory, "Fixture.dll");
@@ -237,6 +233,5 @@ internal static unsafe class Program
         public bool Loaded { get; private set; }
         public override string Id => "test.plugin";
         public override void OnLoad() => Loaded = true;
-        public override void OnUnload() => Loaded = false;
     }
 }
