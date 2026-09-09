@@ -53,6 +53,126 @@ typedef struct F4ForgeByteView {
     uint32_t length;
 } F4ForgeByteView;
 
+typedef enum F4ForgeInputDevice {
+    F4FORGE_INPUT_KEYBOARD = 0,
+    F4FORGE_INPUT_MOUSE = 1,
+    F4FORGE_INPUT_GAMEPAD = 2
+} F4ForgeInputDevice;
+
+typedef enum F4ForgeKey {
+    F4FORGE_KEY_UNKNOWN = 0,
+    F4FORGE_KEY_BACKSPACE = 0x08,
+    F4FORGE_KEY_TAB = 0x09,
+    F4FORGE_KEY_ENTER = 0x0D,
+    F4FORGE_KEY_PAUSE = 0x13,
+    F4FORGE_KEY_CAPS_LOCK = 0x14,
+    F4FORGE_KEY_ESCAPE = 0x1B,
+    F4FORGE_KEY_SPACE = 0x20,
+    F4FORGE_KEY_PAGE_UP = 0x21,
+    F4FORGE_KEY_PAGE_DOWN = 0x22,
+    F4FORGE_KEY_END = 0x23,
+    F4FORGE_KEY_HOME = 0x24,
+    F4FORGE_KEY_LEFT = 0x25,
+    F4FORGE_KEY_UP = 0x26,
+    F4FORGE_KEY_RIGHT = 0x27,
+    F4FORGE_KEY_DOWN = 0x28,
+    F4FORGE_KEY_PRINT_SCREEN = 0x2C,
+    F4FORGE_KEY_INSERT = 0x2D,
+    F4FORGE_KEY_DELETE = 0x2E,
+    F4FORGE_KEY_0 = 0x30,
+    F4FORGE_KEY_1 = 0x31,
+    F4FORGE_KEY_2 = 0x32,
+    F4FORGE_KEY_3 = 0x33,
+    F4FORGE_KEY_4 = 0x34,
+    F4FORGE_KEY_5 = 0x35,
+    F4FORGE_KEY_6 = 0x36,
+    F4FORGE_KEY_7 = 0x37,
+    F4FORGE_KEY_8 = 0x38,
+    F4FORGE_KEY_9 = 0x39,
+    F4FORGE_KEY_A = 0x41,
+    F4FORGE_KEY_B = 0x42,
+    F4FORGE_KEY_C = 0x43,
+    F4FORGE_KEY_D = 0x44,
+    F4FORGE_KEY_E = 0x45,
+    F4FORGE_KEY_F = 0x46,
+    F4FORGE_KEY_G = 0x47,
+    F4FORGE_KEY_H = 0x48,
+    F4FORGE_KEY_I = 0x49,
+    F4FORGE_KEY_J = 0x4A,
+    F4FORGE_KEY_K = 0x4B,
+    F4FORGE_KEY_L = 0x4C,
+    F4FORGE_KEY_M = 0x4D,
+    F4FORGE_KEY_N = 0x4E,
+    F4FORGE_KEY_O = 0x4F,
+    F4FORGE_KEY_P = 0x50,
+    F4FORGE_KEY_Q = 0x51,
+    F4FORGE_KEY_R = 0x52,
+    F4FORGE_KEY_S = 0x53,
+    F4FORGE_KEY_T = 0x54,
+    F4FORGE_KEY_U = 0x55,
+    F4FORGE_KEY_V = 0x56,
+    F4FORGE_KEY_W = 0x57,
+    F4FORGE_KEY_X = 0x58,
+    F4FORGE_KEY_Y = 0x59,
+    F4FORGE_KEY_Z = 0x5A,
+    F4FORGE_KEY_APPS = 0x5D,
+    F4FORGE_KEY_NUMPAD_0 = 0x60,
+    F4FORGE_KEY_NUMPAD_1 = 0x61,
+    F4FORGE_KEY_NUMPAD_2 = 0x62,
+    F4FORGE_KEY_NUMPAD_3 = 0x63,
+    F4FORGE_KEY_NUMPAD_4 = 0x64,
+    F4FORGE_KEY_NUMPAD_5 = 0x65,
+    F4FORGE_KEY_NUMPAD_6 = 0x66,
+    F4FORGE_KEY_NUMPAD_7 = 0x67,
+    F4FORGE_KEY_NUMPAD_8 = 0x68,
+    F4FORGE_KEY_NUMPAD_9 = 0x69,
+    F4FORGE_KEY_NUMPAD_MULTIPLY = 0x6A,
+    F4FORGE_KEY_NUMPAD_PLUS = 0x6B,
+    F4FORGE_KEY_NUMPAD_MINUS = 0x6D,
+    F4FORGE_KEY_NUMPAD_PERIOD = 0x6E,
+    F4FORGE_KEY_NUMPAD_DIVIDE = 0x6F,
+    F4FORGE_KEY_F1 = 0x70,
+    F4FORGE_KEY_F2 = 0x71,
+    F4FORGE_KEY_F3 = 0x72,
+    F4FORGE_KEY_F4 = 0x73,
+    F4FORGE_KEY_F5 = 0x74,
+    F4FORGE_KEY_F6 = 0x75,
+    F4FORGE_KEY_F7 = 0x76,
+    F4FORGE_KEY_F8 = 0x77,
+    F4FORGE_KEY_F9 = 0x78,
+    F4FORGE_KEY_F10 = 0x79,
+    F4FORGE_KEY_F11 = 0x7A,
+    F4FORGE_KEY_F12 = 0x7B,
+    F4FORGE_KEY_NUM_LOCK = 0x90,
+    F4FORGE_KEY_SCROLL_LOCK = 0x91,
+    F4FORGE_KEY_LSHIFT = 0xA0,
+    F4FORGE_KEY_RSHIFT = 0xA1,
+    F4FORGE_KEY_LCONTROL = 0xA2,
+    F4FORGE_KEY_RCONTROL = 0xA3,
+    F4FORGE_KEY_LALT = 0xA4,
+    F4FORGE_KEY_RALT = 0xA5,
+    F4FORGE_KEY_SEMICOLON = 0xBA,
+    F4FORGE_KEY_EQUALS = 0xBB,
+    F4FORGE_KEY_COMMA = 0xBC,
+    F4FORGE_KEY_MINUS = 0xBD,
+    F4FORGE_KEY_PERIOD = 0xBE,
+    F4FORGE_KEY_SLASH = 0xBF,
+    F4FORGE_KEY_LBRACKET = 0xDB,
+    F4FORGE_KEY_BACKSLASH = 0xDC,
+    F4FORGE_KEY_RBRACKET = 0xDD,
+    F4FORGE_KEY_APOSTROPHE = 0xDE
+} F4ForgeKey;
+
+typedef struct F4ForgeKeyEventData {
+    uint32_t structSize;
+    uint32_t deviceType;
+    uint32_t keyCode;
+    uint32_t isDown;
+    uint32_t isRepeat;
+    float heldSeconds;
+    uint32_t isMenu;
+} F4ForgeKeyEventData;
+
 typedef enum F4ForgeEndpointKind {
     F4FORGE_ENDPOINT_METHOD = 1,
     F4FORGE_ENDPOINT_EVENT = 2,
@@ -263,6 +383,14 @@ static_assert(std::is_standard_layout_v<F4ForgeHostApi>);
 static_assert(std::is_trivial_v<F4ForgeHostApi>);
 static_assert(sizeof(F4ForgeStringView) == 16);
 static_assert(sizeof(F4ForgeByteView) == 16);
+static_assert(sizeof(F4ForgeKeyEventData) == 28);
+static_assert(offsetof(F4ForgeKeyEventData, structSize) == 0);
+static_assert(offsetof(F4ForgeKeyEventData, deviceType) == 4);
+static_assert(offsetof(F4ForgeKeyEventData, keyCode) == 8);
+static_assert(offsetof(F4ForgeKeyEventData, isDown) == 12);
+static_assert(offsetof(F4ForgeKeyEventData, isRepeat) == 16);
+static_assert(offsetof(F4ForgeKeyEventData, heldSeconds) == 20);
+static_assert(offsetof(F4ForgeKeyEventData, isMenu) == 24);
 static_assert(sizeof(F4ForgeResult) == 4);
 static_assert(sizeof(F4ForgeAsyncOperationState) == 4);
 static_assert(sizeof(F4ForgeRawHandle) == 8);

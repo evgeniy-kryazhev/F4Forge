@@ -2,6 +2,12 @@
 #include "f4forge_runtime_abi.h"
 
 #define CHECK(value) do { if (!(value)) return 1; } while (0)
+#define C_STATIC_ASSERT(value, name) typedef char static_assert_##name[(value) ? 1 : -1]
+
+C_STATIC_ASSERT(sizeof(F4ForgeKeyEventData) == 28, key_event_size);
+C_STATIC_ASSERT(offsetof(F4ForgeKeyEventData, keyCode) == 8, key_event_key_offset);
+C_STATIC_ASSERT(F4FORGE_KEY_A == 0x41, key_a_value);
+C_STATIC_ASSERT(F4FORGE_KEY_APOSTROPHE == 0xDE, key_apostrophe_value);
 
 static F4ForgeResult F4FORGE_CALL StubInitialize(const F4ForgeRuntimeInitializeParams* params)
 {

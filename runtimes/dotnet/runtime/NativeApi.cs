@@ -11,6 +11,18 @@ internal unsafe struct F4ForgeStringView
 }
 
 [StructLayout(LayoutKind.Sequential, Pack = 8)]
+internal struct F4ForgeKeyEventData
+{
+    public uint StructSize;
+    public uint DeviceType;
+    public uint KeyCode;
+    public uint IsDown;
+    public uint IsRepeat;
+    public float HeldSeconds;
+    public uint IsMenu;
+}
+
+[StructLayout(LayoutKind.Sequential, Pack = 8)]
 internal unsafe struct ManagedBootstrapArgs
 {
     public uint AbiVersion;

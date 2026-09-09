@@ -45,3 +45,9 @@ Input views transfer no ownership. Endpoint names are copied when registered; ca
 `F4ForgeResult` is a stable 32-bit enum. `SUCCESS` is zero. Other values include invalid argument, invalid ABI version, invalid struct size, invalid/stale handle, inactive objects, wrong thread, unavailable runtime, timeout, not ready, cancellation and buffer-too-small results. Operation result retrieval has a retrieval status and a separate invocation result.
 
 Plugin resources are disposed during explicit runtime shutdown or reload. F4SE has no exit-process message; process termination is handled by the operating system.
+
+## Input Event v1
+
+The native host publishes the game-thread event endpoint `input.key.down`, version `1`, with a `F4ForgeKeyEventData` payload. The current payload is 28 bytes; its final `isMenu` field distinguishes `MenuControls` input from `PlayerControls` input. Version 1 contains keyboard button-down events only. Autorepeat is delivered with `isRepeat` set; unknown keyboard codes are delivered as `Key.Unknown`.
+
+Managed handlers are synchronous on the game thread and must not block. `isMenu` is true only for the main-menu sink and false only for gameplay input; one physical input path is never published to both. Mouse, gamepad, key-up, input contexts and input suppression are not part of this version.

@@ -15,7 +15,7 @@ internal enum PluginState
     Unloaded
 }
 
-internal unsafe sealed class PluginLoader
+internal unsafe sealed class PluginLoader : IDisposable
 {
     private const string FrameworkVersion = "0.1.0";
     private readonly object _gate = new();
@@ -25,6 +25,9 @@ internal unsafe sealed class PluginLoader
     private readonly bool _allowManifestlessPlugins;
     private readonly NativeApi* _host;
     private readonly ulong _runtime;
+    private readonly NativeHostBridge? _eventBridge;
+    private readonly KeyDownEventRouter? _keyEvents;
+    private readonly FrameworkEventRouter? _frameworkEvents;
     private static readonly TimeSpan QuiescenceTimeout = TimeSpan.FromMilliseconds(100);
     private static readonly AsyncLocal<int> DispatchDepth = new();
 
@@ -35,6 +38,14 @@ internal unsafe sealed class PluginLoader
         _allowManifestlessPlugins = allowManifestlessPlugins;
         _host = host;
         _runtime = runtime;
+        if (host != null)
+        {
+            _eventBridge = new NativeHostBridge(host, runtime, "F4Forge.Managed.Input");
+            _keyEvents = new KeyDownEventRouter(_eventBridge);
+            if (host->Subscribe != null)
+                _frameworkEvents = new FrameworkEventRouter(
+                    _eventBridge, DispatchGameDataReady, DispatchGameLoaded, DispatchNewGame);
+        }
     }
 
     public int LoadDirectory(string directory)
@@ -257,7 +268,7 @@ internal unsafe sealed class PluginLoader
             if (expectedId != null && !pluginId.Equals(expectedId, StringComparison.OrdinalIgnoreCase))
                 throw new InvalidOperationException($"Manifest ID '{expectedId}' does not match plugin ID '{pluginId}'.");
             instance = new PluginInstance(Path.GetFullPath(path), context, plugin, pluginId,
-                new PluginResourceScope(), _host, _runtime);
+                new PluginResourceScope(), _host, _runtime, _keyEvents);
             lock (_gate)
             {
                 if (_plugins.ContainsKey(pluginId))
@@ -361,6 +372,36 @@ internal unsafe sealed class PluginLoader
         }
     }
 
+    public void DispatchGameDataReady() => DispatchLifecycle(plugin => plugin.OnGameDataReady());
+    public void DispatchGameLoaded() => DispatchLifecycle(plugin => plugin.OnGameLoaded());
+    public void DispatchNewGame() => DispatchLifecycle(plugin => plugin.OnNewGame());
+
+    private void DispatchLifecycle(Action<F4ForgePlugin> callback)
+    {
+        PluginInstance[] snapshot;
+        lock (_gate) snapshot = _plugins.Values.ToArray();
+        foreach (var instance in snapshot)
+        {
+            if (!instance.TryAcquireDispatchLease(out var lease)) continue;
+            using (lease)
+            {
+                try { callback(instance.Plugin); }
+                catch (Exception exception)
+                {
+                    Logger.Error($"Managed lifecycle callback failed: plugin={instance.Id}: {exception}");
+                }
+            }
+        }
+    }
+
+    public void Dispose()
+    {
+        UnloadAll();
+        _keyEvents?.Dispose();
+        _frameworkEvents?.Dispose();
+        _eventBridge?.Dispose();
+    }
+
     public int Count
     {
         get { lock (_gate) return _plugins.Count; }
@@ -422,7 +463,7 @@ internal unsafe sealed class PluginLoader
 
     private sealed record PluginCandidate(string Path, PluginManifest Manifest);
 
-    private sealed class PluginInstance
+    internal sealed class PluginInstance
     {
         private readonly object _lifecycleGate = new();
         private readonly TaskCompletionSource<bool> _stopped = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -434,7 +475,7 @@ internal unsafe sealed class PluginLoader
         private NativeHostBridge? _bridge;
 
         public PluginInstance(string path, PluginLoadContext context, F4ForgePlugin plugin, string id,
-            PluginResourceScope scope, NativeApi* host, ulong runtime)
+            PluginResourceScope scope, NativeApi* host, ulong runtime, KeyDownEventRouter? keyEvents)
         {
             Path = path;
             Context = context;
@@ -448,7 +489,11 @@ internal unsafe sealed class PluginLoader
                 scope.Add(bridge);
                 bridge.SetFinalizationCallback(FinalizeAfterNativeQuiescence);
                 ContextInfo = new F4ForgePluginContext(
-                    bridge.Module, scope.Add, bridge, scope.CancellationToken);
+                    bridge.Module, scope.Add, bridge, scope.CancellationToken,
+                    keyEvents == null ? null : new PluginEvents(
+                        handler => keyEvents.Subscribe(this, handler),
+                        scope.Add,
+                        keyEvents.Unsubscribe));
             }
             else
             {

@@ -91,6 +91,17 @@ Synchronous APIs never perform implicit cross-thread marshalling. `GAME_ONLY` ca
 
 Async operations copy caller buffers, use generation-based handles, support cancellation, and never enqueue raw pointers to unloadable plugin code. A target dispatch lease is acquired only immediately before execution.
 
+Plugins can receive keyboard button-down events synchronously on the game thread:
+
+```csharp
+context.Events.KeyDown += args =>
+    Logger.Info($"Some event triggered! {args}");
+```
+
+Handlers must not block. Autorepeat is reported by `KeyDownEventArgs.IsRepeat`; unknown codes use `Key.Unknown`. `KeyDownEventArgs.IsMenu` distinguishes main-menu input from gameplay input, and the two native input sinks are mutually exclusive.
+
+Lifecycle hooks are plugin methods rather than context events: `OnGameDataReady()`, `OnGameLoaded()` and `OnNewGame()`.
+
 ## Hot Reload
 
 The framework prevents new dispatch leases after an owner enters quiescing and waits for active leases before unload. Pending operations can be cancelled; running native callbacks are not forcefully interrupted.

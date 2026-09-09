@@ -9,16 +9,19 @@ public sealed class F4ForgePluginContext
         ModuleHandle module,
         Action<IDisposable> trackResource,
         IPluginHostBridge? bridge,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        PluginEvents? events = null)
     {
         Module = module;
         CancellationToken = cancellationToken;
         _trackResource = trackResource;
         _bridge = bridge;
+        Events = events ?? new PluginEvents(static _ => null, static _ => { }, static _ => { });
     }
 
     public ModuleHandle Module { get; }
     public CancellationToken CancellationToken { get; }
+    public PluginEvents Events { get; }
 
     public EndpointHandle ResolveEndpoint(string name, uint version = 1)
     {
@@ -100,6 +103,59 @@ public sealed class F4ForgePluginContext
     {
         ArgumentNullException.ThrowIfNull(resource);
         _trackResource(resource);
+    }
+}
+
+public sealed class PluginEvents
+{
+    private readonly Func<KeyDownHandler, IDisposable?> _subscribe;
+    private readonly Action<IDisposable> _track;
+    private readonly Action<KeyDownHandler> _unsubscribe;
+    private readonly Dictionary<KeyDownHandler, List<IDisposable>> _registrations = [];
+
+    internal PluginEvents(Func<KeyDownHandler, IDisposable?> subscribe,
+        Action<IDisposable> track, Action<KeyDownHandler> unsubscribe)
+    {
+        _subscribe = subscribe;
+        _track = track;
+        _unsubscribe = unsubscribe;
+    }
+
+    public event KeyDownHandler KeyDown
+    {
+        add
+        {
+            ArgumentNullException.ThrowIfNull(value);
+            var registration = _subscribe(value);
+            if (registration == null) return;
+            lock (_registrations)
+            {
+                if (!_registrations.TryGetValue(value, out var list))
+                    _registrations.Add(value, list = []);
+                list.Add(registration);
+            }
+            _track(registration);
+        }
+        remove
+        {
+            if (value == null) return;
+            lock (_registrations)
+            {
+                if (_registrations.TryGetValue(value, out var list) && list.Count != 0)
+                {
+                    list[^1].Dispose();
+                    list.RemoveAt(list.Count - 1);
+                    if (list.Count == 0) _registrations.Remove(value);
+                }
+            }
+            _unsubscribe(value);
+        }
+    }
+
+    public event KeyDownHandler OnKeyDownEvent
+    {
+        add => KeyDown += value;
+        remove => KeyDown -= value;
     }
 }
 

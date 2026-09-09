@@ -89,6 +89,7 @@ F4ForgeResult EventRegistry::Emit(
         std::lock_guard lock(_mutex);
         nextIndex = _nextIndex;
     }
+    F4ForgeResult callbackResult = F4FORGE_RESULT_SUCCESS;
     for (uint32_t index = 1; index < nextIndex; ++index) {
         const auto* subscription = _subscriptions[index].load(std::memory_order_acquire);
         if (subscription == nullptr || !subscription->active.load(std::memory_order_acquire)) continue;
@@ -107,10 +108,10 @@ F4ForgeResult EventRegistry::Emit(
                 payloadSize,
                 subscription->context);
         } catch (...) {
-            return F4FORGE_RESULT_INTERNAL_ERROR;
+            callbackResult = F4FORGE_RESULT_INTERNAL_ERROR;
         }
     }
-    return F4FORGE_RESULT_SUCCESS;
+    return callbackResult;
 }
 
 void EventRegistry::InvalidateOwner(const EndpointOwner* owner) noexcept

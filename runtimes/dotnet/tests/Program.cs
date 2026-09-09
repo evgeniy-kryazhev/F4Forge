@@ -15,6 +15,17 @@ internal static unsafe class Program
         if (sizeof(NativeApi) != 168 || sizeof(F4ForgeEndpointDefinition) != 64 || sizeof(F4ForgeStringView) != 16 ||
             sizeof(ManagedBootstrapArgs) != 56)
             return 5;
+        if (sizeof(F4ForgeKeyEventData) != 28 ||
+            Marshal.OffsetOf<F4ForgeKeyEventData>(nameof(F4ForgeKeyEventData.StructSize)) != 0 ||
+            Marshal.OffsetOf<F4ForgeKeyEventData>(nameof(F4ForgeKeyEventData.DeviceType)) != 4 ||
+            Marshal.OffsetOf<F4ForgeKeyEventData>(nameof(F4ForgeKeyEventData.KeyCode)) != 8 ||
+            Marshal.OffsetOf<F4ForgeKeyEventData>(nameof(F4ForgeKeyEventData.IsDown)) != 12 ||
+            Marshal.OffsetOf<F4ForgeKeyEventData>(nameof(F4ForgeKeyEventData.IsRepeat)) != 16 ||
+            Marshal.OffsetOf<F4ForgeKeyEventData>(nameof(F4ForgeKeyEventData.HeldSeconds)) != 20 ||
+            Marshal.OffsetOf<F4ForgeKeyEventData>(nameof(F4ForgeKeyEventData.IsMenu)) != 24 ||
+            (uint)Key.Unknown != 0 || (uint)Key.A != 0x41 || (uint)Key.F12 != 0x7B ||
+            (uint)Key.Apostrophe != 0xDE)
+            return 30;
         if (Marshal.OffsetOf<NativeApi>(nameof(NativeApi.AbiVersion)) != 0 ||
             Marshal.OffsetOf<NativeApi>(nameof(NativeApi.StructSize)) != 4 ||
             Marshal.OffsetOf<NativeApi>(nameof(NativeApi.ResolveEndpoint)) != 8 ||

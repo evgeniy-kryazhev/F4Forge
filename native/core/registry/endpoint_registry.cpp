@@ -215,7 +215,6 @@ bool EndpointRegistry::IsValidDefinition(const F4ForgeEndpointDefinition& defini
     if (definition.version == 0 || definition.name.data == nullptr || definition.name.length == 0)
         return false;
     if (definition.thunk == nullptr) return false;
-    if (definition.kind == F4FORGE_ENDPOINT_EVENT && definition.payloadSize == 0) return false;
     return definition.threadPolicy <= F4FORGE_THREAD_GAME_ONLY;
 }
 

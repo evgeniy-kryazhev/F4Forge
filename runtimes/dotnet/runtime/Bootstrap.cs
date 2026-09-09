@@ -104,7 +104,7 @@ public static unsafe class Bootstrap
                 loader = pluginLoader;
                 pluginLoader = null;
             }
-            loader?.UnloadAll();
+            loader?.Dispose();
             lock (Gate)
             {
                 Logger.Sink = null;

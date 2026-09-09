@@ -1,5 +1,7 @@
 #include "../core/config/config.h"
 #include "../core/f4forge_host.h"
+#include "../core/modules/input_module.h"
+#include "../core/framework_events.h"
 #include "f4se_game_scheduler.h"
 
 #define WIN32_LEAN_AND_MEAN
@@ -11,10 +13,39 @@
 #include <string>
 #include <string_view>
 #include <vector>
+#include <memory>
 
 namespace {
 
 f4forge::native::F4seGameScheduler gameScheduler;
+std::unique_ptr<f4forge::core::InputModule> inputModule;
+std::unique_ptr<f4forge::core::FrameworkEvents> frameworkEvents;
+
+void F4SEAPI OnMessage(F4SE::MessagingInterface::Message* message)
+{
+    try {
+        if (message == nullptr || frameworkEvents == nullptr) return;
+        switch (message->type) {
+        case F4SE::MessagingInterface::kGameDataReady:
+            if (message->data == nullptr) return;
+            if (inputModule != nullptr) inputModule->InstallInputHandler();
+            frameworkEvents->EmitGameDataReady();
+            break;
+        case F4SE::MessagingInterface::kPostLoadGame:
+            if (inputModule != nullptr) inputModule->InstallInputHandler();
+            frameworkEvents->EmitGameLoaded();
+            break;
+        case F4SE::MessagingInterface::kNewGame:
+            if (inputModule != nullptr) inputModule->InstallInputHandler();
+            frameworkEvents->EmitNewGame();
+            break;
+        default:
+            break;
+        }
+    } catch (...) {
+        REX::ERROR("F4Forge: framework message dispatch failed");
+    }
+}
 
 void NativeLog(uint32_t level, std::string_view message) noexcept
 {
@@ -97,6 +128,17 @@ F4SE_PLUGIN_LOAD(const F4SE::LoadInterface* a_f4se)
 		host.SetGameThreadScheduler(&gameScheduler);
 		host.Endpoints().SetGameThreadCheck(&f4forge::native::F4seGameScheduler::CheckGameThread);
 		host.SetLogSink(&NativeLog);
+		frameworkEvents = std::make_unique<f4forge::core::FrameworkEvents>(host.Endpoints(), host.Events());
+		inputModule = std::make_unique<f4forge::core::InputModule>(host.Endpoints(), host.Events());
+		inputModule->InstallInputHandler();
+		REX::INFO("F4Forge: input endpoint = {}, menu handler = {}, gameplay handler = {}",
+			inputModule->KeyDownEndpoint(), inputModule->IsMenuHandlerInstalled(),
+			inputModule->IsGameplayHandlerInstalled());
+		const auto* messaging = F4SE::GetMessagingInterface();
+		if (messaging == nullptr || !messaging->RegisterListener(&OnMessage)) {
+			REX::ERROR("F4Forge: failed to register F4SE messaging listener");
+			return false;
+		}
 		auto& runtimes = host.Runtimes();
 		const auto discovered = runtimes.DiscoverDirectory(config.runtimeDirectory);
 		REX::INFO("F4Forge: runtime providers discovered = {}", discovered);
