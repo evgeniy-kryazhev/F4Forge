@@ -13,3 +13,5 @@ $RECYCLE.BIN/
 native/lib
 .xmake/
 build/
+runtimes/dotnet/.idea/
+runtimes/dotnet/.vs/

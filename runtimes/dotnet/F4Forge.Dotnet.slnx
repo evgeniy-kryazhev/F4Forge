@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="runtime/F4Forge.DotNet.Runtime.csproj" />
+  <Project Path="sdk/F4Forge.DotNet.Sdk.csproj" />
+</Solution>

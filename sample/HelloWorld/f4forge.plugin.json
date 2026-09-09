@@ -1,9 +1,0 @@
-{
-  "id": "mod.hello_world",
-  "version": "0.1.0",
-  "minimumF4ForgeVersion": "0.1.0",
-  "runtime": "dotnet",
-  "entryAssembly": "F4Forge.Sample.HelloWorld.dll",
-  "dependencies": [],
-  "providedCapabilities": []
-}
