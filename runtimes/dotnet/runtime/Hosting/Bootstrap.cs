@@ -2,6 +2,8 @@ using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Text;
 using F4Forge.DotNet.Sdk;
+using F4Forge.DotNet.Runtime.Interop;
+using F4Forge.DotNet.Runtime.Plugins;
 
 namespace F4Forge.DotNet.Runtime;
 

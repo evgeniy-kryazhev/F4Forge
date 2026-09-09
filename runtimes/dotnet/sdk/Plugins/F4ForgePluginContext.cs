@@ -16,7 +16,7 @@ public sealed class F4ForgePluginContext
         CancellationToken = cancellationToken;
         _trackResource = trackResource;
         _bridge = bridge;
-        Events = events ?? new PluginEvents(static _ => null, static _ => { }, static _ => { });
+        Events = events ?? new PluginEvents();
     }
 
     public ModuleHandle Module { get; }
@@ -104,77 +104,4 @@ public sealed class F4ForgePluginContext
         ArgumentNullException.ThrowIfNull(resource);
         _trackResource(resource);
     }
-}
-
-public sealed class PluginEvents
-{
-    private readonly Func<KeyDownHandler, IDisposable?> _subscribe;
-    private readonly Action<IDisposable> _track;
-    private readonly Action<KeyDownHandler> _unsubscribe;
-    private readonly Dictionary<KeyDownHandler, List<IDisposable>> _registrations = [];
-
-    internal PluginEvents(Func<KeyDownHandler, IDisposable?> subscribe,
-        Action<IDisposable> track, Action<KeyDownHandler> unsubscribe)
-    {
-        _subscribe = subscribe;
-        _track = track;
-        _unsubscribe = unsubscribe;
-    }
-
-    public event KeyDownHandler KeyDown
-    {
-        add
-        {
-            ArgumentNullException.ThrowIfNull(value);
-            var registration = _subscribe(value);
-            if (registration == null) return;
-            lock (_registrations)
-            {
-                if (!_registrations.TryGetValue(value, out var list))
-                    _registrations.Add(value, list = []);
-                list.Add(registration);
-            }
-            _track(registration);
-        }
-        remove
-        {
-            if (value == null) return;
-            lock (_registrations)
-            {
-                if (_registrations.TryGetValue(value, out var list) && list.Count != 0)
-                {
-                    list[^1].Dispose();
-                    list.RemoveAt(list.Count - 1);
-                    if (list.Count == 0) _registrations.Remove(value);
-                }
-            }
-            _unsubscribe(value);
-        }
-    }
-
-    public event KeyDownHandler OnKeyDownEvent
-    {
-        add => KeyDown += value;
-        remove => KeyDown -= value;
-    }
-}
-
-internal interface IPluginHostBridge
-{
-    EndpointHandle ResolveEndpoint(string name, uint version);
-    HostRegistration<EndpointHandle>? RegisterEndpoint(
-        string name, EndpointKind kind, uint version, uint requestSize,
-        uint responseSize, ThreadPolicy threadPolicy, EndpointCallback callback);
-    F4ForgeResult Invoke(EndpointHandle endpoint, ReadOnlySpan<byte> request, Span<byte> response, out uint responseSize);
-    HostSubscription<EventSubscriptionHandle>? Subscribe(EndpointHandle endpoint, Action<ReadOnlyMemory<byte>> callback);
-    HostSubscription<InterceptorSubscriptionHandle>? Intercept(EndpointHandle endpoint, Func<Memory<byte>, F4ForgeResult> callback);
-    uint QueryCapability(string id, uint minimumVersion);
-    Task<AsyncOperationResult> InvokeAsync(EndpointHandle endpoint, ReadOnlyMemory<byte> request, CancellationToken cancellationToken);
-    Task<AsyncOperationResult> EmitAsync(EndpointHandle endpoint, ReadOnlyMemory<byte> payload, CancellationToken cancellationToken);
-}
-
-internal sealed class HostSubscription<THandle> where THandle : struct
-{
-    public required THandle Handle { get; init; }
-    public required IDisposable Resource { get; init; }
 }

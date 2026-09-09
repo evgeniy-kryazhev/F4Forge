@@ -1,7 +1,7 @@
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 
-namespace F4Forge.DotNet.Runtime;
+namespace F4Forge.DotNet.Runtime.Interop;
 
 [StructLayout(LayoutKind.Sequential, Pack = 8)]
 internal unsafe struct F4ForgeStringView

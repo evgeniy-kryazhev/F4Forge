@@ -1,4 +1,4 @@
-namespace F4Forge.DotNet.Runtime;
+namespace F4Forge.DotNet.Runtime.Plugins;
 
 internal sealed class PluginResourceScope : IDisposable
 {

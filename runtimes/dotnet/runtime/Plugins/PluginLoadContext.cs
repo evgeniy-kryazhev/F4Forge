@@ -2,17 +2,12 @@ using System.Reflection;
 using System.Runtime.Loader;
 using F4Forge.DotNet.Sdk;
 
-namespace F4Forge.DotNet.Runtime;
+namespace F4Forge.DotNet.Runtime.Plugins;
 
-internal sealed class PluginLoadContext : AssemblyLoadContext
+internal sealed class PluginLoadContext(string pluginPath) : AssemblyLoadContext(isCollectible: true)
 {
-    private readonly AssemblyDependencyResolver _resolver;
+    private readonly AssemblyDependencyResolver _resolver = new(pluginPath);
     private readonly Assembly _sharedSdk = typeof(F4ForgePlugin).Assembly;
-
-    public PluginLoadContext(string pluginPath) : base(isCollectible: true)
-    {
-        _resolver = new AssemblyDependencyResolver(pluginPath);
-    }
 
     protected override Assembly? Load(AssemblyName assemblyName)
     {

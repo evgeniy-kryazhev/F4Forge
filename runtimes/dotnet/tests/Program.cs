@@ -1,6 +1,8 @@
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using F4Forge.DotNet.Runtime;
+using F4Forge.DotNet.Runtime.Interop;
+using F4Forge.DotNet.Runtime.Plugins;
 using F4Forge.DotNet.Sdk;
 using F4Forge.FailureFixture;
 using F4Forge.PluginFixture;
@@ -76,6 +78,21 @@ internal static unsafe class Program
         Logger.Error("error");
         if (logCount != 3 || LogLevels[0] != 0 || LogLevels[1] != 3 || LogLevels[2] != 4)
             return 15;
+
+        var events = new PluginEvents("test.plugin");
+        var firstHandlerCalls = 0;
+        var lastHandlerCalls = 0;
+        KeyDownHandler firstHandler = _ => ++firstHandlerCalls;
+        KeyDownHandler lastHandler = _ => ++lastHandlerCalls;
+        events.KeyDown += firstHandler;
+        events.KeyDown += _ => throw new InvalidOperationException("key handler failure");
+        events.OnKeyDownEvent += lastHandler;
+        events.PublishKeyDown(new KeyDownEventArgs(InputDevice.Keyboard, Key.A, false, 0, false));
+        if (firstHandlerCalls != 1 || lastHandlerCalls != 1) return 31;
+        events.KeyDown -= firstHandler;
+        events.OnKeyDownEvent -= lastHandler;
+        events.PublishKeyDown(new KeyDownEventArgs(InputDevice.Keyboard, Key.A, false, 0, false));
+        if (firstHandlerCalls != 1 || lastHandlerCalls != 1) return 32;
 
         var plugin = new TestPlugin();
         if (plugin.Id != "test.plugin")

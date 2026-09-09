@@ -1,10 +1,12 @@
-namespace F4Forge.DotNet.Runtime;
+using F4Forge.DotNet.Runtime.Interop;
 
-internal sealed class FrameworkEventRouter : IDisposable
+namespace F4Forge.DotNet.Runtime.Events;
+
+internal sealed class NativeFrameworkEventRouter : IDisposable
 {
     private readonly List<IDisposable> _subscriptions = [];
 
-    public FrameworkEventRouter(NativeHostBridge bridge, Action gameDataReady, Action gameLoaded, Action newGame)
+    public NativeFrameworkEventRouter(NativeHostBridge bridge, Action gameDataReady, Action gameLoaded, Action newGame)
     {
         Add(bridge.SubscribeFramework("framework.game_data_ready", gameDataReady));
         Add(bridge.SubscribeFramework("framework.game_loaded", gameLoaded));

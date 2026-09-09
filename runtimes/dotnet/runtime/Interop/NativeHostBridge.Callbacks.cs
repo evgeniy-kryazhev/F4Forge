@@ -4,61 +4,10 @@ using System.Text;
 using F4Forge.DotNet.Sdk;
 using SdkModuleHandle = F4Forge.DotNet.Sdk.ModuleHandle;
 
-namespace F4Forge.DotNet.Runtime;
+namespace F4Forge.DotNet.Runtime.Interop;
 
-internal unsafe sealed class NativeHostBridge : IPluginHostBridge, IDisposable
+internal unsafe sealed partial class NativeHostBridge
 {
-    private readonly NativeApi* _api;
-    private readonly SdkModuleHandle _module;
-    private readonly List<CallbackRegistration> _registrations = [];
-    private readonly TaskCompletionSource<bool> _quiesced =
-        new(TaskCreationOptions.RunContinuationsAsynchronously);
-    private Action? _finalized;
-    private bool _disposed;
-    private int _finalizationStarted;
-
-    public NativeHostBridge(NativeApi* api, ulong runtime, string id)
-    {
-        _api = api;
-        if (api == null || api->RegisterModule == null) return;
-        var bytes = Encoding.UTF8.GetBytes(id);
-        fixed (byte* text = bytes)
-        {
-            ulong module = 0;
-            var result = api->RegisterModule(runtime,
-                new F4ForgeStringView { Data = text, Length = (uint)bytes.Length }, 1, &module);
-            if (result != (int)F4ForgeResult.Success)
-                throw new InvalidOperationException($"Native module registration failed: {result}");
-            _module = new SdkModuleHandle(module);
-        }
-    }
-
-    public SdkModuleHandle Module => _module;
-
-    public EndpointHandle ResolveEndpoint(string name, uint version)
-    {
-        if (_api == null || _api->ResolveEndpoint == null) return default;
-        var bytes = Encoding.UTF8.GetBytes(name);
-        fixed (byte* text = bytes)
-            return new EndpointHandle(_api->ResolveEndpoint(
-                new F4ForgeStringView { Data = text, Length = (uint)bytes.Length }, version));
-    }
-
-    public F4ForgeResult Invoke(EndpointHandle endpoint, ReadOnlySpan<byte> request, Span<byte> response,
-        out uint responseSize)
-    {
-        responseSize = 0;
-        if (_api == null || _api->Invoke == null) return F4ForgeResult.InactiveRuntime;
-        fixed (byte* requestPointer = request)
-        fixed (byte* responsePointer = response)
-        fixed (uint* size = &responseSize)
-        {
-            return (F4ForgeResult)_api->Invoke(endpoint.Value,
-                request.IsEmpty ? null : requestPointer, (uint)request.Length,
-                response.IsEmpty ? null : responsePointer, (uint)response.Length, size);
-        }
-    }
-
     public HostRegistration<EndpointHandle>? RegisterEndpoint(string name, EndpointKind kind, uint version,
         uint requestSize, uint responseSize, ThreadPolicy threadPolicy, EndpointCallback callback)
     {
@@ -155,107 +104,6 @@ internal unsafe sealed class NativeHostBridge : IPluginHostBridge, IDisposable
         _registrations.Add(resource);
         return new HostSubscription<InterceptorSubscriptionHandle> {
             Handle = new InterceptorSubscriptionHandle(handle), Resource = resource };
-    }
-
-    public uint QueryCapability(string id, uint minimumVersion)
-    {
-        if (_api == null || _api->QueryCapability == null) return 0;
-        var bytes = Encoding.UTF8.GetBytes(id);
-        fixed (byte* text = bytes)
-            return _api->QueryCapability(
-                new F4ForgeStringView { Data = text, Length = (uint)bytes.Length }, minimumVersion);
-    }
-
-    public Task<AsyncOperationResult> InvokeAsync(EndpointHandle endpoint, ReadOnlyMemory<byte> request,
-        CancellationToken cancellationToken) => StartAsync(endpoint, request, false, cancellationToken);
-
-    public Task<AsyncOperationResult> EmitAsync(EndpointHandle endpoint, ReadOnlyMemory<byte> payload,
-        CancellationToken cancellationToken) => StartAsync(endpoint, payload, true, cancellationToken);
-
-    private Task<AsyncOperationResult> StartAsync(EndpointHandle endpoint, ReadOnlyMemory<byte> data,
-        bool emit, CancellationToken cancellationToken)
-    {
-        if (_api == null) return Task.FromResult(new AsyncOperationResult(
-            F4ForgeResult.InactiveRuntime, [], F4ForgeResult.InactiveRuntime));
-        var copy = data.ToArray();
-        var created = CreateOperation(endpoint, copy, emit);
-        if (created.Result != F4ForgeResult.Success)
-            return Task.FromResult(new AsyncOperationResult(
-                created.Result, [], created.Result));
-        var operation = created.Operation;
-        return Task.Run(() => WaitAndCollect(operation, cancellationToken));
-    }
-
-    private (F4ForgeResult Result, ulong Operation) CreateOperation(
-        EndpointHandle endpoint, byte[] data, bool emit)
-    {
-        ulong operation = 0;
-        fixed (byte* bytes = data)
-        {
-            var result = emit
-                ? _api->EmitAsync(_module.Value, endpoint.Value, bytes, (uint)data.Length, &operation)
-                : _api->InvokeAsync(_module.Value, endpoint.Value, bytes, (uint)data.Length, &operation);
-            return ((F4ForgeResult)result, operation);
-        }
-    }
-
-    private AsyncOperationResult WaitAndCollect(ulong operation, CancellationToken cancellationToken)
-    {
-        using var registration = cancellationToken.Register(() => _api->CancelOperation(operation));
-        var wait = (F4ForgeResult)_api->WaitOperation(operation, uint.MaxValue);
-        var response = new byte[64 * 1024];
-        uint responseSize = 0;
-        var invocation = 0;
-        F4ForgeResult get;
-        fixed (byte* responsePointer = response)
-        {
-            var responseSizePointer = &responseSize;
-            var invocationPointer = &invocation;
-            get = (F4ForgeResult)_api->GetOperationResult(operation, invocationPointer,
-                responsePointer, (uint)response.Length, responseSizePointer);
-        }
-        if (get == F4ForgeResult.BufferTooSmall) response = [];
-        else if (get == F4ForgeResult.Success) Array.Resize(ref response, (int)responseSize);
-        _api->ReleaseOperation(operation);
-        return new(wait, response, (F4ForgeResult)invocation);
-    }
-
-    public void Dispose()
-    {
-        if (_disposed) return;
-        _disposed = true;
-        foreach (var registration in _registrations) registration.Dispose();
-        if (_api == null || !_module.IsValid || _api->UnregisterModule == null) {
-            FinalizeCallbackStates();
-            return;
-        }
-        _api->UnregisterModule(_module.Value);
-        if (!HasModuleQuiescenceApi) return;
-        _ = Task.Run(() => {
-            var quiescence = (F4ForgeResult)_api->WaitModuleQuiescence(
-                _module.Value, uint.MaxValue);
-            if (quiescence is F4ForgeResult.Success or F4ForgeResult.InvalidHandle)
-                FinalizeCallbackStates();
-        });
-    }
-
-    public bool IsQuiesced => _quiesced.Task.IsCompletedSuccessfully;
-
-    private bool HasModuleQuiescenceApi =>
-        _api != null && _api->StructSize >= 168 && _api->WaitModuleQuiescence != null;
-
-    public void SetFinalizationCallback(Action callback)
-    {
-        _finalized = callback;
-        if (IsQuiesced) callback();
-    }
-
-    private void FinalizeCallbackStates()
-    {
-        if (Interlocked.Exchange(ref _finalizationStarted, 1) != 0) return;
-        foreach (var registration in _registrations) registration.Retire();
-        _quiesced.TrySetResult(true);
-        _finalized?.Invoke();
     }
 
     [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
