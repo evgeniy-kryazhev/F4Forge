@@ -3,7 +3,7 @@
         {
             "name": "Win32",
             "includePath": [
-                "${workspaceFolder}/**"
+                "${workspaceFolder}/native/**"
             ],
             "defines": [
                 "_DEBUG",
@@ -16,7 +16,7 @@
             "cppStandard": "c++17",
             "intelliSenseMode": "windows-msvc-x64",
             "compileCommands": [
-                "${workspaceFolder}/compile_commands.json"
+                "${workspaceFolder}/native/compile_commands.json"
             ]
         }
     ],
