@@ -20,6 +20,7 @@ public sealed class F4ForgePluginContext
         Endpoints = new EndpointService(bridge, Track);
         Capabilities = new CapabilityService(bridge);
         GameThread = new GameThreadDispatcher(gameThreadScheduler);
+        Forms = new FormService(Endpoints, GameThread);
     }
 
     public ModuleHandle Module { get; }
@@ -29,6 +30,7 @@ public sealed class F4ForgePluginContext
     public EndpointService Endpoints { get; }
     public CapabilityService Capabilities { get; }
     public GameThreadDispatcher GameThread { get; }
+    public FormService Forms { get; }
 
     public EndpointHandle ResolveEndpoint(string name, uint version = 1)
     {
