@@ -14,6 +14,8 @@ The normative declarations are [`native/abi/f4forge_abi.h`](../native/abi/f4forg
 
 Compatible additions within an ABI version are append-only. Consumers validate `abiVersion` and `structSize` before reading fields and use `F4FORGE_HAS_FIELD` for optional tails.
 
+For deciding between an endpoint and a host ABI change, and for implementing a complete native/managed vertical slice, see [Adding endpoint-based features](adding-features.md).
+
 ## Host binding and isolation
 
 `F4ForgeGetHostApi` returns a 24-byte binding by value:

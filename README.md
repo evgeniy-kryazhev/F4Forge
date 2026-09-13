@@ -93,7 +93,7 @@ Resources registered with `context.Track` are disposed during plugin unload. Plu
 
 ## ABI and Threading Policy
 
-The current public host ABI is version 3 and the runtime-provider ABI is version 2, with no v2 host compatibility shim. `F4ForgeGetHostApi` returns an instance-scoped `{ abiVersion, structSize, api, context }` binding, and every host-table callback receives that context first. C ABI structures use fixed-width fields and explicit `structSize` checks. See [docs/abi.md](docs/abi.md) for the exact layouts, ownership and scheduling contract and [docs/migration-v2-to-v3.md](docs/migration-v2-to-v3.md) for breaking changes.
+The current public host ABI is version 3 and the runtime-provider ABI is version 2, with no v2 host compatibility shim. `F4ForgeGetHostApi` returns an instance-scoped `{ abiVersion, structSize, api, context }` binding, and every host-table callback receives that context first. C ABI structures use fixed-width fields and explicit `structSize` checks. See [docs/abi.md](docs/abi.md) for the exact layouts, ownership and scheduling contract, [docs/adding-features.md](docs/adding-features.md) for the endpoint-based feature workflow, and [docs/migration-v2-to-v3.md](docs/migration-v2-to-v3.md) for breaking changes.
 
 Synchronous APIs never perform implicit cross-thread marshalling. `GAME_ONLY` calls from a worker thread return `F4FORGE_RESULT_WRONG_THREAD`. Explicit operation APIs such as `InvokeAsync` and `EmitAsync` provide scheduling and operation handles.
 
