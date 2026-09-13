@@ -28,16 +28,23 @@ The build script discovers the .NET native host pack automatically when possible
 
 Use `-Clean` for a clean output directory or `-DotNetHostDir` to provide an explicit `nethost.h` directory.
 
-The package is written to:
+The build produces separate installable framework and demo packages. Extract either ZIP into the Fallout 4 game directory; install the framework before the optional demo:
 
 ```text
-build/F4SE/Plugins/F4Forge.dll
-build/F4SE/Plugins/F4Forge/F4Forge.Dotnet.dll
-build/F4SE/Plugins/F4Forge/F4Forge.DotNet.Sdk.dll
-build/F4SE/Plugins/F4Forge/Samples/F4Forge.DotNet.Sample/F4Forge.DotNet.Sample.dll
+build/F4Forge-framework.zip
+  F4SE/Plugins/F4Forge.dll
+  F4SE/Plugins/F4Forge/F4Forge.Dotnet.dll
+  F4SE/Plugins/F4Forge/F4Forge.DotNet.Runtime.dll
+  F4SE/Plugins/F4Forge/F4Forge.DotNet.Runtime.deps.json
+  F4SE/Plugins/F4Forge/F4Forge.DotNet.Runtime.runtimeconfig.json
+  F4SE/Plugins/F4Forge/F4Forge.DotNet.Sdk.dll
+
+build/F4Forge-demo.zip
+  F4SE/Plugins/F4Forge/Plugins/F4Forge.DotNet.Sample/F4Forge.DotNet.Sample.dll
+  F4SE/Plugins/F4Forge/Plugins/F4Forge.DotNet.Sample/f4forge.plugin.json
 ```
 
-Managed runtime assemblies and configuration are embedded into the native provider resources.
+Expanded staging trees are also available under `build/packages/framework` and `build/packages/demo`.
 
 ## Tests and Analysis
 
@@ -86,13 +93,13 @@ Resources registered with `context.Track` are disposed during plugin unload. Plu
 
 ## ABI and Threading Policy
 
-The current public host ABI is version 3 and the runtime-provider ABI is version 2. C ABI structures use fixed-width fields and explicit `structSize` checks. See [docs/abi.md](docs/abi.md) for the complete contract and [docs/migration-v2-to-v3.md](docs/migration-v2-to-v3.md) for breaking changes.
+The current public host ABI is version 3 and the runtime-provider ABI is version 2, with no v2 host compatibility shim. `F4ForgeGetHostApi` returns an instance-scoped `{ abiVersion, structSize, api, context }` binding, and every host-table callback receives that context first. C ABI structures use fixed-width fields and explicit `structSize` checks. See [docs/abi.md](docs/abi.md) for the exact layouts, ownership and scheduling contract and [docs/migration-v2-to-v3.md](docs/migration-v2-to-v3.md) for breaking changes.
 
 Synchronous APIs never perform implicit cross-thread marshalling. `GAME_ONLY` calls from a worker thread return `F4FORGE_RESULT_WRONG_THREAD`. Explicit operation APIs such as `InvokeAsync` and `EmitAsync` provide scheduling and operation handles.
 
 Async operations copy caller buffers, use generation-based handles, support cancellation, and never enqueue raw pointers to unloadable plugin code. A target dispatch lease is acquired only immediately before execution.
 
-Managed plugins explicitly marshal work to the game thread without exposing delegates through the ABI:
+Managed plugins explicitly marshal work to the game thread without exposing delegates through the ABI. The managed runtime owns the numeric task-to-delegate map; native admission and execution revalidate the active runtime generation, and quiescing/cancellation make pending work complete or become inert:
 
 ```csharp
 await context.GameThread.InvokeAsync(() =>
