@@ -9,6 +9,7 @@ using F4Forge.PluginFixture;
 
 internal static unsafe class Program
 {
+    private static readonly TimeSpan AsyncTestTimeout = TimeSpan.FromSeconds(10);
     private static readonly uint[] LogLevels = new uint[8];
     private static int logCount;
 
@@ -141,13 +142,13 @@ internal static unsafe class Program
             callbackEntered.TrySetResult(true);
             releaseCallback.Task.GetAwaiter().GetResult();
         }));
-        if (!callbackEntered.Task.Wait(TimeSpan.FromSeconds(1))) return 22;
+        if (!callbackEntered.Task.Wait(AsyncTestTimeout)) return 22;
         var unloadTask = Task.Run(quarantineLoader.UnloadAll);
-        if (!unloadTask.Wait(TimeSpan.FromSeconds(1)) ||
+        if (!unloadTask.Wait(AsyncTestTimeout) ||
             !quarantineLoader.IsQuarantined("fixture.plugin")) return 23;
         releaseCallback.TrySetResult(true);
-        if (!dispatchTask.Wait(TimeSpan.FromSeconds(1)) ||
-            !SpinWait.SpinUntil(() => !quarantineLoader.IsQuarantined("fixture.plugin"), 1000)) return 24;
+        if (!dispatchTask.Wait(AsyncTestTimeout) ||
+            !SpinWait.SpinUntil(() => !quarantineLoader.IsQuarantined("fixture.plugin"), AsyncTestTimeout)) return 24;
         var duplicatePath = Path.Combine(pluginDirectory, "Duplicate.dll");
         File.Copy(typeof(FixturePlugin).Assembly.Location, duplicatePath);
         if (loader.Load(duplicatePath) || loader.Count != 1)

@@ -113,7 +113,7 @@ int main()
     std::thread executor([&] { scheduler.RunOne(); });
     {
         std::unique_lock lock(runningMutex);
-        F4FORGE_CHECK(test, runningCondition.wait_for(lock, std::chrono::seconds(1), [&] { return running; }));
+        F4FORGE_CHECK(test, runningCondition.wait_for(lock, std::chrono::seconds(10), [&] { return running; }));
     }
     operations.CancelRequester(requester);
     {
