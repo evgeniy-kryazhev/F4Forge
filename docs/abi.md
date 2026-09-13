@@ -2,8 +2,8 @@
 
 ## Contract
 
-- Host ABI version: `2`.
-- Runtime-provider ABI version: `1`.
+- Host ABI version: `3`.
+- Runtime-provider ABI version: `2`.
 - Target: Windows x64.
 - Public structures use C linkage, fixed-width integer fields and `F4FORGE_CALL` (`__cdecl` with MSVC).
 - Handles are opaque unsigned 64-bit values. Zero is invalid.
@@ -37,6 +37,13 @@ The current layouts are:
 | `F4ForgeRuntimeInitializeParams` | 56 | 56 |
 | `F4ForgeManagedBootstrapArgs` | 56 | 56 |
 | `F4ForgeRuntimeProvider` | 40 | 40 |
+| `F4ForgeRuntimeTask` | 16 | 16 |
+
+## Runtime tasks
+
+`queueTask(runtime, taskHandle)` copies the numeric task identifier into the game-thread scheduler. It never retains a managed delegate or caller-owned context pointer. Immediately before execution the host validates the runtime handle generation and requires the runtime to remain active. The provider receives only `runtime` and `taskHandle` through `executeTask`.
+
+Quiescing rejects new tasks. The .NET runtime owns the `taskHandle` to delegate map, removes entries exactly once on execution or cancellation, completes pending tasks during shutdown, and exposes this mechanism as `context.GameThread.InvokeAsync(...)`.
 
 Input views transfer no ownership. Endpoint names are copied when registered; callback and context pointers are retained according to the endpoint/module lifetime rules. Async request and payload bytes are copied before deferred execution. Provider metadata must remain valid for the provider's advertised lifetime.
 

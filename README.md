@@ -86,11 +86,22 @@ Resources registered with `context.Track` are disposed during plugin unload. Plu
 
 ## ABI and Threading Policy
 
-The current public host ABI is version 2. C ABI structures use fixed-width fields and explicit `structSize` checks. The runtime-provider ABI remains version 1 because its binary contract has not changed. See [docs/abi.md](docs/abi.md) for the complete contract.
+The current public host ABI is version 3 and the runtime-provider ABI is version 2. C ABI structures use fixed-width fields and explicit `structSize` checks. See [docs/abi.md](docs/abi.md) for the complete contract and [docs/migration-v2-to-v3.md](docs/migration-v2-to-v3.md) for breaking changes.
 
 Synchronous APIs never perform implicit cross-thread marshalling. `GAME_ONLY` calls from a worker thread return `F4FORGE_RESULT_WRONG_THREAD`. Explicit operation APIs such as `InvokeAsync` and `EmitAsync` provide scheduling and operation handles.
 
 Async operations copy caller buffers, use generation-based handles, support cancellation, and never enqueue raw pointers to unloadable plugin code. A target dispatch lease is acquired only immediately before execution.
+
+Managed plugins explicitly marshal work to the game thread without exposing delegates through the ABI:
+
+```csharp
+await context.GameThread.InvokeAsync(() =>
+{
+    // Game-thread-only work.
+}, context.CancellationToken);
+
+var value = await context.GameThread.InvokeAsync(() => 42);
+```
 
 Plugins can receive keyboard button-down events synchronously on the game thread:
 
