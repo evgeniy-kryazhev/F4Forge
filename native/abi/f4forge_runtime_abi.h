@@ -24,9 +24,8 @@ typedef struct F4ForgeRuntimeInitializeParams {
 } F4ForgeRuntimeInitializeParams;
 
 typedef struct F4ForgeRuntimeTask {
-    void* context;
-    uint64_t taskHandle;
     F4ForgeRuntimeHandle runtime;
+    uint64_t taskHandle;
 } F4ForgeRuntimeTask;
 
 typedef struct F4ForgeManagedBootstrapArgs {
@@ -45,7 +44,8 @@ typedef void (F4FORGE_CALL* F4ForgeRuntimeShutdownFn)(
     F4ForgeRuntimeHandle runtime) F4FORGE_NOEXCEPT;
 
 typedef void (F4FORGE_CALL* F4ForgeRuntimeExecuteTaskFn)(
-    const F4ForgeRuntimeTask* task) F4FORGE_NOEXCEPT;
+    F4ForgeRuntimeHandle runtime,
+    uint64_t taskHandle) F4FORGE_NOEXCEPT;
 
 typedef struct F4ForgeRuntimeProvider {
     // cppcheck-suppress uninitMemberVarNoCtor
@@ -90,10 +90,9 @@ static_assert(offsetof(F4ForgeRuntimeInitializeParams, host) == 8);
 static_assert(offsetof(F4ForgeRuntimeInitializeParams, runtime) == 16);
 static_assert(offsetof(F4ForgeRuntimeInitializeParams, pluginDirectory) == 24);
 static_assert(offsetof(F4ForgeRuntimeInitializeParams, configDirectory) == 40);
-static_assert(offsetof(F4ForgeRuntimeTask, context) == 0);
+static_assert(offsetof(F4ForgeRuntimeTask, runtime) == 0);
 static_assert(offsetof(F4ForgeRuntimeTask, taskHandle) == 8);
-static_assert(offsetof(F4ForgeRuntimeTask, runtime) == 16);
-static_assert(sizeof(F4ForgeRuntimeTask) == 24);
+static_assert(sizeof(F4ForgeRuntimeTask) == 16);
 static_assert(offsetof(F4ForgeManagedBootstrapArgs, abiVersion) == 0);
 static_assert(offsetof(F4ForgeManagedBootstrapArgs, structSize) == 4);
 static_assert(offsetof(F4ForgeManagedBootstrapArgs, host) == 8);

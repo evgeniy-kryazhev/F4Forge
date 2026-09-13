@@ -12,6 +12,7 @@ std::thread::id gameThread;
 uint32_t gameOnlyCalls = 0;
 uint32_t eventCalls = 0;
 F4ForgeModuleHandle providerModule = F4FORGE_INVALID_HANDLE;
+uint64_t executedTask = 0;
 
 int32_t F4FORGE_CALL IsGameThread() noexcept
 {
@@ -56,7 +57,10 @@ F4ForgeResult F4FORGE_CALL InitializeRuntime(const F4ForgeRuntimeInitializeParam
 }
 
 void F4FORGE_CALL ShutdownRuntime(F4ForgeRuntimeHandle) noexcept {}
-void F4FORGE_CALL ExecuteRuntimeTask(const F4ForgeRuntimeTask*) noexcept {}
+void F4FORGE_CALL ExecuteRuntimeTask(F4ForgeRuntimeHandle, uint64_t taskHandle) noexcept
+{
+    executedTask = taskHandle;
+}
 
 class TestScheduler final : public f4forge::core::GameThreadScheduler {
 public:
@@ -197,7 +201,11 @@ int main()
     assert(anyInvocationResult == F4FORGE_RESULT_SUCCESS);
     assert(api.releaseOperation(anyOperation) == F4FORGE_RESULT_SUCCESS);
     assert(api.subscribe(module, endpoint, nullptr, nullptr) == F4FORGE_INVALID_HANDLE);
-    assert(api.queueTask(1, 1, nullptr) == F4FORGE_RESULT_RUNTIME_UNAVAILABLE);
+    assert(api.queueTask(1, 1) == F4FORGE_RESULT_INACTIVE_RUNTIME);
+    assert(api.queueTask(runtime, 42) == F4FORGE_RESULT_SUCCESS);
+    assert(executedTask == 0);
+    assert(scheduler.RunOne());
+    assert(executedTask == 42);
     assert(api.unregisterModule(module) == F4FORGE_RESULT_SUCCESS);
     assert(api.invoke(endpoint, nullptr, 0, nullptr, 0, nullptr) == F4FORGE_RESULT_STALE_HANDLE);
 

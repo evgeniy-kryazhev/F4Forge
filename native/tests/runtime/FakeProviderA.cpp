@@ -8,7 +8,7 @@ F4ForgeResult F4FORGE_CALL Initialize(const F4ForgeRuntimeInitializeParams*) F4F
 }
 
 void F4FORGE_CALL Shutdown(F4ForgeRuntimeHandle) F4FORGE_NOEXCEPT {}
-void F4FORGE_CALL ExecuteTask(const F4ForgeRuntimeTask*) F4FORGE_NOEXCEPT {}
+void F4FORGE_CALL ExecuteTask(F4ForgeRuntimeHandle, uint64_t) F4FORGE_NOEXCEPT {}
 
 const F4ForgeRuntimeInfo Info{
     F4FORGE_RUNTIME_PROVIDER_ABI_VERSION,

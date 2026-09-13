@@ -31,7 +31,7 @@ void F4FORGE_CALL Shutdown(F4ForgeRuntimeHandle) noexcept
     ++shutdownCalls;
 }
 
-void F4FORGE_CALL ExecuteTask(const F4ForgeRuntimeTask*) noexcept {}
+void F4FORGE_CALL ExecuteTask(F4ForgeRuntimeHandle, uint64_t) noexcept {}
 
 }
 

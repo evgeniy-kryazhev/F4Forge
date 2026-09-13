@@ -20,8 +20,8 @@ extern "C" {
 #define F4FORGE_NOEXCEPT
 #endif
 
-#define F4FORGE_ABI_VERSION 2u
-#define F4FORGE_RUNTIME_PROVIDER_ABI_VERSION 1u
+#define F4FORGE_ABI_VERSION 3u
+#define F4FORGE_RUNTIME_PROVIDER_ABI_VERSION 2u
 #define F4FORGE_INVALID_HANDLE UINT64_C(0)
 
 #define F4FORGE_HAS_FIELD(structSize, structType, field) \
@@ -292,8 +292,7 @@ typedef uint32_t (F4FORGE_CALL* F4ForgeQueryCapabilityFn)(
 
 typedef F4ForgeResult (F4FORGE_CALL* F4ForgeQueueTaskFn)(
     F4ForgeRuntimeHandle runtime,
-    uint64_t taskHandle,
-    void* context) F4FORGE_NOEXCEPT;
+    uint64_t taskHandle) F4FORGE_NOEXCEPT;
 
 typedef F4ForgeResult (F4FORGE_CALL* F4ForgeInvokeAsyncFn)(
     F4ForgeModuleHandle caller,

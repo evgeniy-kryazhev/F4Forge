@@ -275,6 +275,24 @@ bool RuntimeManager::IsActive(F4ForgeRuntimeHandle runtime) const noexcept
     return instance != nullptr && instance->state == RuntimeInstance::State::Active;
 }
 
+F4ForgeResult RuntimeManager::ExecuteTask(F4ForgeRuntimeHandle runtime, uint64_t taskHandle) noexcept
+{
+    F4ForgeRuntimeExecuteTaskFn executeTask{};
+    {
+        std::lock_guard lock(_mutex);
+        const auto* instance = FindUnlocked(runtime);
+        if (instance == nullptr || instance->state != RuntimeInstance::State::Active)
+            return F4FORGE_RESULT_INACTIVE_RUNTIME;
+        executeTask = instance->provider->provider.executeTask;
+    }
+    try {
+        executeTask(runtime, taskHandle);
+        return F4FORGE_RESULT_SUCCESS;
+    } catch (...) {
+        return F4FORGE_RESULT_INTERNAL_ERROR;
+    }
+}
+
 bool RuntimeManager::CanRegisterModule(F4ForgeRuntimeHandle runtime) const noexcept
 {
     std::lock_guard lock(_mutex);

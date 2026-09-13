@@ -18,8 +18,8 @@ public static unsafe class Bootstrap
         Failed
     }
 
-    private const uint RuntimeProviderAbiVersion = 1;
-    private const uint HostAbiVersion = 2;
+    private const uint RuntimeProviderAbiVersion = 2;
+    private const uint HostAbiVersion = 3;
     private const uint ManagedBootstrapMinimumSize = 56;
     private const uint NativeApiMinimumSize = 160;
     private static readonly object Gate = new();
@@ -79,14 +79,17 @@ public static unsafe class Bootstrap
     }
 
     [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
-    public static void ExecuteTask(ulong runtime, ulong _)
+    public static void ExecuteTask(ulong runtime, ulong taskId)
     {
         try
         {
+            PluginLoader? loader;
             lock (Gate)
             {
                 if (state != LifecycleState.Running || runtime != runtimeHandle) return;
+                loader = pluginLoader;
             }
+            loader?.ExecuteTask(taskId);
         }
         catch
         {

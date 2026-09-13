@@ -15,7 +15,11 @@ static F4ForgeResult F4FORGE_CALL StubInitialize(const F4ForgeRuntimeInitializeP
 }
 
 static void F4FORGE_CALL StubShutdown(F4ForgeRuntimeHandle runtime) { (void)runtime; }
-static void F4FORGE_CALL StubTask(const F4ForgeRuntimeTask* task) { (void)task; }
+static void F4FORGE_CALL StubTask(F4ForgeRuntimeHandle runtime, uint64_t taskHandle)
+{
+    (void)runtime;
+    (void)taskHandle;
+}
 
 int main(void)
 {

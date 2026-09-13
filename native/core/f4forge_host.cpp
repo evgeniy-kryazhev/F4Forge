@@ -99,6 +99,7 @@ F4ForgeResult F4ForgeHost::Shutdown() noexcept
 
 void F4ForgeHost::SetGameThreadScheduler(GameThreadScheduler* scheduler) noexcept
 {
+    _gameThreadScheduler = scheduler;
     _operations.SetScheduler(scheduler);
 }
 
@@ -184,11 +185,31 @@ uint32_t F4FORGE_CALL F4ForgeHost::QueryCapability(
 }
 
 F4ForgeResult F4FORGE_CALL F4ForgeHost::QueueTask(
-    F4ForgeRuntimeHandle,
-    uint64_t,
-    void*) F4FORGE_NOEXCEPT
+    F4ForgeRuntimeHandle runtime,
+    uint64_t taskHandle) F4FORGE_NOEXCEPT
 {
-    return F4FORGE_RESULT_RUNTIME_UNAVAILABLE;
+    struct Task final {
+        RuntimeManager* runtimes;
+        F4ForgeRuntimeHandle runtime;
+        uint64_t taskHandle;
+    };
+    try {
+        auto& host = Instance();
+        if (!host._runtimes.IsActive(runtime)) return F4FORGE_RESULT_INACTIVE_RUNTIME;
+        if (host._gameThreadScheduler == nullptr) return F4FORGE_RESULT_SCHEDULER_UNAVAILABLE;
+        auto* task = new Task{ &host._runtimes, runtime, taskHandle };
+        const auto result = host._gameThreadScheduler->Post(
+            [](void* context) noexcept {
+                const auto* item = static_cast<Task*>(context);
+                item->runtimes->ExecuteTask(item->runtime, item->taskHandle);
+            },
+            task,
+            [](void* context) noexcept { delete static_cast<Task*>(context); });
+        if (result != F4FORGE_RESULT_SUCCESS) delete task;
+        return result;
+    } catch (...) {
+        return F4FORGE_RESULT_INTERNAL_ERROR;
+    }
 }
 
 F4ForgeResult F4FORGE_CALL F4ForgeHost::InvokeAsync(

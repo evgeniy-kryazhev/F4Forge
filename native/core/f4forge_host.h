@@ -59,8 +59,7 @@ private:
         uint32_t minimumVersion) F4FORGE_NOEXCEPT;
     static F4ForgeResult F4FORGE_CALL QueueTask(
         F4ForgeRuntimeHandle runtime,
-        uint64_t taskHandle,
-        void* context) F4FORGE_NOEXCEPT;
+        uint64_t taskHandle) F4FORGE_NOEXCEPT;
     static F4ForgeResult F4FORGE_CALL InvokeAsync(
         F4ForgeModuleHandle caller,
         F4ForgeEndpointHandle endpoint,
@@ -118,6 +117,7 @@ private:
     ModuleManager _modules;
     F4ForgeHostApi _api{};
     std::atomic<LogSink> _logSink{ nullptr };
+    GameThreadScheduler* _gameThreadScheduler{};
 };
 
 }

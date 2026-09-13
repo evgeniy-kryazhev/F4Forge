@@ -287,7 +287,7 @@ void F4FORGE_CALL Shutdown(F4ForgeRuntimeHandle) F4FORGE_NOEXCEPT
     }
 }
 
-void F4FORGE_CALL ExecuteTask(const F4ForgeRuntimeTask* task) F4FORGE_NOEXCEPT
+void F4FORGE_CALL ExecuteTask(F4ForgeRuntimeHandle runtime, uint64_t taskHandle) F4FORGE_NOEXCEPT
 {
     try {
         auto& state = GetState();
@@ -297,8 +297,8 @@ void F4FORGE_CALL ExecuteTask(const F4ForgeRuntimeTask* task) F4FORGE_NOEXCEPT
             if (state.lifecycle != State::Lifecycle::Running) return;
             executeTask = state.executeTask;
         }
-        if (task == nullptr || executeTask == nullptr) return;
-        executeTask(task->runtime, task->taskHandle);
+        if (executeTask == nullptr) return;
+        executeTask(runtime, taskHandle);
     } catch (...) {
     }
 }

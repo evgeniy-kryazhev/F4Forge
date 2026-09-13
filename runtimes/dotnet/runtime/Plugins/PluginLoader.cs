@@ -4,6 +4,7 @@ using F4Forge.DotNet.Runtime.Events;
 using F4Forge.DotNet.Runtime.Events.Input;
 using F4Forge.DotNet.Runtime.Interop;
 using F4Forge.DotNet.Runtime.Plugins.Discovery;
+using F4Forge.DotNet.Runtime.Scheduling;
 
 namespace F4Forge.DotNet.Runtime.Plugins;
 
@@ -20,6 +21,7 @@ internal sealed unsafe class PluginLoader : IDisposable
     private readonly NativeHostBridge? _eventBridge;
     private readonly NativeKeyDownEventRouter? _keyEvents;
     private readonly NativeFrameworkEventRouter? _frameworkEvents;
+    private readonly ManagedTaskScheduler? _taskScheduler;
 
     public PluginLoader(int failureThreshold = 3, bool allowManifestlessPlugins = false,
         NativeApi* host = null, ulong runtime = 0)
@@ -28,6 +30,8 @@ internal sealed unsafe class PluginLoader : IDisposable
         _allowManifestlessPlugins = allowManifestlessPlugins;
         _host = host;
         _runtime = runtime;
+
+        if (host != null) _taskScheduler = new ManagedTaskScheduler(host, runtime);
 
         if (host == null) return;
 
@@ -91,7 +95,7 @@ internal sealed unsafe class PluginLoader : IDisposable
             if (expectedId != null && !pluginId.Equals(expectedId, StringComparison.OrdinalIgnoreCase))
                 throw new InvalidOperationException($"Manifest ID '{expectedId}' does not match plugin ID '{pluginId}'.");
             instance = new PluginInstance(Path.GetFullPath(path), context, plugin, pluginId,
-                new PluginResourceScope(), _host, _runtime);
+                new PluginResourceScope(), _host, _runtime, _taskScheduler);
             lock (_gate)
             {
                 if (_plugins.ContainsKey(pluginId))
@@ -228,7 +232,10 @@ internal sealed unsafe class PluginLoader : IDisposable
         _keyEvents?.Dispose();
         _frameworkEvents?.Dispose();
         _eventBridge?.Dispose();
+        _taskScheduler?.Dispose();
     }
+
+    internal void ExecuteTask(ulong taskId) => _taskScheduler?.Execute(taskId);
 
     public int Count { get { lock (_gate) return _plugins.Count; } }
 

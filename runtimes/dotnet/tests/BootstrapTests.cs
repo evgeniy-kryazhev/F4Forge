@@ -35,7 +35,7 @@ public sealed unsafe class BootstrapTests : IDisposable
         host.AbiVersion = 1;
         Assert.Equal((int)F4ForgeResult.InvalidAbiVersion, initialize((nint)(&args)));
 
-        host.AbiVersion = 2;
+        host.AbiVersion = 3;
         host.StructSize = 159;
         Assert.Equal((int)F4ForgeResult.InvalidStructSize, initialize((nint)(&args)));
     }
@@ -59,7 +59,7 @@ public sealed unsafe class BootstrapTests : IDisposable
 
     private static NativeApi CreateHost() => new()
     {
-        AbiVersion = 2,
+        AbiVersion = 3,
         StructSize = (uint)sizeof(NativeApi),
         ResolveEndpoint = &ResolveEndpoint,
         Invoke = &Invoke,
@@ -68,7 +68,7 @@ public sealed unsafe class BootstrapTests : IDisposable
 
     private static ManagedBootstrapArgs CreateArgs(NativeApi* host) => new()
     {
-        AbiVersion = 1,
+        AbiVersion = 2,
         StructSize = (uint)sizeof(ManagedBootstrapArgs),
         Host = host,
         Runtime = 1

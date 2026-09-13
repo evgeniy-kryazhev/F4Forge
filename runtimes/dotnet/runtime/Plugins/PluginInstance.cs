@@ -1,5 +1,6 @@
 using F4Forge.DotNet.Sdk;
 using F4Forge.DotNet.Runtime.Interop;
+using F4Forge.DotNet.Runtime.Scheduling;
 
 namespace F4Forge.DotNet.Runtime.Plugins;
 
@@ -23,7 +24,7 @@ internal sealed unsafe class PluginInstance
     private NativeHostBridge? _bridge;
 
     public PluginInstance(string path, PluginLoadContext context, F4ForgePlugin plugin, string id,
-        PluginResourceScope scope, NativeApi* host, ulong runtime)
+        PluginResourceScope scope, NativeApi* host, ulong runtime, ManagedTaskScheduler? taskScheduler = null)
     {
         Path = path;
         Context = context;
@@ -38,13 +39,13 @@ internal sealed unsafe class PluginInstance
             bridge.SetFinalizationCallback(FinalizeAfterNativeQuiescence);
             ContextInfo = new F4ForgePluginContext(
                 bridge.Module, scope.Add, bridge, scope.CancellationToken,
-                new PluginEvents(id), new InputEvents(id));
+                new PluginEvents(id), new InputEvents(id), taskScheduler);
         }
         else
         {
             ContextInfo = new F4ForgePluginContext(
                 F4Forge.DotNet.Sdk.ModuleHandle.Invalid, scope.Add, null, scope.CancellationToken,
-                new PluginEvents(id), new InputEvents(id));
+                new PluginEvents(id), new InputEvents(id), taskScheduler);
         }
     }
 

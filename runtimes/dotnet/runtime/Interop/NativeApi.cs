@@ -64,7 +64,7 @@ internal unsafe struct NativeApi
     public delegate* unmanaged[Cdecl]<ulong, F4ForgeStringView, uint, ulong*, int> RegisterModule;
     public delegate* unmanaged[Cdecl]<ulong, int> UnregisterModule;
     public delegate* unmanaged[Cdecl]<F4ForgeStringView, uint, uint> QueryCapability;
-    public delegate* unmanaged[Cdecl]<ulong, ulong, void*, int> QueueTask;
+    public delegate* unmanaged[Cdecl]<ulong, ulong, int> QueueTask;
     public delegate* unmanaged[Cdecl]<uint, F4ForgeStringView, void> Log;
     public delegate* unmanaged[Cdecl]<ulong, ulong, void*, uint, ulong*, int> InvokeAsync;
     public delegate* unmanaged[Cdecl]<ulong, ulong, void*, uint, ulong*, int> EmitAsync;

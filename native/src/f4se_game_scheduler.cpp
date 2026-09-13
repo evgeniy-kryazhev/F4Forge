@@ -56,7 +56,6 @@ F4ForgeResult F4seGameScheduler::Post(
         });
     } catch (...) {
         item->cancelled.store(true, std::memory_order_release);
-        Cleanup(item);
         std::lock_guard lock(_mutex);
         _pending.erase(std::remove(_pending.begin(), _pending.end(), item), _pending.end());
         return F4FORGE_RESULT_INTERNAL_ERROR;

@@ -9,7 +9,8 @@ public sealed class F4ForgePluginContext
         IPluginHostBridge? bridge,
         CancellationToken cancellationToken,
         PluginEvents? events = null,
-        InputEvents? input = null)
+        InputEvents? input = null,
+        IGameThreadScheduler? gameThreadScheduler = null)
     {
         Module = module;
         CancellationToken = cancellationToken;
@@ -18,6 +19,7 @@ public sealed class F4ForgePluginContext
         Input = input ?? new InputEvents();
         Endpoints = new EndpointService(bridge, Track);
         Capabilities = new CapabilityService(bridge);
+        GameThread = new GameThreadDispatcher(gameThreadScheduler);
     }
 
     public ModuleHandle Module { get; }
@@ -26,6 +28,7 @@ public sealed class F4ForgePluginContext
     public InputEvents Input { get; }
     public EndpointService Endpoints { get; }
     public CapabilityService Capabilities { get; }
+    public GameThreadDispatcher GameThread { get; }
 
     public EndpointHandle ResolveEndpoint(string name, uint version = 1)
     {
