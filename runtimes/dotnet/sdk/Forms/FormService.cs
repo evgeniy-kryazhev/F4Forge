@@ -7,6 +7,7 @@ public sealed class FormService
 {
     private const string GetInfoEndpointName = "game.forms.get_info";
     private const string GetNameEndpointName = "game.forms.get_name";
+    private const uint EndpointVersion = 1;
     private const int InfoResponseSize = 12;
     private const int NameCapacity = 256;
     private const int NameResponseSize = 4 + NameCapacity;
@@ -58,7 +59,7 @@ public sealed class FormService
 
     private void ResolveEndpoints()
     {
-        if (!_getInfo.IsValid) _getInfo = _endpoints.Resolve(GetInfoEndpointName);
-        if (!_getName.IsValid) _getName = _endpoints.Resolve(GetNameEndpointName);
+        if (!_getInfo.IsValid) _getInfo = _endpoints.Resolve(GetInfoEndpointName, EndpointVersion);
+        if (!_getName.IsValid) _getName = _endpoints.Resolve(GetNameEndpointName, EndpointVersion);
     }
 }
