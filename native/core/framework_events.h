@@ -2,12 +2,15 @@
 
 #include "registry/event_registry.h"
 #include "registry/endpoint_registry.h"
+#include "modules/builtin_module.h"
 
 namespace f4forge::core {
 
-class FrameworkEvents final {
+class FrameworkEvents final : public BuiltinModule {
 public:
     FrameworkEvents(EndpointRegistry& endpoints, EventRegistry& events) noexcept;
+    bool Start() noexcept override { return true; }
+    void Stop() noexcept override {}
     F4ForgeEndpointHandle GameDataReady() const noexcept { return _gameDataReady; }
     F4ForgeEndpointHandle GameLoaded() const noexcept { return _gameLoaded; }
     F4ForgeEndpointHandle NewGame() const noexcept { return _newGame; }

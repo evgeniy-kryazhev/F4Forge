@@ -1,7 +1,6 @@
 #include "../core/config/config.h"
 #include "../core/f4forge_host.h"
-#include "../core/modules/input_module.h"
-#include "../core/framework_events.h"
+#include "../core/modules/builtin_services.h"
 #include "f4se_game_scheduler.h"
 
 #define WIN32_LEAN_AND_MEAN
@@ -18,26 +17,22 @@
 namespace {
 
 f4forge::native::F4seGameScheduler gameScheduler;
-std::unique_ptr<f4forge::core::InputModule> inputModule;
-std::unique_ptr<f4forge::core::FrameworkEvents> frameworkEvents;
+std::unique_ptr<f4forge::core::BuiltinServices> builtinServices;
 
 void F4SEAPI OnMessage(F4SE::MessagingInterface::Message* message)
 {
     try {
-        if (message == nullptr || frameworkEvents == nullptr) return;
+        if (message == nullptr || builtinServices == nullptr) return;
         switch (message->type) {
         case F4SE::MessagingInterface::kGameDataReady:
             if (message->data == nullptr) return;
-            if (inputModule != nullptr) inputModule->InstallInputHandler();
-            frameworkEvents->EmitGameDataReady();
+            builtinServices->OnGameDataReady();
             break;
         case F4SE::MessagingInterface::kPostLoadGame:
-            if (inputModule != nullptr) inputModule->InstallInputHandler();
-            frameworkEvents->EmitGameLoaded();
+            builtinServices->OnGameLoaded();
             break;
         case F4SE::MessagingInterface::kNewGame:
-            if (inputModule != nullptr) inputModule->InstallInputHandler();
-            frameworkEvents->EmitNewGame();
+            builtinServices->OnNewGame();
             break;
         default:
             break;
@@ -128,12 +123,11 @@ F4SE_PLUGIN_LOAD(const F4SE::LoadInterface* a_f4se)
 		host.SetGameThreadScheduler(&gameScheduler);
 		host.Endpoints().SetGameThreadCheck(&f4forge::native::F4seGameScheduler::CheckGameThread);
 		host.SetLogSink(&NativeLog);
-		frameworkEvents = std::make_unique<f4forge::core::FrameworkEvents>(host.Endpoints(), host.Events());
-		inputModule = std::make_unique<f4forge::core::InputModule>(host.Endpoints(), host.Events());
-		inputModule->InstallInputHandler();
-		REX::INFO("F4Forge: input endpoint = {}, menu handler = {}, gameplay handler = {}",
-			inputModule->KeyDownEndpoint(), inputModule->IsMenuHandlerInstalled(),
-			inputModule->IsGameplayHandlerInstalled());
+        builtinServices = std::make_unique<f4forge::core::BuiltinServices>(host.Endpoints(), host.Events());
+        builtinServices->Start();
+        REX::INFO("F4Forge: input endpoint = {}, menu handler = {}, gameplay handler = {}",
+            builtinServices->Input().KeyDownEndpoint(), builtinServices->Input().IsMenuHandlerInstalled(),
+            builtinServices->Input().IsGameplayHandlerInstalled());
 		const auto* messaging = F4SE::GetMessagingInterface();
 		if (messaging == nullptr || !messaging->RegisterListener(&OnMessage)) {
 			REX::ERROR("F4Forge: failed to register F4SE messaging listener");

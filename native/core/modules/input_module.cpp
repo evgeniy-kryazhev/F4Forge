@@ -8,23 +8,24 @@
 
 namespace f4forge::core {
 
-namespace {
-
-InputModule* g_inputModule{};
-
-class MenuHandler final : public RE::BSInputEventUser {
+class InputModule::MenuHandler final : public RE::BSInputEventUser {
 public:
+    explicit MenuHandler(InputModule& owner) noexcept : _owner(owner) {}
+
     bool ShouldHandleEvent(const RE::InputEvent*) override { return true; }
 
     void OnButtonEvent(const RE::ButtonEvent* event) override
     {
         if (event != nullptr && event->device.get() == RE::INPUT_DEVICE::kKeyboard && event->QPressed() &&
-            g_inputModule != nullptr && g_inputModule->IsMainMenuActive())
-            g_inputModule->Publish(*event, true);
+            _owner.IsActive() && _owner.IsMainMenuActive())
+            _owner.Publish(*event, true);
     }
+
+private:
+    InputModule& _owner;
 };
 
-MenuHandler g_menuHandler;
+namespace {
 
 F4ForgeResult F4FORGE_CALL InputEndpointThunk(
     void*, const void*, uint32_t, void*, uint32_t, uint32_t*) F4FORGE_NOEXCEPT
@@ -57,7 +58,7 @@ public:
     void OnButtonEvent(const RE::ButtonEvent* event) override
     {
         if (event != nullptr && event->device.get() == RE::INPUT_DEVICE::kKeyboard && event->QPressed() &&
-            !_owner.IsGameplayInputBlocked())
+            _owner.IsActive() && !_owner.IsGameplayInputBlocked())
             _owner.Publish(*event, false);
     }
 
@@ -68,7 +69,6 @@ private:
 InputModule::InputModule(EndpointRegistry& endpoints, EventRegistry& events) noexcept :
     _endpoints(endpoints), _events(events)
 {
-    g_inputModule = this;
     const F4ForgeEndpointDefinition definition{
         sizeof(F4ForgeEndpointDefinition), F4FORGE_ENDPOINT_EVENT, 1, F4FORGE_ENDPOINT_NONE,
         F4FORGE_THREAD_GAME_ONLY, 0, 0, sizeof(F4ForgeKeyEventData),
@@ -79,7 +79,18 @@ InputModule::InputModule(EndpointRegistry& endpoints, EventRegistry& events) noe
 
 InputModule::~InputModule()
 {
-    if (g_inputModule == this) g_inputModule = nullptr;
+    Stop();
+}
+
+bool InputModule::Start() noexcept
+{
+    _active = true;
+    return InstallInputHandler();
+}
+
+void InputModule::Stop() noexcept
+{
+    _active = false;
 }
 
 bool InputModule::InstallInputHandler() noexcept
@@ -92,7 +103,8 @@ bool InputModule::InstallInputHandler() noexcept
                 REX::ERROR("F4Forge: MenuControls singleton unavailable; input handler will be retried");
                 return false;
             }
-            controls->RegisterHandler(&g_menuHandler);
+            _menuHandler = std::make_unique<MenuHandler>(*this);
+            controls->RegisterHandler(_menuHandler.get());
             _menuInstalled = true;
         }
         InstallGameplayHandler();
