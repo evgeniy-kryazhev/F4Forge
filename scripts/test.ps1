@@ -64,7 +64,7 @@ finally {
 
 $managedTest = Join-Path $root "runtimes\dotnet\tests\F4Forge.DotNet.Tests.csproj"
 Invoke-Checked "dotnet" @("build", $managedTest, "--configuration", "Release")
-Invoke-Checked "dotnet" @("run", "--project", $managedTest, "--configuration", "Release", "--no-build")
+Invoke-Checked "dotnet" @("test", $managedTest, "--configuration", "Release", "--no-build")
 Invoke-Checked "dotnet" @("format", $managedTest, "--verify-no-changes", "--no-restore")
 
 Write-Host "F4Forge tests completed successfully."

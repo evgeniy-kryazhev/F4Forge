@@ -1,14 +1,24 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <OutputType>Exe</OutputType>
     <AssemblyName>F4Forge.DotNet.Tests</AssemblyName>
     <RootNamespace>F4Forge.DotNet.Tests</RootNamespace>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\sdk\F4Forge.DotNet.Sdk.csproj" />
     <ProjectReference Include="..\runtime\F4Forge.DotNet.Runtime.csproj" />
     <ProjectReference Include="PluginFixture.csproj" />
     <ProjectReference Include="FailureFixture.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="coverlet.collector" Version="6.0.4" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
+    <PackageReference Include="xunit" Version="2.9.3" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="3.1.4" />
+  </ItemGroup>
+  <ItemGroup>
+    <Using Include="Xunit" />
   </ItemGroup>
   <ItemGroup>
     <Compile Remove="FixturePlugin.cs" />

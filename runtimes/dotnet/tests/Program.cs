@@ -12,7 +12,7 @@ internal static unsafe class Program
     private static readonly uint[] LogLevels = new uint[8];
     private static int logCount;
 
-    private static int Main()
+    internal static int Run()
     {
         if (sizeof(NativeApi) != 168 || sizeof(F4ForgeEndpointDefinition) != 64 || sizeof(F4ForgeStringView) != 16 ||
             sizeof(ManagedBootstrapArgs) != 56)
