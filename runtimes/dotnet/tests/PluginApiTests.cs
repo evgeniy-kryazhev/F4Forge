@@ -24,6 +24,7 @@ public sealed class PluginApiTests
         Assert.NotNull(context.Input);
         Assert.NotNull(context.Endpoints);
         Assert.NotNull(context.Capabilities);
+        Assert.NotNull(context.GameThread);
         Assert.Equal(default, context.Endpoints.Resolve("missing.endpoint"));
         Assert.Equal(0u, context.Capabilities.Query("missing.capability"));
     }

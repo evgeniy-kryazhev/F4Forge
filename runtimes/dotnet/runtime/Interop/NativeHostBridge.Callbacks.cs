@@ -16,7 +16,7 @@ internal unsafe sealed partial class NativeHostBridge
         var handle = RegisterEndpointNative(name, kind, version, requestSize, responseSize, threadPolicy, state);
         if (!handle.IsValid) { state.Dispose(); return null; }
         var resource = new CallbackRegistration(_api, _context, handle.Value, state, CallbackKind.Endpoint);
-        _registrations.Add(resource);
+        if (!Track(resource)) return null;
         return new HostRegistration<EndpointHandle> { Handle = handle, Resource = resource };
     }
 
@@ -56,7 +56,7 @@ internal unsafe sealed partial class NativeHostBridge
         if (handle == 0) { GCHandle.FromIntPtr(context).Free(); return null; }
         state.Handle = context;
         var resource = new CallbackRegistration(_api, _context, handle, state, CallbackKind.Event);
-        _registrations.Add(resource);
+        if (!Track(resource)) return null;
         return new HostSubscription<EventSubscriptionHandle> {
             Handle = new EventSubscriptionHandle(handle), Resource = resource };
     }
@@ -72,7 +72,7 @@ internal unsafe sealed partial class NativeHostBridge
         if (handle == 0) { GCHandle.FromIntPtr(context).Free(); return null; }
         state.Handle = context;
         var resource = new CallbackRegistration(_api, _context, handle, state, CallbackKind.Key);
-        _registrations.Add(resource);
+        if (!Track(resource)) return null;
         return resource;
     }
 
@@ -87,7 +87,7 @@ internal unsafe sealed partial class NativeHostBridge
         if (handle == 0) { GCHandle.FromIntPtr(context).Free(); return null; }
         state.Handle = context;
         var resource = new CallbackRegistration(_api, _context, handle, state, CallbackKind.Framework);
-        _registrations.Add(resource);
+        if (!Track(resource)) return null;
         return resource;
     }
 
@@ -101,7 +101,7 @@ internal unsafe sealed partial class NativeHostBridge
         if (handle == 0) { GCHandle.FromIntPtr(context).Free(); return null; }
         state.Handle = context;
         var resource = new CallbackRegistration(_api, _context, handle, state, CallbackKind.Interceptor);
-        _registrations.Add(resource);
+        if (!Track(resource)) return null;
         return new HostSubscription<InterceptorSubscriptionHandle> {
             Handle = new InterceptorSubscriptionHandle(handle), Resource = resource };
     }
@@ -227,6 +227,20 @@ internal unsafe sealed partial class NativeHostBridge
     }
 
     private enum CallbackKind { Endpoint, Event, Key, Framework, Interceptor }
+
+    private bool Track(CallbackRegistration registration)
+    {
+        lock (_registrationGate)
+        {
+            if (_disposed == 0)
+            {
+                _registrations.Add(registration);
+                return true;
+            }
+        }
+        registration.Retire();
+        return false;
+    }
 
     private sealed class CallbackRegistration(
         NativeApi* api, void* hostContext, ulong handle, IDisposable state, CallbackKind kind) : IDisposable

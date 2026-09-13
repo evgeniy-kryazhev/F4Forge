@@ -39,13 +39,15 @@ internal sealed unsafe class PluginInstance
             bridge.SetFinalizationCallback(FinalizeAfterNativeQuiescence);
             ContextInfo = new F4ForgePluginContext(
                 bridge.Module, scope.Add, bridge, scope.CancellationToken,
-                new PluginEvents(id), new InputEvents(id), taskScheduler);
+                new PluginEvents(id), new InputEvents(id),
+                taskScheduler == null ? null : new PluginGameThreadScheduler(taskScheduler, scope.CancellationToken));
         }
         else
         {
             ContextInfo = new F4ForgePluginContext(
                 F4Forge.DotNet.Sdk.ModuleHandle.Invalid, scope.Add, null, scope.CancellationToken,
-                new PluginEvents(id), new InputEvents(id), taskScheduler);
+                new PluginEvents(id), new InputEvents(id),
+                taskScheduler == null ? null : new PluginGameThreadScheduler(taskScheduler, scope.CancellationToken));
         }
     }
 
@@ -56,6 +58,7 @@ internal sealed unsafe class PluginInstance
     public PluginResourceScope Scope { get; }
     public F4ForgePluginContext ContextInfo { get; }
     public PluginState State { get { lock (_lifecycleGate) return _state; } }
+    public Task Stopped => _stopped.Task;
 
     public bool Activate()
     {

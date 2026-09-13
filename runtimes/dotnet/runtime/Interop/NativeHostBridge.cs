@@ -10,10 +10,11 @@ internal unsafe sealed partial class NativeHostBridge : IPluginHostBridge, IDisp
     private readonly void* _context;
     private readonly SdkModuleHandle _module;
     private readonly List<CallbackRegistration> _registrations = [];
+    private readonly object _registrationGate = new();
     private readonly TaskCompletionSource<bool> _quiesced =
         new(TaskCreationOptions.RunContinuationsAsynchronously);
     private Action? _finalized;
-    private bool _disposed;
+    private int _disposed;
     private int _finalizationStarted;
 
     public NativeHostBridge(NativeApi* api, void* context, ulong runtime, string id)

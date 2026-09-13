@@ -6,9 +6,10 @@ internal unsafe sealed partial class NativeHostBridge
 {
     public void Dispose()
     {
-        if (_disposed) return;
-        _disposed = true;
-        foreach (var registration in _registrations) registration.Dispose();
+        if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
+        CallbackRegistration[] registrations;
+        lock (_registrationGate) registrations = _registrations.ToArray();
+        foreach (var registration in registrations) registration.Dispose();
         if (_api == null || !_module.IsValid || _api->UnregisterModule == null) {
             FinalizeCallbackStates();
             return;
@@ -27,15 +28,22 @@ internal unsafe sealed partial class NativeHostBridge
 
     public void SetFinalizationCallback(Action callback)
     {
-        _finalized = callback;
-        if (IsQuiesced) callback();
+        if (Interlocked.CompareExchange(ref _finalized, callback, null) != null)
+            throw new InvalidOperationException("A finalization callback is already registered.");
+        if (IsQuiesced) Interlocked.Exchange(ref _finalized, null)?.Invoke();
     }
 
     private void FinalizeCallbackStates()
     {
         if (Interlocked.Exchange(ref _finalizationStarted, 1) != 0) return;
-        foreach (var registration in _registrations) registration.Retire();
+        CallbackRegistration[] registrations;
+        lock (_registrationGate)
+        {
+            registrations = _registrations.ToArray();
+            _registrations.Clear();
+        }
+        foreach (var registration in registrations) registration.Retire();
         _quiesced.TrySetResult(true);
-        _finalized?.Invoke();
+        Interlocked.Exchange(ref _finalized, null)?.Invoke();
     }
 }

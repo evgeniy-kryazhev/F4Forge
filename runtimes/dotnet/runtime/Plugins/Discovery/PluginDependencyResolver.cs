@@ -2,12 +2,14 @@ using F4Forge.DotNet.Sdk;
 
 namespace F4Forge.DotNet.Runtime.Plugins.Discovery;
 
-internal static class PluginDependencyResolver
+internal sealed class PluginDependencyResolver
 {
-    public static List<PluginCandidate> Order(IReadOnlyList<PluginCandidate> candidates)
+    private readonly StringComparer _comparer = StringComparer.OrdinalIgnoreCase;
+
+    public List<PluginCandidate> Order(IReadOnlyList<PluginCandidate> candidates)
     {
-        var ids = new Dictionary<string, PluginCandidate>(StringComparer.OrdinalIgnoreCase);
-        var capabilities = new Dictionary<string, PluginCandidate>(StringComparer.OrdinalIgnoreCase);
+        var ids = new Dictionary<string, PluginCandidate>(_comparer);
+        var capabilities = new Dictionary<string, PluginCandidate>(_comparer);
         foreach (var candidate in candidates)
         {
             if (!string.IsNullOrWhiteSpace(candidate.Manifest.Id) && !ids.TryAdd(candidate.Manifest.Id!, candidate))
@@ -21,7 +23,7 @@ internal static class PluginDependencyResolver
             capabilities.Count != candidates.SelectMany(candidate => candidate.Manifest.ProvidedCapabilities ?? [])
                 .Distinct(StringComparer.OrdinalIgnoreCase).Count()) return [];
 
-        var providers = new Dictionary<string, PluginCandidate>(ids, StringComparer.OrdinalIgnoreCase);
+        var providers = new Dictionary<string, PluginCandidate>(ids, _comparer);
         foreach (var capability in capabilities)
             if (!providers.TryAdd(capability.Key, capability.Value))
             {
