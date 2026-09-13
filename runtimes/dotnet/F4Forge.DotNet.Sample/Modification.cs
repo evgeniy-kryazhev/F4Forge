@@ -1,4 +1,4 @@
-﻿using F4Forge.DotNet.Sdk;
+using F4Forge.DotNet.Sdk;
 
 namespace F4Forge.DotNet.Sample;
 

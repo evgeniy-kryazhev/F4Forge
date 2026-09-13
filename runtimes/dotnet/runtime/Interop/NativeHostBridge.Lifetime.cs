@@ -10,13 +10,15 @@ internal unsafe sealed partial class NativeHostBridge
         CallbackRegistration[] registrations;
         lock (_registrationGate) registrations = _registrations.ToArray();
         foreach (var registration in registrations) registration.Dispose();
-        if (_api == null || !_module.IsValid || _api->UnregisterModule == null) {
+        if (_api == null || !_module.IsValid || _api->UnregisterModule == null)
+        {
             FinalizeCallbackStates();
             return;
         }
         _api->UnregisterModule(_context, _module.Value);
         if (!HasModuleQuiescenceApi) return;
-        _ = Task.Run(() => {
+        _ = Task.Run(() =>
+        {
             var quiescence = (F4ForgeResult)_api->WaitModuleQuiescence(_context, _module.Value, uint.MaxValue);
             if (quiescence is F4ForgeResult.Success or F4ForgeResult.InvalidHandle)
                 FinalizeCallbackStates();

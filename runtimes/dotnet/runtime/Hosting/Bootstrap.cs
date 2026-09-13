@@ -63,7 +63,7 @@ public static unsafe class Bootstrap
                 runtimeHandle = args->Runtime;
                 Logger.Sink = (level, message) => WriteLog(nativeApi, nativeContext, level, message);
                 pluginDirectory = ReadUtf8(args->PluginDirectory);
-                 loader = new PluginLoader(host: args->Host.Api, hostContext: args->Host.Context, runtime: args->Runtime);
+                loader = new PluginLoader(host: args->Host.Api, hostContext: args->Host.Context, runtime: args->Runtime);
                 pluginLoader = loader;
                 state = LifecycleState.Initializing;
             }

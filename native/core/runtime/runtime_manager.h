@@ -50,7 +50,7 @@ public:
     uint32_t DiscoverDirectory(const std::filesystem::path& directory);
     F4ForgeResult Initialize(
         F4ForgeStringView id,
-        F4ForgeHostBinding host,
+        const F4ForgeHostBinding& host,
         F4ForgeStringView pluginDirectory,
         F4ForgeStringView configDirectory,
         F4ForgeRuntimeHandle* runtime);

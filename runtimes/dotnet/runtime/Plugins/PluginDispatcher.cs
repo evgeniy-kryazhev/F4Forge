@@ -10,22 +10,22 @@ internal sealed class PluginDispatcher(PluginInstanceRegistry registry, int fail
         {
             if (!instance.TryAcquireDispatchLease(out var lease)) continue;
             using (lease)
-            try
-            {
-                ++PluginInstance.DispatchDepth.Value;
-                callback(instance.Plugin);
-                instance.ResetFailures();
-            }
-            catch (Exception exception)
-            {
-                var failures = instance.RecordFailure(failureThreshold);
-                Logger.Error($"Managed plugin callback failed: plugin={instance.Id}, " +
-                    $"exception={exception.GetType().FullName}, failures={failures}, " +
-                    $"threshold={failureThreshold}: {exception}");
-                if (failures >= failureThreshold)
-                    Logger.Warning($"Managed plugin disabled: plugin={instance.Id}, threshold={failureThreshold}.");
-            }
-            finally { --PluginInstance.DispatchDepth.Value; }
+                try
+                {
+                    ++PluginInstance.DispatchDepth.Value;
+                    callback(instance.Plugin);
+                    instance.ResetFailures();
+                }
+                catch (Exception exception)
+                {
+                    var failures = instance.RecordFailure(failureThreshold);
+                    Logger.Error($"Managed plugin callback failed: plugin={instance.Id}, " +
+                        $"exception={exception.GetType().FullName}, failures={failures}, " +
+                        $"threshold={failureThreshold}: {exception}");
+                    if (failures >= failureThreshold)
+                        Logger.Warning($"Managed plugin disabled: plugin={instance.Id}, threshold={failureThreshold}.");
+                }
+                finally { --PluginInstance.DispatchDepth.Value; }
         }
     }
 
@@ -39,11 +39,11 @@ internal sealed class PluginDispatcher(PluginInstanceRegistry registry, int fail
         {
             if (!instance.TryAcquireDispatchLease(out var lease)) continue;
             using (lease)
-            try { callback(instance.ContextInfo); }
-            catch (Exception exception)
-            {
-                Logger.Error($"Managed plugin context callback failed: plugin={instance.Id}: {exception}");
-            }
+                try { callback(instance.ContextInfo); }
+                catch (Exception exception)
+                {
+                    Logger.Error($"Managed plugin context callback failed: plugin={instance.Id}: {exception}");
+                }
         }
     }
 }

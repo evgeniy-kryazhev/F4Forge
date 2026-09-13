@@ -59,7 +59,7 @@ uint32_t RuntimeManager::DiscoverDirectory(const std::filesystem::path& director
 
 F4ForgeResult RuntimeManager::Initialize(
     F4ForgeStringView id,
-    F4ForgeHostBinding host,
+    const F4ForgeHostBinding& host,
     F4ForgeStringView pluginDirectory,
     F4ForgeStringView configDirectory,
     F4ForgeRuntimeHandle* runtime)

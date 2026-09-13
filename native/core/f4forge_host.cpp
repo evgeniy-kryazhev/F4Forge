@@ -209,7 +209,7 @@ F4ForgeResult F4FORGE_CALL F4ForgeHost::QueueTask(
         if (!host._runtimes.BeginTaskAdmission(runtime)) return F4FORGE_RESULT_INACTIVE_RUNTIME;
         struct Admission final {
             RuntimeManager& runtimes;
-            F4ForgeRuntimeHandle runtime;
+            F4ForgeRuntimeHandle runtime{};
             ~Admission() { runtimes.EndTaskAdmission(runtime); }
         } admission{ host._runtimes, runtime };
         if (host._gameThreadScheduler == nullptr) return F4FORGE_RESULT_SCHEDULER_UNAVAILABLE;

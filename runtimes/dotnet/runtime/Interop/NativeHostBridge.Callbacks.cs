@@ -27,12 +27,17 @@ internal unsafe sealed partial class NativeHostBridge
         var context = GCHandle.ToIntPtr(GCHandle.Alloc(state));
         fixed (byte* text = bytes)
         {
-            var definition = new F4ForgeEndpointDefinition {
-                StructSize = (uint)sizeof(F4ForgeEndpointDefinition), Kind = (uint)kind,
-                Version = version, ThreadPolicy = (uint)threadPolicy,
-                RequestSize = requestSize, ResponseSize = responseSize,
+            var definition = new F4ForgeEndpointDefinition
+            {
+                StructSize = (uint)sizeof(F4ForgeEndpointDefinition),
+                Kind = (uint)kind,
+                Version = version,
+                ThreadPolicy = (uint)threadPolicy,
+                RequestSize = requestSize,
+                ResponseSize = responseSize,
                 Name = new F4ForgeStringView { Data = text, Length = (uint)bytes.Length },
-                Thunk = &EndpointThunk, Context = (void*)context
+                Thunk = &EndpointThunk,
+                Context = (void*)context
             };
             ulong endpoint = 0;
             var result = _api->RegisterEndpoint(_context, _module.Value, &definition, &endpoint);
@@ -57,8 +62,11 @@ internal unsafe sealed partial class NativeHostBridge
         state.Handle = context;
         var resource = new CallbackRegistration(_api, _context, handle, state, CallbackKind.Event);
         if (!Track(resource)) return null;
-        return new HostSubscription<EventSubscriptionHandle> {
-            Handle = new EventSubscriptionHandle(handle), Resource = resource };
+        return new HostSubscription<EventSubscriptionHandle>
+        {
+            Handle = new EventSubscriptionHandle(handle),
+            Resource = resource
+        };
     }
 
     public IDisposable? SubscribeKeyDown(Action<F4ForgeKeyEventData> callback)
@@ -102,8 +110,11 @@ internal unsafe sealed partial class NativeHostBridge
         state.Handle = context;
         var resource = new CallbackRegistration(_api, _context, handle, state, CallbackKind.Interceptor);
         if (!Track(resource)) return null;
-        return new HostSubscription<InterceptorSubscriptionHandle> {
-            Handle = new InterceptorSubscriptionHandle(handle), Resource = resource };
+        return new HostSubscription<InterceptorSubscriptionHandle>
+        {
+            Handle = new InterceptorSubscriptionHandle(handle),
+            Resource = resource
+        };
     }
 
     [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
