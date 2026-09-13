@@ -12,8 +12,14 @@ $nativeRoot = Join-Path $root "native"
 $runtimeProject = Join-Path $root "runtimes\dotnet\runtime\F4Forge.DotNet.Runtime.csproj"
 $sampleProject = Join-Path $root "runtimes\dotnet\F4Forge.DotNet.Sample\F4Forge.DotNet.Sample.csproj"
 $buildRoot = Join-Path $root "build"
-$packageRoot = Join-Path $buildRoot "F4SE\Plugins"
-$frameworkRoot = Join-Path $packageRoot "F4Forge"
+$packagesRoot = Join-Path $buildRoot "packages"
+$frameworkPackageRoot = Join-Path $packagesRoot "framework"
+$demoPackageRoot = Join-Path $packagesRoot "demo"
+$frameworkPluginsRoot = Join-Path $frameworkPackageRoot "F4SE\Plugins"
+$frameworkRoot = Join-Path $frameworkPluginsRoot "F4Forge"
+$demoRoot = Join-Path $demoPackageRoot "F4SE\Plugins\F4Forge\Plugins\F4Forge.DotNet.Sample"
+$frameworkArchive = Join-Path $buildRoot "F4Forge-framework.zip"
+$demoArchive = Join-Path $buildRoot "F4Forge-demo.zip"
 
 function Invoke-Checked {
     param(
@@ -24,6 +30,30 @@ function Invoke-Checked {
     & $Command @Arguments
     if ($LASTEXITCODE -ne 0) {
         throw "Command failed with exit code $LASTEXITCODE`: $Command $($Arguments -join ' ')"
+    }
+}
+
+function Assert-PackageLayout {
+    param(
+        [string]$PackageRoot,
+        [string[]]$ExpectedFiles
+    )
+
+    $actualFiles = @(Get-ChildItem -LiteralPath $PackageRoot -File -Recurse |
+        ForEach-Object { $_.FullName.Substring($PackageRoot.Length + 1) } |
+        Sort-Object)
+    $expected = @($ExpectedFiles | Sort-Object)
+    $difference = @(Compare-Object -ReferenceObject $expected -DifferenceObject $actualFiles)
+    if ($difference.Count -ne 0) {
+        $details = $difference | ForEach-Object { "$($_.SideIndicator) $($_.InputObject)" }
+        throw "Unexpected package layout under $PackageRoot`n$($details -join [Environment]::NewLine)"
+    }
+
+    foreach ($relativePath in $expected) {
+        $file = Join-Path $PackageRoot $relativePath
+        if ((Get-Item -LiteralPath $file).Length -eq 0) {
+            throw "Package contains an empty file: $file"
+        }
     }
 }
 
@@ -99,19 +129,32 @@ foreach ($required in @($loader, $provider, $sdkAssembly)) {
     }
 }
 
-New-Item -ItemType Directory -Path $packageRoot, $frameworkRoot -Force | Out-Null
-Remove-Item -LiteralPath @(
-    (Join-Path $frameworkRoot "F4Forge.Runtime.DotNet.dll"),
-    (Join-Path $frameworkRoot "F4Forge.DotNet.Runtime.dll"),
-    (Join-Path $frameworkRoot "F4Forge.DotNet.Runtime.runtimeconfig.json")
-) -Force -ErrorAction SilentlyContinue
-Copy-Item -LiteralPath $loader -Destination (Join-Path $packageRoot "F4Forge.dll") -Force
+Remove-Item -LiteralPath $packagesRoot, $frameworkArchive, $demoArchive -Recurse -Force -ErrorAction SilentlyContinue
+New-Item -ItemType Directory -Path $frameworkRoot, $demoRoot -Force | Out-Null
+Copy-Item -LiteralPath $loader -Destination (Join-Path $frameworkPluginsRoot "F4Forge.dll") -Force
 Copy-Item -LiteralPath $provider -Destination (Join-Path $frameworkRoot "F4Forge.Dotnet.dll") -Force
+Copy-Item -LiteralPath $managedRuntime -Destination (Join-Path $frameworkRoot "F4Forge.DotNet.Runtime.dll") -Force
+Copy-Item -LiteralPath $managedDeps -Destination (Join-Path $frameworkRoot "F4Forge.DotNet.Runtime.deps.json") -Force
+Copy-Item -LiteralPath $runtimeConfig -Destination (Join-Path $frameworkRoot "F4Forge.DotNet.Runtime.runtimeconfig.json") -Force
 Copy-Item -LiteralPath $sdkAssembly -Destination (Join-Path $frameworkRoot "F4Forge.DotNet.Sdk.dll") -Force
+Copy-Item -LiteralPath $sampleAssembly -Destination $demoRoot -Force
+Copy-Item -LiteralPath $sampleManifest -Destination $demoRoot -Force
 
-$sampleRoot = Join-Path $frameworkRoot "Samples\F4Forge.DotNet.Sample"
-New-Item -ItemType Directory -Path $sampleRoot -Force | Out-Null
-Copy-Item -LiteralPath $sampleAssembly -Destination $sampleRoot -Force
-Copy-Item -LiteralPath $sampleManifest -Destination $sampleRoot -Force
+Assert-PackageLayout $frameworkPackageRoot @(
+    "F4SE\Plugins\F4Forge.dll",
+    "F4SE\Plugins\F4Forge\F4Forge.Dotnet.dll",
+    "F4SE\Plugins\F4Forge\F4Forge.DotNet.Runtime.dll",
+    "F4SE\Plugins\F4Forge\F4Forge.DotNet.Runtime.deps.json",
+    "F4SE\Plugins\F4Forge\F4Forge.DotNet.Runtime.runtimeconfig.json",
+    "F4SE\Plugins\F4Forge\F4Forge.DotNet.Sdk.dll"
+)
+Assert-PackageLayout $demoPackageRoot @(
+    "F4SE\Plugins\F4Forge\Plugins\F4Forge.DotNet.Sample\F4Forge.DotNet.Sample.dll",
+    "F4SE\Plugins\F4Forge\Plugins\F4Forge.DotNet.Sample\f4forge.plugin.json"
+)
 
-Write-Host "F4Forge build completed: $buildRoot"
+Compress-Archive -Path (Join-Path $frameworkPackageRoot "*") -DestinationPath $frameworkArchive -CompressionLevel Optimal
+Compress-Archive -Path (Join-Path $demoPackageRoot "*") -DestinationPath $demoArchive -CompressionLevel Optimal
+
+Write-Host "F4Forge framework package: $frameworkPackageRoot"
+Write-Host "F4Forge demo package: $demoPackageRoot"
