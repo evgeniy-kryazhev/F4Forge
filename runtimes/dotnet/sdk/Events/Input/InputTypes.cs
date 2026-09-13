@@ -30,7 +30,7 @@ public enum Key : uint
 }
 
 #pragma warning disable CA1711
-public sealed class KeyDownEventArgs
+public sealed class KeyDownEventArgs : EventArgs
 {
     internal KeyDownEventArgs(InputDevice device, Key key, bool isRepeat, float heldSeconds, bool isMenu)
     {
@@ -41,13 +41,11 @@ public sealed class KeyDownEventArgs
         IsMenu = isMenu;
     }
 
-    public InputDevice Device { get; internal set; }
-    public Key Key { get; internal set; }
-    public bool IsRepeat { get; internal set; }
-    public float HeldSeconds { get; internal set; }
-    public bool IsMenu { get; internal set; }
+    public InputDevice Device { get; }
+    public Key Key { get; }
+    public bool IsRepeat { get; }
+    public float HeldSeconds { get; }
+    public bool IsMenu { get; }
     public override string ToString() => $"{Device}/{Key} (repeat={IsRepeat})";
 }
 #pragma warning restore CA1711
-
-public delegate void KeyDownHandler(KeyDownEventArgs args);

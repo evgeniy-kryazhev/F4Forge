@@ -8,7 +8,6 @@ internal sealed class NativeKeyDownEventRouter : IDisposable
     private readonly NativeHostBridge? _bridge;
     private readonly Action<KeyDownEventArgs> _publish;
     private readonly object _gate = new();
-    private readonly KeyDownEventArgs _args = new(InputDevice.Keyboard, Key.Unknown, false, 0, false);
     private IDisposable? _nativeSubscription;
 
     public NativeKeyDownEventRouter(NativeHostBridge? bridge, Action<KeyDownEventArgs> publish)
@@ -26,12 +25,12 @@ internal sealed class NativeKeyDownEventRouter : IDisposable
         if (data.IsDown == 0) return;
         lock (_gate)
         {
-            _args.Device = (InputDevice)data.DeviceType;
-            _args.Key = NormalizeKey(data.KeyCode);
-            _args.IsRepeat = data.IsRepeat != 0;
-            _args.HeldSeconds = data.HeldSeconds;
-            _args.IsMenu = data.IsMenu != 0;
-            _publish(_args);
+            _publish(new KeyDownEventArgs(
+                (InputDevice)data.DeviceType,
+                NormalizeKey(data.KeyCode),
+                data.IsRepeat != 0,
+                data.HeldSeconds,
+                data.IsMenu != 0));
         }
     }
 

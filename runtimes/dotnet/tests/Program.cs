@@ -79,26 +79,35 @@ internal static unsafe class Program
         if (logCount != 3 || LogLevels[0] != 0 || LogLevels[1] != 3 || LogLevels[2] != 4)
             return 15;
 
-        var events = new PluginEvents("test.plugin");
+        var input = new InputEvents("test.plugin");
         var firstHandlerCalls = 0;
         var lastHandlerCalls = 0;
-        KeyDownHandler firstHandler = _ => ++firstHandlerCalls;
-        KeyDownHandler lastHandler = _ => ++lastHandlerCalls;
-        events.KeyDown += firstHandler;
-        events.KeyDown += _ => throw new InvalidOperationException("key handler failure");
-        events.OnKeyDownEvent += lastHandler;
-        events.PublishKeyDown(new KeyDownEventArgs(InputDevice.Keyboard, Key.A, false, 0, false));
+        EventHandler<KeyDownEventArgs> firstHandler = (_, _) => ++firstHandlerCalls;
+        EventHandler<KeyDownEventArgs> lastHandler = (_, _) => ++lastHandlerCalls;
+        input.KeyDown += firstHandler;
+        input.KeyDown += (_, _) => throw new InvalidOperationException("key handler failure");
+        input.KeyDown += lastHandler;
+        input.PublishKeyDown(new KeyDownEventArgs(InputDevice.Keyboard, Key.A, false, 0, false));
         if (firstHandlerCalls != 1 || lastHandlerCalls != 1) return 31;
-        events.KeyDown -= firstHandler;
-        events.OnKeyDownEvent -= lastHandler;
-        events.PublishKeyDown(new KeyDownEventArgs(InputDevice.Keyboard, Key.A, false, 0, false));
+        input.KeyDown -= firstHandler;
+        input.KeyDown -= lastHandler;
+        input.PublishKeyDown(new KeyDownEventArgs(InputDevice.Keyboard, Key.A, false, 0, false));
         if (firstHandlerCalls != 1 || lastHandlerCalls != 1) return 32;
 
+        var otherInput = new InputEvents("other.plugin");
+        var otherHandlerCalls = 0;
+        otherInput.KeyDown += (_, _) => ++otherHandlerCalls;
+        input.PublishKeyDown(new KeyDownEventArgs(InputDevice.Keyboard, Key.B, false, 0, false));
+        if (otherHandlerCalls != 0) return 34;
+        otherInput.PublishKeyDown(new KeyDownEventArgs(InputDevice.Keyboard, Key.B, false, 0, false));
+        if (otherHandlerCalls != 1) return 35;
+
+        var events = new PluginEvents("test.plugin");
         var lifecycleCalls = 0;
-        events.GameDataReady += () => ++lifecycleCalls;
-        events.GameLoaded += () => throw new InvalidOperationException("lifecycle handler failure");
-        events.GameLoaded += () => ++lifecycleCalls;
-        events.NewGame += () => ++lifecycleCalls;
+        events.GameDataReady += (_, _) => ++lifecycleCalls;
+        events.GameLoaded += (_, _) => throw new InvalidOperationException("lifecycle handler failure");
+        events.GameLoaded += (_, _) => ++lifecycleCalls;
+        events.NewGame += (_, _) => ++lifecycleCalls;
         events.PublishGameDataReady();
         events.PublishGameLoaded();
         events.PublishNewGame();

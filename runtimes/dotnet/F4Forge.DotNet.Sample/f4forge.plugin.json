@@ -1,0 +1,9 @@
+{
+  "id": "f4forge.sample",
+  "version": "0.1.0",
+  "minimumF4ForgeVersion": "0.1.0",
+  "runtime": "dotnet",
+  "entryAssembly": "F4Forge.DotNet.Sample.dll",
+  "dependencies": [],
+  "providedCapabilities": []
+}

@@ -10,18 +10,21 @@ public sealed class F4ForgePluginContext
         Action<IDisposable> trackResource,
         IPluginHostBridge? bridge,
         CancellationToken cancellationToken,
-        PluginEvents? events = null)
+        PluginEvents? events = null,
+        InputEvents? input = null)
     {
         Module = module;
         CancellationToken = cancellationToken;
         _trackResource = trackResource;
         _bridge = bridge;
         Events = events ?? new PluginEvents();
+        Input = input ?? new InputEvents();
     }
 
     public ModuleHandle Module { get; }
     public CancellationToken CancellationToken { get; }
     public PluginEvents Events { get; }
+    public InputEvents Input { get; }
 
     public EndpointHandle ResolveEndpoint(string name, uint version = 1)
     {

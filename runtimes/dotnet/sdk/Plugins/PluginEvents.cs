@@ -4,65 +4,28 @@ public sealed class PluginEvents
 {
     private readonly object _gate = new();
     private readonly string? _pluginId;
-    private KeyDownHandler? _keyDown;
-    private LifecycleHandler? _gameDataReady;
-    private LifecycleHandler? _gameLoaded;
-    private LifecycleHandler? _newGame;
+    private EventHandler? _gameDataReady;
+    private EventHandler? _gameLoaded;
+    private EventHandler? _newGame;
 
     internal PluginEvents(string? pluginId = null) => _pluginId = pluginId;
 
-    public event KeyDownHandler KeyDown
-    {
-        add
-        {
-            ArgumentNullException.ThrowIfNull(value);
-            lock (_gate) _keyDown += value;
-        }
-        remove
-        {
-            if (value == null) return;
-            lock (_gate) _keyDown -= value;
-        }
-    }
-
-    public event KeyDownHandler OnKeyDownEvent
-    {
-        add => KeyDown += value;
-        remove => KeyDown -= value;
-    }
-
-    public event LifecycleHandler GameDataReady
+    public event EventHandler GameDataReady
     {
         add => AddLifecycleHandler(ref _gameDataReady, value);
         remove => RemoveLifecycleHandler(ref _gameDataReady, value);
     }
 
-    public event LifecycleHandler GameLoaded
+    public event EventHandler GameLoaded
     {
         add => AddLifecycleHandler(ref _gameLoaded, value);
         remove => RemoveLifecycleHandler(ref _gameLoaded, value);
     }
 
-    public event LifecycleHandler NewGame
+    public event EventHandler NewGame
     {
         add => AddLifecycleHandler(ref _newGame, value);
         remove => RemoveLifecycleHandler(ref _newGame, value);
-    }
-
-    internal void PublishKeyDown(KeyDownEventArgs args)
-    {
-        ArgumentNullException.ThrowIfNull(args);
-        KeyDownHandler? handlers;
-        lock (_gate) handlers = _keyDown;
-        if (handlers == null) return;
-        foreach (KeyDownHandler handler in handlers.GetInvocationList())
-        {
-            try { handler(args); }
-            catch (Exception exception)
-            {
-                Logger.Error($"Managed key handler failed: plugin={_pluginId ?? "unknown"}: {exception}");
-            }
-        }
     }
 
     internal void PublishGameDataReady() => PublishLifecycle(ref _gameDataReady, nameof(GameDataReady));
@@ -71,26 +34,26 @@ public sealed class PluginEvents
 
     internal void PublishNewGame() => PublishLifecycle(ref _newGame, nameof(NewGame));
 
-    private void AddLifecycleHandler(ref LifecycleHandler? handlers, LifecycleHandler value)
+    private void AddLifecycleHandler(ref EventHandler? handlers, EventHandler value)
     {
         ArgumentNullException.ThrowIfNull(value);
         lock (_gate) handlers += value;
     }
 
-    private void RemoveLifecycleHandler(ref LifecycleHandler? handlers, LifecycleHandler? value)
+    private void RemoveLifecycleHandler(ref EventHandler? handlers, EventHandler? value)
     {
         if (value == null) return;
         lock (_gate) handlers -= value;
     }
 
-    private void PublishLifecycle(ref LifecycleHandler? handlers, string eventName)
+    private void PublishLifecycle(ref EventHandler? handlers, string eventName)
     {
-        LifecycleHandler? snapshot;
+        EventHandler? snapshot;
         lock (_gate) snapshot = handlers;
         if (snapshot == null) return;
-        foreach (LifecycleHandler handler in snapshot.GetInvocationList())
+        foreach (EventHandler handler in snapshot.GetInvocationList())
         {
-            try { handler(); }
+            try { handler(this, EventArgs.Empty); }
             catch (Exception exception)
             {
                 Logger.Error($"Managed lifecycle handler failed: plugin={_pluginId ?? "unknown"}, " +
@@ -99,5 +62,3 @@ public sealed class PluginEvents
         }
     }
 }
-
-public delegate void LifecycleHandler();

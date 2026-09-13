@@ -70,7 +70,7 @@ internal sealed unsafe class PluginLoader : IDisposable
         return true;
     }
 
-    private bool Load(string path, string? expectedId = null)
+    internal bool Load(string path, string? expectedId = null)
     {
         PluginInstance? instance = null;
         try
@@ -180,7 +180,7 @@ internal sealed unsafe class PluginLoader : IDisposable
         foreach (var instance in snapshot)
         {
             if (!instance.TryAcquireDispatchLease(out var lease)) continue;
-            using (lease) instance.ContextInfo.Events.PublishKeyDown(args);
+            using (lease) instance.ContextInfo.Input.PublishKeyDown(args);
         }
     }
 
@@ -232,7 +232,7 @@ internal sealed unsafe class PluginLoader : IDisposable
 
     public int Count { get { lock (_gate) return _plugins.Count; } }
 
-    private bool IsActive(string id)
+    internal bool IsActive(string id)
     {
         lock (_gate)
             return _plugins.TryGetValue(id, out var instance) && instance.State == PluginState.Active;

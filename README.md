@@ -34,6 +34,7 @@ The package is written to:
 build/F4SE/Plugins/F4Forge.dll
 build/F4SE/Plugins/F4Forge/F4Forge.Dotnet.dll
 build/F4SE/Plugins/F4Forge/F4Forge.DotNet.Sdk.dll
+build/F4SE/Plugins/F4Forge/Samples/F4Forge.DotNet.Sample/F4Forge.DotNet.Sample.dll
 ```
 
 Managed runtime assemblies and configuration are embedded into the native provider resources.
@@ -94,7 +95,7 @@ Async operations copy caller buffers, use generation-based handles, support canc
 Plugins can receive keyboard button-down events synchronously on the game thread:
 
 ```csharp
-context.Events.KeyDown += args =>
+context.Input.KeyDown += (_, args) =>
     Logger.Info($"Some event triggered! {args}");
 ```
 
@@ -103,9 +104,9 @@ Handlers must not block. Autorepeat is reported by `KeyDownEventArgs.IsRepeat`; 
 Plugins can subscribe to lifecycle events through the same event collection:
 
 ```csharp
-context.Events.GameDataReady += () => Logger.Info("Game data is ready");
-context.Events.GameLoaded += () => Logger.Info("A saved game was loaded");
-context.Events.NewGame += () => Logger.Info("A new game was started");
+context.Events.GameDataReady += (_, _) => Logger.Info("Game data is ready");
+context.Events.GameLoaded += (_, _) => Logger.Info("A saved game was loaded");
+context.Events.NewGame += (_, _) => Logger.Info("A new game was started");
 ```
 
 ## Hot Reload

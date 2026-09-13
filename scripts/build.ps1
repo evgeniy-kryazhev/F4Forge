@@ -10,6 +10,7 @@ $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $PSScriptRoot
 $nativeRoot = Join-Path $root "native"
 $runtimeProject = Join-Path $root "runtimes\dotnet\runtime\F4Forge.DotNet.Runtime.csproj"
+$sampleProject = Join-Path $root "runtimes\dotnet\F4Forge.DotNet.Sample\F4Forge.DotNet.Sample.csproj"
 $buildRoot = Join-Path $root "build"
 $packageRoot = Join-Path $buildRoot "F4SE\Plugins"
 $frameworkRoot = Join-Path $packageRoot "F4Forge"
@@ -52,16 +53,19 @@ if ($Clean -and (Test-Path -LiteralPath $buildRoot)) {
 }
 
 Invoke-Checked "dotnet" @("build", $runtimeProject, "--configuration", "Release")
+Invoke-Checked "dotnet" @("build", $sampleProject, "--configuration", "Release")
 
 $managedRoot = Join-Path $root "runtimes\dotnet\runtime\bin\Release\net10.0"
 $managedRuntime = Join-Path $managedRoot "F4Forge.DotNet.Runtime.dll"
 $managedDeps = Join-Path $managedRoot "F4Forge.DotNet.Runtime.deps.json"
 $runtimeConfig = Join-Path $managedRoot "F4Forge.DotNet.Runtime.runtimeconfig.json"
 $sdkAssembly = Join-Path $root "runtimes\dotnet\sdk\bin\Release\net10.0\F4Forge.DotNet.Sdk.dll"
+$sampleAssembly = Join-Path $root "runtimes\dotnet\F4Forge.DotNet.Sample\bin\Release\net10.0\F4Forge.DotNet.Sample.dll"
+$sampleManifest = Join-Path $root "runtimes\dotnet\F4Forge.DotNet.Sample\f4forge.plugin.json"
 $resourceDirectory = Join-Path $nativeRoot "generated"
 $resourceFile = Join-Path $resourceDirectory "dotnet_runtime.rc"
 
-foreach ($required in @($managedRuntime, $managedDeps, $runtimeConfig, $sdkAssembly)) {
+foreach ($required in @($managedRuntime, $managedDeps, $runtimeConfig, $sdkAssembly, $sampleAssembly, $sampleManifest)) {
     if (-not (Test-Path -LiteralPath $required)) {
         throw "Managed build artifact was not found: $required"
     }
@@ -104,5 +108,10 @@ Remove-Item -LiteralPath @(
 Copy-Item -LiteralPath $loader -Destination (Join-Path $packageRoot "F4Forge.dll") -Force
 Copy-Item -LiteralPath $provider -Destination (Join-Path $frameworkRoot "F4Forge.Dotnet.dll") -Force
 Copy-Item -LiteralPath $sdkAssembly -Destination (Join-Path $frameworkRoot "F4Forge.DotNet.Sdk.dll") -Force
+
+$sampleRoot = Join-Path $frameworkRoot "Samples\F4Forge.DotNet.Sample"
+New-Item -ItemType Directory -Path $sampleRoot -Force | Out-Null
+Copy-Item -LiteralPath $sampleAssembly -Destination $sampleRoot -Force
+Copy-Item -LiteralPath $sampleManifest -Destination $sampleRoot -Force
 
 Write-Host "F4Forge build completed: $buildRoot"

@@ -37,13 +37,14 @@ internal sealed unsafe class PluginInstance
             scope.Add(bridge);
             bridge.SetFinalizationCallback(FinalizeAfterNativeQuiescence);
             ContextInfo = new F4ForgePluginContext(
-                bridge.Module, scope.Add, bridge, scope.CancellationToken, new PluginEvents(id));
+                bridge.Module, scope.Add, bridge, scope.CancellationToken,
+                new PluginEvents(id), new InputEvents(id));
         }
         else
         {
             ContextInfo = new F4ForgePluginContext(
                 F4Forge.DotNet.Sdk.ModuleHandle.Invalid, scope.Add, null, scope.CancellationToken,
-                new PluginEvents(id));
+                new PluginEvents(id), new InputEvents(id));
         }
     }
 

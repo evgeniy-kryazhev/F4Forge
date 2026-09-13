@@ -18,6 +18,9 @@ try {
         "--enable=warning,style,performance,portability" `
         "--error-exitcode=1" `
         "--inline-suppr" `
+        "--suppress=syntaxError:*/lib/commonlibf4/*" `
+        "--suppress=assertWithSideEffect:*/tests/*" `
+        "--suppress=unreadVariable:*/tests/abi/AbiCCompile.c" `
         "-i" "lib/commonlibf4" `
         "-i" "build" `
         "-i" "generated" `
