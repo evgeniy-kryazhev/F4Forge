@@ -20,10 +20,12 @@ public static unsafe class Bootstrap
 
     private const uint RuntimeProviderAbiVersion = 2;
     private const uint HostAbiVersion = 3;
-    private const uint ManagedBootstrapMinimumSize = 56;
+    private const uint ManagedBootstrapMinimumSize = 72;
+    private const uint HostBindingSize = 24;
     private const uint NativeApiMinimumSize = 160;
     private static readonly object Gate = new();
     private static NativeApi* nativeApi;
+    private static void* nativeContext;
     private static ulong runtimeHandle;
     private static LifecycleState state;
     private static PluginLoader? pluginLoader;
@@ -38,12 +40,15 @@ public static unsafe class Bootstrap
             if (args->AbiVersion != RuntimeProviderAbiVersion) return (int)F4ForgeResult.InvalidAbiVersion;
             if (args->StructSize < ManagedBootstrapMinimumSize) return (int)F4ForgeResult.InvalidStructSize;
             if (args->Runtime == 0) return (int)F4ForgeResult.InvalidArgument;
-            if (args->Host == null) return (int)F4ForgeResult.InvalidArgument;
-            if (args->Host->AbiVersion != HostAbiVersion)
+            if (args->Host.AbiVersion != HostAbiVersion)
                 return (int)F4ForgeResult.InvalidAbiVersion;
-            if (args->Host->StructSize < NativeApiMinimumSize)
+            if (args->Host.StructSize < HostBindingSize || args->Host.Api == null || args->Host.Context == null)
+                return (int)F4ForgeResult.InvalidArgument;
+            if (args->Host.Api->AbiVersion != HostAbiVersion)
+                return (int)F4ForgeResult.InvalidAbiVersion;
+            if (args->Host.Api->StructSize < NativeApiMinimumSize)
                 return (int)F4ForgeResult.InvalidStructSize;
-            if (args->Host->ResolveEndpoint == null || args->Host->Invoke == null)
+            if (args->Host.Api->ResolveEndpoint == null || args->Host.Api->Invoke == null)
                 return (int)F4ForgeResult.InvalidArgument;
 
             PluginLoader loader;
@@ -53,11 +58,12 @@ public static unsafe class Bootstrap
                 if (state == LifecycleState.Running) return (int)F4ForgeResult.Success;
                 if (state is LifecycleState.Initializing or LifecycleState.ShuttingDown)
                     return (int)F4ForgeResult.InactiveRuntime;
-                nativeApi = args->Host;
+                nativeApi = args->Host.Api;
+                nativeContext = args->Host.Context;
                 runtimeHandle = args->Runtime;
-                Logger.Sink = (level, message) => WriteLog(nativeApi, level, message);
+                Logger.Sink = (level, message) => WriteLog(nativeApi, nativeContext, level, message);
                 pluginDirectory = ReadUtf8(args->PluginDirectory);
-                 loader = new PluginLoader(host: args->Host, runtime: args->Runtime);
+                 loader = new PluginLoader(host: args->Host.Api, hostContext: args->Host.Context, runtime: args->Runtime);
                 pluginLoader = loader;
                 state = LifecycleState.Initializing;
             }
@@ -114,6 +120,7 @@ public static unsafe class Bootstrap
             {
                 Logger.Sink = null;
                 nativeApi = null;
+                nativeContext = null;
                 runtimeHandle = 0;
                 state = LifecycleState.Stopped;
             }
@@ -135,14 +142,14 @@ public static unsafe class Bootstrap
         return Encoding.UTF8.GetString(value.Data, checked((int)value.Length));
     }
 
-    private static void WriteLog(NativeApi* api, F4ForgeLogLevel level, string message)
+    private static void WriteLog(NativeApi* api, void* context, F4ForgeLogLevel level, string message)
     {
         if (api == null || api->Log == null) return;
         var bytes = Encoding.UTF8.GetBytes(message);
         fixed (byte* text = bytes)
         {
             var view = new F4ForgeStringView { Data = text, Length = checked((uint)bytes.Length) };
-            api->Log((uint)level, view);
+            api->Log(context, (uint)level, view);
         }
     }
 }

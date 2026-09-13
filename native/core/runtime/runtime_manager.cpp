@@ -59,12 +59,12 @@ uint32_t RuntimeManager::DiscoverDirectory(const std::filesystem::path& director
 
 F4ForgeResult RuntimeManager::Initialize(
     F4ForgeStringView id,
-    const F4ForgeHostApi* host,
+    F4ForgeHostBinding host,
     F4ForgeStringView pluginDirectory,
     F4ForgeStringView configDirectory,
     F4ForgeRuntimeHandle* runtime)
 {
-    if (runtime == nullptr || host == nullptr || id.data == nullptr || id.length == 0)
+    if (runtime == nullptr || host.api == nullptr || host.context == nullptr || id.data == nullptr || id.length == 0)
         return F4FORGE_RESULT_INVALID_ARGUMENT;
 
     RuntimeInstance* instance = nullptr;
@@ -147,11 +147,11 @@ F4ForgeResult RuntimeManager::Initialize(
 }
 
 uint32_t RuntimeManager::InitializeAll(
-    const F4ForgeHostApi* host,
+    F4ForgeHostBinding host,
     F4ForgeStringView pluginDirectory,
     F4ForgeStringView configDirectory)
 {
-    if (host == nullptr) return 0;
+    if (host.api == nullptr || host.context == nullptr) return 0;
     std::array<std::string, MaxProviders> ids{};
     uint32_t count = 0;
     {
@@ -168,14 +168,14 @@ uint32_t RuntimeManager::InitializeAll(
         const auto result = Initialize(id, host, pluginDirectory, configDirectory, &runtime);
         if (result == F4FORGE_RESULT_SUCCESS) {
             ++initialized;
-            if (host->log != nullptr) {
+            if (host.api->log != nullptr) {
                 const std::string message = "Runtime initialized: " + ids[index];
-                host->log(2, { message.data(), static_cast<uint32_t>(message.size()) });
+                host.api->log(host.context, 2, { message.data(), static_cast<uint32_t>(message.size()) });
             }
-        } else if (host->log != nullptr) {
+        } else if (host.api->log != nullptr) {
             const std::string message = "Runtime initialization failed: " + ids[index] +
                 " (result " + std::to_string(static_cast<int32_t>(result)) + ")";
-            host->log(4, { message.data(), static_cast<uint32_t>(message.size()) });
+            host.api->log(host.context, 4, { message.data(), static_cast<uint32_t>(message.size()) });
         }
     }
     return initialized;

@@ -17,6 +17,7 @@
 namespace {
 
 f4forge::native::F4seGameScheduler gameScheduler;
+f4forge::core::F4ForgeHost host;
 std::unique_ptr<f4forge::core::BuiltinServices> builtinServices;
 
 void F4SEAPI OnMessage(F4SE::MessagingInterface::Message* message)
@@ -91,10 +92,10 @@ std::filesystem::path FrameworkDirectory()
 
 }
 
-extern "C" __declspec(dllexport) const F4ForgeHostApi* F4FORGE_CALL
+extern "C" __declspec(dllexport) F4ForgeHostBinding F4FORGE_CALL
 F4ForgeGetHostApi(void) F4FORGE_NOEXCEPT
 {
-    return &f4forge::core::F4ForgeHost::Instance().Api();
+    return host.Binding();
 }
 
 F4SE_PLUGIN_PRELOAD(const F4SE::PreLoadInterface* a_f4se)
@@ -118,7 +119,6 @@ F4SE_PLUGIN_LOAD(const F4SE::LoadInterface* a_f4se)
 			frameworkDirectory / L"F4Forge.toml", frameworkDirectory);
 		REX::INFO("F4Forge: plugin directory = {}", config.pluginDirectory.string());
 		REX::INFO("F4Forge: runtime directory = {}", config.runtimeDirectory.string());
-		auto& host = f4forge::core::F4ForgeHost::Instance();
 		gameScheduler.CaptureGameThread();
 		host.SetGameThreadScheduler(&gameScheduler);
 		host.Endpoints().SetGameThreadCheck(&f4forge::native::F4seGameScheduler::CheckGameThread);
@@ -139,7 +139,7 @@ F4SE_PLUGIN_LOAD(const F4SE::LoadInterface* a_f4se)
 		const auto pluginDirectory = config.pluginDirectory.u8string();
 		const auto configDirectory = frameworkDirectory.u8string();
 		const auto initialized = runtimes.InitializeAll(
-			&host.Api(),
+			host.Binding(),
 			{ reinterpret_cast<const char*>(pluginDirectory.data()), static_cast<uint32_t>(pluginDirectory.size()) },
 			{ reinterpret_cast<const char*>(configDirectory.data()), static_cast<uint32_t>(configDirectory.size()) });
 		REX::INFO("F4Forge: runtimes initialized = {}", initialized);

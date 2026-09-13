@@ -15,7 +15,7 @@ internal unsafe sealed partial class NativeHostBridge
         var state = new EndpointState(callback);
         var handle = RegisterEndpointNative(name, kind, version, requestSize, responseSize, threadPolicy, state);
         if (!handle.IsValid) { state.Dispose(); return null; }
-        var resource = new CallbackRegistration(_api, handle.Value, state, CallbackKind.Endpoint);
+        var resource = new CallbackRegistration(_api, _context, handle.Value, state, CallbackKind.Endpoint);
         _registrations.Add(resource);
         return new HostRegistration<EndpointHandle> { Handle = handle, Resource = resource };
     }
@@ -35,7 +35,7 @@ internal unsafe sealed partial class NativeHostBridge
                 Thunk = &EndpointThunk, Context = (void*)context
             };
             ulong endpoint = 0;
-            var result = _api->RegisterEndpoint(_module.Value, &definition, &endpoint);
+            var result = _api->RegisterEndpoint(_context, _module.Value, &definition, &endpoint);
             if (result != (int)F4ForgeResult.Success)
             {
                 GCHandle.FromIntPtr(context).Free();
@@ -52,10 +52,10 @@ internal unsafe sealed partial class NativeHostBridge
         if (_api == null || _api->Subscribe == null || !_module.IsValid) return null;
         var state = new EventState(callback);
         var context = GCHandle.ToIntPtr(GCHandle.Alloc(state));
-        var handle = _api->Subscribe(_module.Value, endpoint.Value, &EventThunk, (void*)context);
+        var handle = _api->Subscribe(_context, _module.Value, endpoint.Value, &EventThunk, (void*)context);
         if (handle == 0) { GCHandle.FromIntPtr(context).Free(); return null; }
         state.Handle = context;
-        var resource = new CallbackRegistration(_api, handle, state, CallbackKind.Event);
+        var resource = new CallbackRegistration(_api, _context, handle, state, CallbackKind.Event);
         _registrations.Add(resource);
         return new HostSubscription<EventSubscriptionHandle> {
             Handle = new EventSubscriptionHandle(handle), Resource = resource };
@@ -68,10 +68,10 @@ internal unsafe sealed partial class NativeHostBridge
         if (!endpoint.IsValid) return null;
         var state = new KeyEventState(callback);
         var context = GCHandle.ToIntPtr(GCHandle.Alloc(state));
-        var handle = _api->Subscribe(_module.Value, endpoint.Value, &KeyEventThunk, (void*)context);
+        var handle = _api->Subscribe(_context, _module.Value, endpoint.Value, &KeyEventThunk, (void*)context);
         if (handle == 0) { GCHandle.FromIntPtr(context).Free(); return null; }
         state.Handle = context;
-        var resource = new CallbackRegistration(_api, handle, state, CallbackKind.Key);
+        var resource = new CallbackRegistration(_api, _context, handle, state, CallbackKind.Key);
         _registrations.Add(resource);
         return resource;
     }
@@ -83,10 +83,10 @@ internal unsafe sealed partial class NativeHostBridge
         if (!endpoint.IsValid) return null;
         var state = new FrameworkState(callback);
         var context = GCHandle.ToIntPtr(GCHandle.Alloc(state));
-        var handle = _api->Subscribe(_module.Value, endpoint.Value, &FrameworkThunk, (void*)context);
+        var handle = _api->Subscribe(_context, _module.Value, endpoint.Value, &FrameworkThunk, (void*)context);
         if (handle == 0) { GCHandle.FromIntPtr(context).Free(); return null; }
         state.Handle = context;
-        var resource = new CallbackRegistration(_api, handle, state, CallbackKind.Framework);
+        var resource = new CallbackRegistration(_api, _context, handle, state, CallbackKind.Framework);
         _registrations.Add(resource);
         return resource;
     }
@@ -97,10 +97,10 @@ internal unsafe sealed partial class NativeHostBridge
         if (_api == null || _api->Intercept == null || !_module.IsValid) return null;
         var state = new InterceptorState(callback);
         var context = GCHandle.ToIntPtr(GCHandle.Alloc(state));
-        var handle = _api->Intercept(_module.Value, endpoint.Value, &InterceptorThunk, (void*)context);
+        var handle = _api->Intercept(_context, _module.Value, endpoint.Value, &InterceptorThunk, (void*)context);
         if (handle == 0) { GCHandle.FromIntPtr(context).Free(); return null; }
         state.Handle = context;
-        var resource = new CallbackRegistration(_api, handle, state, CallbackKind.Interceptor);
+        var resource = new CallbackRegistration(_api, _context, handle, state, CallbackKind.Interceptor);
         _registrations.Add(resource);
         return new HostSubscription<InterceptorSubscriptionHandle> {
             Handle = new InterceptorSubscriptionHandle(handle), Resource = resource };
@@ -229,15 +229,15 @@ internal unsafe sealed partial class NativeHostBridge
     private enum CallbackKind { Endpoint, Event, Key, Framework, Interceptor }
 
     private sealed class CallbackRegistration(
-        NativeApi* api, ulong handle, IDisposable state, CallbackKind kind) : IDisposable
+        NativeApi* api, void* hostContext, ulong handle, IDisposable state, CallbackKind kind) : IDisposable
     {
         private int _disposed;
 
         public void Dispose()
         {
             if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
-            if (kind is CallbackKind.Event or CallbackKind.Key or CallbackKind.Framework) api->Unsubscribe(handle);
-            else if (kind == CallbackKind.Interceptor) api->RemoveInterceptor(handle);
+            if (kind is CallbackKind.Event or CallbackKind.Key or CallbackKind.Framework) api->Unsubscribe(hostContext, handle);
+            else if (kind == CallbackKind.Interceptor) api->RemoveInterceptor(hostContext, handle);
         }
 
         public void Retire()

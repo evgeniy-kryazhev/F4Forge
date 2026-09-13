@@ -4,6 +4,7 @@
 #include <condition_variable>
 #include <mutex>
 #include <thread>
+#include <utility>
 #include <vector>
 
 namespace {
@@ -47,8 +48,8 @@ void F4FORGE_CALL OnEvent(
 
 F4ForgeResult F4FORGE_CALL InitializeRuntime(const F4ForgeRuntimeInitializeParams* params) noexcept
 {
-    if (params != nullptr && params->host != nullptr && params->host->registerModule != nullptr) {
-        const auto result = params->host->registerModule(
+    if (params != nullptr && params->host.api != nullptr && params->host.api->registerModule != nullptr) {
+        const auto result = params->host.api->registerModule(params->host.context,
             params->runtime, { "host.provider-module", sizeof("host.provider-module") - 1 }, 1,
             &providerModule);
         if (result != F4FORGE_RESULT_SUCCESS) return result;
@@ -114,28 +115,68 @@ private:
     std::vector<Job> _jobs;
 };
 
+#define BOUND_CALL(name) \
+    template <typename... Args> auto name(Args&&... args) const \
+    { return table.name(context, std::forward<Args>(args)...); }
+
+struct BoundApi final {
+    const F4ForgeHostApi& table;
+    void* context;
+    uint32_t abiVersion;
+    uint32_t structSize;
+    BOUND_CALL(invoke)
+    BOUND_CALL(subscribe)
+    BOUND_CALL(unsubscribe)
+    BOUND_CALL(registerEndpoint)
+    BOUND_CALL(unregisterModule)
+    BOUND_CALL(queueTask)
+    BOUND_CALL(invokeAsync)
+    BOUND_CALL(emitAsync)
+    BOUND_CALL(pollOperation)
+    BOUND_CALL(waitOperation)
+    BOUND_CALL(getOperationResult)
+    BOUND_CALL(cancelOperation)
+    BOUND_CALL(releaseOperation)
+    F4ForgeEndpointHandle resolveEndpoint(F4ForgeStringView name, uint32_t version) const
+    { return table.resolveEndpoint(context, name, version); }
+    F4ForgeResult registerModule(F4ForgeRuntimeHandle runtime, F4ForgeStringView id,
+        uint32_t version, F4ForgeModuleHandle* module) const
+    { return table.registerModule(context, runtime, id, version, module); }
+    uint32_t queryCapability(F4ForgeStringView id, uint32_t version) const
+    { return table.queryCapability(context, id, version); }
+};
+
+#undef BOUND_CALL
+
 }
 
 int main()
 {
     gameThread = std::this_thread::get_id();
     TestScheduler scheduler;
-    const auto& api = f4forge::core::F4ForgeHost::Instance().Api();
-    auto& host = f4forge::core::F4ForgeHost::Instance();
+    f4forge::core::F4ForgeHost host;
+    const auto binding = host.Binding();
+    const BoundApi api{ host.Api(), binding.context, host.Api().abiVersion, host.Api().structSize };
     host.SetGameThreadScheduler(&scheduler);
     host.Endpoints().SetGameThreadCheck(&IsGameThread);
     assert(api.abiVersion == F4FORGE_ABI_VERSION);
     assert(api.structSize == sizeof(F4ForgeHostApi));
-    assert(api.resolveEndpoint != nullptr);
-    assert(api.invoke != nullptr);
-    assert(api.registerEndpoint != nullptr);
-    assert(api.invokeAsync != nullptr);
-    assert(api.emitAsync != nullptr);
-    assert(api.pollOperation != nullptr);
-    assert(api.waitOperation != nullptr);
-    assert(api.getOperationResult != nullptr);
-    assert(api.cancelOperation != nullptr);
-    assert(api.releaseOperation != nullptr);
+
+    f4forge::core::F4ForgeHost independentHost;
+    f4forge::core::EndpointOwner independentOwner;
+    const F4ForgeEndpointDefinition independentDefinition{
+        sizeof(F4ForgeEndpointDefinition), F4FORGE_ENDPOINT_METHOD, 1, F4FORGE_ENDPOINT_NONE,
+        F4FORGE_THREAD_ANY, 0, 0, 0,
+        { "host.independent", sizeof("host.independent") - 1 }, &Success, nullptr
+    };
+    F4ForgeEndpointHandle independentEndpoint = F4FORGE_INVALID_HANDLE;
+    assert(host.Endpoints().Register(independentDefinition, &independentOwner, &independentEndpoint)
+        == F4FORGE_RESULT_SUCCESS);
+    const auto independentBinding = independentHost.Binding();
+    assert(host.Api().resolveEndpoint(binding.context,
+        { "host.independent", sizeof("host.independent") - 1 }, 1) == independentEndpoint);
+    assert(independentHost.Api().resolveEndpoint(independentBinding.context,
+        { "host.independent", sizeof("host.independent") - 1 }, 1) == F4FORGE_INVALID_HANDLE);
 
     static const F4ForgeRuntimeInfo runtimeInfo{
         F4FORGE_RUNTIME_PROVIDER_ABI_VERSION,
@@ -158,12 +199,10 @@ int main()
     assert(providerResult == F4FORGE_RESULT_SUCCESS);
     F4ForgeRuntimeHandle runtime = F4FORGE_INVALID_HANDLE;
     const auto runtimeInitializeResult = runtimes.Initialize(
-        { "host-test-runtime", sizeof("host-test-runtime") - 1 }, &api, {}, {}, &runtime);
+        { "host-test-runtime", sizeof("host-test-runtime") - 1 }, binding, {}, {}, &runtime);
     assert(runtimeInitializeResult == F4FORGE_RESULT_SUCCESS);
     const auto providerModuleActive = host.Modules().IsActive(providerModule);
     assert(providerModuleActive);
-    assert(api.registerModule != nullptr);
-    assert(api.unregisterModule != nullptr);
     assert(api.queryCapability({ "core", sizeof("core") - 1 }, 1) == 1);
     assert(api.queryCapability({ "missing", sizeof("missing") - 1 }, 1) == 0);
 
@@ -230,7 +269,7 @@ int main()
 
     uint32_t gameResponse = 0;
     std::thread worker([&] {
-        assert(api.invoke(gameEndpoint, nullptr, 0, &gameResponse, sizeof(gameResponse), nullptr)
+        assert(api.invoke(gameEndpoint, nullptr, 0, &gameResponse, static_cast<uint32_t>(sizeof(gameResponse)), nullptr)
             == F4FORGE_RESULT_WRONG_THREAD);
     });
     worker.join();
@@ -257,7 +296,7 @@ int main()
     F4ForgeResult invocationResult = F4FORGE_RESULT_INTERNAL_ERROR;
     uint32_t responseSize = 0;
     assert(api.getOperationResult(
-        operation, &invocationResult, &gameResponse, sizeof(gameResponse), &responseSize)
+        operation, &invocationResult, &gameResponse, static_cast<uint32_t>(sizeof(gameResponse)), &responseSize)
         == F4FORGE_RESULT_SUCCESS);
     assert(invocationResult == F4FORGE_RESULT_SUCCESS);
     assert(gameResponse == 42 && responseSize == sizeof(uint32_t) && gameOnlyCalls == 1);
@@ -303,7 +342,7 @@ int main()
     assert(eventCalls == 0);
     F4ForgeAsyncOperationHandle eventOperation = F4FORGE_INVALID_HANDLE;
     std::thread eventSubmitter([&] {
-        assert(api.emitAsync(gameModule, eventEndpoint, &eventPayload, sizeof(eventPayload), &eventOperation)
+        assert(api.emitAsync(gameModule, eventEndpoint, &eventPayload, static_cast<uint32_t>(sizeof(eventPayload)), &eventOperation)
             == F4FORGE_RESULT_SUCCESS);
     });
     eventSubmitter.join();
@@ -385,7 +424,8 @@ int main()
     assert(!shutdownModuleActive);
     const auto providerModuleStillActive = host.Modules().IsActive(providerModule);
     assert(!providerModuleStillActive);
-    assert(api.invoke(shutdownEndpoint, nullptr, 0, &gameResponse, sizeof(gameResponse), nullptr)
+    assert(api.invoke(shutdownEndpoint, nullptr, 0, &gameResponse,
+        static_cast<uint32_t>(sizeof(gameResponse)), nullptr)
         == F4FORGE_RESULT_STALE_HANDLE);
     assert(host.Shutdown() == F4FORGE_RESULT_SUCCESS);
 

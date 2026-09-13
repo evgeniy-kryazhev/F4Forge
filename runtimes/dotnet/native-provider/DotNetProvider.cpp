@@ -111,10 +111,10 @@ T GetHostFxrFunction(HMODULE module, const char* name) noexcept
     return reinterpret_cast<T>(GetProcAddress(module, name));
 }
 
-void LogHost(const F4ForgeHostApi* host, uint32_t level, std::string_view message) noexcept
+void LogHost(F4ForgeHostBinding host, uint32_t level, std::string_view message) noexcept
 {
-    if (host == nullptr || host->log == nullptr) return;
-    host->log(level, { message.data(), static_cast<uint32_t>(message.size()) });
+    if (host.api == nullptr || host.context == nullptr || host.api->log == nullptr) return;
+    host.api->log(host.context, level, { message.data(), static_cast<uint32_t>(message.size()) });
 }
 
 bool ExtractResource(HMODULE module, int resourceId, const std::filesystem::path& destination)
@@ -154,7 +154,8 @@ F4ForgeResult InitializeManaged(const F4ForgeRuntimeInitializeParams* params) no
         return F4FORGE_RESULT_INVALID_ABI_VERSION;
     if (!F4FORGE_HAS_FIELD(params->structSize, F4ForgeRuntimeInitializeParams, configDirectory))
         return F4FORGE_RESULT_INVALID_STRUCT_SIZE;
-    if (params->host == nullptr) return F4FORGE_RESULT_INVALID_ARGUMENT;
+    if (params->host.api == nullptr || params->host.context == nullptr)
+        return F4FORGE_RESULT_INVALID_ARGUMENT;
     auto& state = GetState();
     {
         std::lock_guard lock(state.mutex);

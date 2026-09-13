@@ -49,12 +49,12 @@ public:
     uint32_t DiscoverDirectory(const std::filesystem::path& directory);
     F4ForgeResult Initialize(
         F4ForgeStringView id,
-        const F4ForgeHostApi* host,
+        F4ForgeHostBinding host,
         F4ForgeStringView pluginDirectory,
         F4ForgeStringView configDirectory,
         F4ForgeRuntimeHandle* runtime);
     uint32_t InitializeAll(
-        const F4ForgeHostApi* host,
+        F4ForgeHostBinding host,
         F4ForgeStringView pluginDirectory,
         F4ForgeStringView configDirectory);
     F4ForgeResult Shutdown(F4ForgeRuntimeHandle runtime);

@@ -8,6 +8,7 @@ C_STATIC_ASSERT(sizeof(F4ForgeKeyEventData) == 28, key_event_size);
 C_STATIC_ASSERT(offsetof(F4ForgeKeyEventData, keyCode) == 8, key_event_key_offset);
 C_STATIC_ASSERT(F4FORGE_KEY_A == 0x41, key_a_value);
 C_STATIC_ASSERT(F4FORGE_KEY_APOSTROPHE == 0xDE, key_apostrophe_value);
+C_STATIC_ASSERT(sizeof(F4ForgeHostBinding) == 24, host_binding_size);
 
 static F4ForgeResult F4FORGE_CALL StubInitialize(const F4ForgeRuntimeInitializeParams* params)
 {
@@ -37,7 +38,7 @@ int main(void)
     CHECK(api.abiVersion == F4FORGE_ABI_VERSION);
     CHECK(api.structSize == sizeof(api));
     CHECK(sizeof(F4ForgeResult) == 4 && sizeof(F4ForgeRawHandle) == 8);
-    CHECK(sizeof(F4ForgeRuntimeInitializeParams) == 56);
+    CHECK(sizeof(F4ForgeRuntimeInitializeParams) == 72);
     CHECK(provider.initialize(&params) == F4FORGE_RESULT_SUCCESS);
     (void)state;
     return 0;

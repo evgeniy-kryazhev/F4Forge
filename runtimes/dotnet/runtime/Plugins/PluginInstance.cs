@@ -24,14 +24,14 @@ internal sealed unsafe class PluginInstance
     private NativeHostBridge? _bridge;
 
     public PluginInstance(string path, PluginLoadContext context, F4ForgePlugin plugin, string id,
-        PluginResourceScope scope, NativeApi* host, ulong runtime, ManagedTaskScheduler? taskScheduler = null)
+        PluginResourceScope scope, NativeApi* host, void* hostContext, ulong runtime, ManagedTaskScheduler? taskScheduler = null)
     {
         Path = path;
         Context = context;
         Plugin = plugin;
         Id = id;
         Scope = scope;
-        var bridge = host == null ? null : new NativeHostBridge(host, runtime, id);
+        var bridge = host == null ? null : new NativeHostBridge(host, hostContext, runtime, id);
         _bridge = bridge;
         if (bridge != null)
         {

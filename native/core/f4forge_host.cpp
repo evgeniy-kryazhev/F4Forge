@@ -5,12 +5,6 @@
 
 namespace f4forge::core {
 
-F4ForgeHost& F4ForgeHost::Instance() noexcept
-{
-    static F4ForgeHost host;
-    return host;
-}
-
 F4ForgeHost::F4ForgeHost() noexcept
     : _events(_endpoints),
       _interceptors(_endpoints),
@@ -61,6 +55,11 @@ const F4ForgeHostApi& F4ForgeHost::Api() const noexcept
     return _api;
 }
 
+F4ForgeHostBinding F4ForgeHost::Binding() noexcept
+{
+    return { F4FORGE_ABI_VERSION, sizeof(F4ForgeHostBinding), &_api, this };
+}
+
 EndpointRegistry& F4ForgeHost::Endpoints() noexcept
 {
     return _endpoints;
@@ -109,11 +108,13 @@ AsyncOperationRegistry& F4ForgeHost::Operations() noexcept
 }
 
 F4ForgeEndpointHandle F4FORGE_CALL F4ForgeHost::ResolveEndpoint(
+    void* hostContext,
     F4ForgeStringView name,
     uint32_t version) F4FORGE_NOEXCEPT
 {
     try {
-        return Instance()._endpoints.Resolve(name, version);
+        if (hostContext == nullptr) return F4FORGE_INVALID_HANDLE;
+        return static_cast<F4ForgeHost*>(hostContext)->_endpoints.Resolve(name, version);
     } catch (...) {
         return F4FORGE_INVALID_HANDLE;
     }
@@ -121,6 +122,7 @@ F4ForgeEndpointHandle F4FORGE_CALL F4ForgeHost::ResolveEndpoint(
 
 // cppcheck-suppress constParameterCallback
 F4ForgeResult F4FORGE_CALL F4ForgeHost::Invoke(
+    void* hostContext,
     F4ForgeEndpointHandle endpoint,
     const void* request,
     uint32_t requestSize,
@@ -130,20 +132,22 @@ F4ForgeResult F4FORGE_CALL F4ForgeHost::Invoke(
     uint32_t* responseSize) F4FORGE_NOEXCEPT
 {
     try {
-        return Instance()._endpoints.Invoke(endpoint, request, requestSize, response, responseCapacity, responseSize);
+        if (hostContext == nullptr) return F4FORGE_RESULT_INVALID_ARGUMENT;
+        return static_cast<F4ForgeHost*>(hostContext)->_endpoints.Invoke(endpoint, request, requestSize, response, responseCapacity, responseSize);
     } catch (...) {
         return F4FORGE_RESULT_INTERNAL_ERROR;
     }
 }
 
 F4ForgeResult F4FORGE_CALL F4ForgeHost::RegisterEndpoint(
+    void* hostContext,
     F4ForgeModuleHandle module,
     const F4ForgeEndpointDefinition* definition,
     F4ForgeEndpointHandle* endpoint) F4FORGE_NOEXCEPT
 {
-    if (definition == nullptr) return F4FORGE_RESULT_INVALID_ARGUMENT;
+    if (hostContext == nullptr || definition == nullptr) return F4FORGE_RESULT_INVALID_ARGUMENT;
     try {
-        auto& host = Instance();
+        auto& host = *static_cast<F4ForgeHost*>(hostContext);
         return host._endpoints.Register(*definition, host._modules.Owner(module), endpoint);
     } catch (...) {
         return F4FORGE_RESULT_INTERNAL_ERROR;
@@ -151,22 +155,25 @@ F4ForgeResult F4FORGE_CALL F4ForgeHost::RegisterEndpoint(
 }
 
 F4ForgeResult F4FORGE_CALL F4ForgeHost::RegisterModule(
+    void* hostContext,
     F4ForgeRuntimeHandle runtime,
     F4ForgeStringView id,
     uint32_t version,
     F4ForgeModuleHandle* module) F4FORGE_NOEXCEPT
 {
     try {
-        return Instance()._modules.Register(runtime, id, version, module);
+        if (hostContext == nullptr) return F4FORGE_RESULT_INVALID_ARGUMENT;
+        return static_cast<F4ForgeHost*>(hostContext)->_modules.Register(runtime, id, version, module);
     } catch (...) {
         return F4FORGE_RESULT_INTERNAL_ERROR;
     }
 }
 
-F4ForgeResult F4FORGE_CALL F4ForgeHost::UnregisterModule(F4ForgeModuleHandle module) F4FORGE_NOEXCEPT
+F4ForgeResult F4FORGE_CALL F4ForgeHost::UnregisterModule(void* hostContext, F4ForgeModuleHandle module) F4FORGE_NOEXCEPT
 {
     try {
-        auto& host = Instance();
+        if (hostContext == nullptr) return F4FORGE_RESULT_INVALID_ARGUMENT;
+        auto& host = *static_cast<F4ForgeHost*>(hostContext);
         return host._modules.Unregister(module);
     } catch (...) {
         return F4FORGE_RESULT_INTERNAL_ERROR;
@@ -174,17 +181,20 @@ F4ForgeResult F4FORGE_CALL F4ForgeHost::UnregisterModule(F4ForgeModuleHandle mod
 }
 
 uint32_t F4FORGE_CALL F4ForgeHost::QueryCapability(
+    void* hostContext,
     F4ForgeStringView id,
     uint32_t minimumVersion) F4FORGE_NOEXCEPT
 {
     try {
-        return Instance()._capabilities.Query(id, minimumVersion);
+        if (hostContext == nullptr) return 0;
+        return static_cast<F4ForgeHost*>(hostContext)->_capabilities.Query(id, minimumVersion);
     } catch (...) {
         return 0;
     }
 }
 
 F4ForgeResult F4FORGE_CALL F4ForgeHost::QueueTask(
+    void* hostContext,
     F4ForgeRuntimeHandle runtime,
     uint64_t taskHandle) F4FORGE_NOEXCEPT
 {
@@ -194,7 +204,8 @@ F4ForgeResult F4FORGE_CALL F4ForgeHost::QueueTask(
         uint64_t taskHandle;
     };
     try {
-        auto& host = Instance();
+        if (hostContext == nullptr) return F4FORGE_RESULT_INVALID_ARGUMENT;
+        auto& host = *static_cast<F4ForgeHost*>(hostContext);
         if (!host._runtimes.IsActive(runtime)) return F4FORGE_RESULT_INACTIVE_RUNTIME;
         if (host._gameThreadScheduler == nullptr) return F4FORGE_RESULT_SCHEDULER_UNAVAILABLE;
         auto* task = new Task{ &host._runtimes, runtime, taskHandle };
@@ -213,6 +224,7 @@ F4ForgeResult F4FORGE_CALL F4ForgeHost::QueueTask(
 }
 
 F4ForgeResult F4FORGE_CALL F4ForgeHost::InvokeAsync(
+    void* hostContext,
     F4ForgeModuleHandle caller,
     F4ForgeEndpointHandle endpoint,
     const void* request,
@@ -220,7 +232,8 @@ F4ForgeResult F4FORGE_CALL F4ForgeHost::InvokeAsync(
     F4ForgeAsyncOperationHandle* operation) F4FORGE_NOEXCEPT
 {
     try {
-        auto& host = Instance();
+        if (hostContext == nullptr) return F4FORGE_RESULT_INVALID_ARGUMENT;
+        auto& host = *static_cast<F4ForgeHost*>(hostContext);
         auto* requester = host._modules.Owner(caller);
         if (requester == nullptr) return F4FORGE_RESULT_INACTIVE_MODULE;
         auto requesterLease = requester->TryAcquireDispatchLease();
@@ -256,6 +269,7 @@ F4ForgeResult F4FORGE_CALL F4ForgeHost::InvokeAsync(
 }
 
 F4ForgeResult F4FORGE_CALL F4ForgeHost::EmitAsync(
+    void* hostContext,
     F4ForgeModuleHandle caller,
     F4ForgeEndpointHandle endpoint,
     const void* payload,
@@ -263,7 +277,8 @@ F4ForgeResult F4FORGE_CALL F4ForgeHost::EmitAsync(
     F4ForgeAsyncOperationHandle* operation) F4FORGE_NOEXCEPT
 {
     try {
-        auto& host = Instance();
+        if (hostContext == nullptr) return F4FORGE_RESULT_INVALID_ARGUMENT;
+        auto& host = *static_cast<F4ForgeHost*>(hostContext);
         auto* requester = host._modules.Owner(caller);
         if (requester == nullptr) return F4FORGE_RESULT_INACTIVE_MODULE;
         auto requesterLease = requester->TryAcquireDispatchLease();
@@ -291,22 +306,27 @@ F4ForgeResult F4FORGE_CALL F4ForgeHost::EmitAsync(
 }
 
 F4ForgeResult F4FORGE_CALL F4ForgeHost::PollOperation(
+    void* hostContext,
     F4ForgeAsyncOperationHandle operation,
     F4ForgeAsyncOperationState* state) F4FORGE_NOEXCEPT
 {
-    try { return Instance()._operations.Poll(operation, state); }
+    if (hostContext == nullptr) return F4FORGE_RESULT_INVALID_ARGUMENT;
+    try { return static_cast<F4ForgeHost*>(hostContext)->_operations.Poll(operation, state); }
     catch (...) { return F4FORGE_RESULT_INTERNAL_ERROR; }
 }
 
 F4ForgeResult F4FORGE_CALL F4ForgeHost::WaitOperation(
+    void* hostContext,
     F4ForgeAsyncOperationHandle operation,
     uint32_t timeoutMilliseconds) F4FORGE_NOEXCEPT
 {
-    try { return Instance()._operations.Wait(operation, timeoutMilliseconds); }
+    if (hostContext == nullptr) return F4FORGE_RESULT_INVALID_ARGUMENT;
+    try { return static_cast<F4ForgeHost*>(hostContext)->_operations.Wait(operation, timeoutMilliseconds); }
     catch (...) { return F4FORGE_RESULT_INTERNAL_ERROR; }
 }
 
 F4ForgeResult F4FORGE_CALL F4ForgeHost::GetOperationResult(
+    void* hostContext,
     F4ForgeAsyncOperationHandle operation,
     F4ForgeResult* invocationResult,
     void* response,
@@ -314,27 +334,32 @@ F4ForgeResult F4FORGE_CALL F4ForgeHost::GetOperationResult(
     uint32_t* responseSize) F4FORGE_NOEXCEPT
 {
     try {
-        return Instance()._operations.GetResult(
+        if (hostContext == nullptr) return F4FORGE_RESULT_INVALID_ARGUMENT;
+        return static_cast<F4ForgeHost*>(hostContext)->_operations.GetResult(
             operation, invocationResult, response, responseCapacity, responseSize);
     } catch (...) { return F4FORGE_RESULT_INTERNAL_ERROR; }
 }
 
-F4ForgeResult F4FORGE_CALL F4ForgeHost::CancelOperation(F4ForgeAsyncOperationHandle operation) F4FORGE_NOEXCEPT
+F4ForgeResult F4FORGE_CALL F4ForgeHost::CancelOperation(void* hostContext, F4ForgeAsyncOperationHandle operation) F4FORGE_NOEXCEPT
 {
-    try { return Instance()._operations.Cancel(operation); }
+    if (hostContext == nullptr) return F4FORGE_RESULT_INVALID_ARGUMENT;
+    try { return static_cast<F4ForgeHost*>(hostContext)->_operations.Cancel(operation); }
     catch (...) { return F4FORGE_RESULT_INTERNAL_ERROR; }
 }
 
-F4ForgeResult F4FORGE_CALL F4ForgeHost::ReleaseOperation(F4ForgeAsyncOperationHandle operation) F4FORGE_NOEXCEPT
+F4ForgeResult F4FORGE_CALL F4ForgeHost::ReleaseOperation(void* hostContext, F4ForgeAsyncOperationHandle operation) F4FORGE_NOEXCEPT
 {
-    try { return Instance()._operations.Release(operation); }
+    if (hostContext == nullptr) return F4FORGE_RESULT_INVALID_ARGUMENT;
+    try { return static_cast<F4ForgeHost*>(hostContext)->_operations.Release(operation); }
     catch (...) { return F4FORGE_RESULT_INTERNAL_ERROR; }
 }
 
 F4ForgeResult F4FORGE_CALL F4ForgeHost::WaitModuleQuiescence(
+    void* hostContext,
     F4ForgeModuleHandle module, uint32_t timeoutMilliseconds) F4FORGE_NOEXCEPT
 {
-    try { return Instance()._modules.WaitForQuiescence(module, timeoutMilliseconds); }
+    if (hostContext == nullptr) return F4FORGE_RESULT_INVALID_ARGUMENT;
+    try { return static_cast<F4ForgeHost*>(hostContext)->_modules.WaitForQuiescence(module, timeoutMilliseconds); }
     catch (...) { return F4FORGE_RESULT_INTERNAL_ERROR; }
 }
 
@@ -343,10 +368,11 @@ void F4ForgeHost::SetLogSink(LogSink sink) noexcept
     _logSink.store(sink, std::memory_order_release);
 }
 
-void F4FORGE_CALL F4ForgeHost::Log(uint32_t level, F4ForgeStringView message) F4FORGE_NOEXCEPT
+void F4FORGE_CALL F4ForgeHost::Log(void* hostContext, uint32_t level, F4ForgeStringView message) F4FORGE_NOEXCEPT
 {
     if (message.data == nullptr && message.length != 0) return;
-    const auto sink = Instance()._logSink.load(std::memory_order_acquire);
+    if (hostContext == nullptr) return;
+    const auto sink = static_cast<F4ForgeHost*>(hostContext)->_logSink.load(std::memory_order_acquire);
     if (sink == nullptr) return;
     try {
         sink(level, std::string_view(message.data == nullptr ? "" : message.data, message.length));
@@ -355,45 +381,51 @@ void F4FORGE_CALL F4ForgeHost::Log(uint32_t level, F4ForgeStringView message) F4
 }
 
 F4ForgeEventSubscriptionHandle F4FORGE_CALL F4ForgeHost::Subscribe(
+    void* hostContext,
     F4ForgeModuleHandle subscriber,
     F4ForgeEndpointHandle endpoint,
     F4ForgeEventCallback callback,
     void* context) F4FORGE_NOEXCEPT
 {
     try {
-        auto& host = Instance();
+        if (hostContext == nullptr) return F4FORGE_INVALID_HANDLE;
+        auto& host = *static_cast<F4ForgeHost*>(hostContext);
         return host._events.Subscribe(host._modules.Owner(subscriber), endpoint, callback, context);
     } catch (...) {
         return F4FORGE_INVALID_HANDLE;
     }
 }
 
-void F4FORGE_CALL F4ForgeHost::Unsubscribe(F4ForgeEventSubscriptionHandle subscription) F4FORGE_NOEXCEPT
+void F4FORGE_CALL F4ForgeHost::Unsubscribe(void* hostContext, F4ForgeEventSubscriptionHandle subscription) F4FORGE_NOEXCEPT
 {
     try {
-        Instance()._events.Unsubscribe(subscription);
+        if (hostContext == nullptr) return;
+        static_cast<F4ForgeHost*>(hostContext)->_events.Unsubscribe(subscription);
     } catch (...) {
     }
 }
 
 F4ForgeInterceptorSubscriptionHandle F4FORGE_CALL F4ForgeHost::Intercept(
+    void* hostContext,
     F4ForgeModuleHandle interceptorOwner,
     F4ForgeEndpointHandle endpoint,
     F4ForgeInterceptorCallback callback,
     void* context) F4FORGE_NOEXCEPT
 {
     try {
-        auto& host = Instance();
+        if (hostContext == nullptr) return F4FORGE_INVALID_HANDLE;
+        auto& host = *static_cast<F4ForgeHost*>(hostContext);
         return host._interceptors.Intercept(host._modules.Owner(interceptorOwner), endpoint, callback, context);
     } catch (...) {
         return F4FORGE_INVALID_HANDLE;
     }
 }
 
-void F4FORGE_CALL F4ForgeHost::RemoveInterceptor(F4ForgeInterceptorSubscriptionHandle subscription) F4FORGE_NOEXCEPT
+void F4FORGE_CALL F4ForgeHost::RemoveInterceptor(void* hostContext, F4ForgeInterceptorSubscriptionHandle subscription) F4FORGE_NOEXCEPT
 {
     try {
-        Instance()._interceptors.Remove(subscription);
+        if (hostContext == nullptr) return;
+        static_cast<F4ForgeHost*>(hostContext)->_interceptors.Remove(subscription);
     } catch (...) {
     }
 }

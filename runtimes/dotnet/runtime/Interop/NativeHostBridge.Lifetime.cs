@@ -13,10 +13,10 @@ internal unsafe sealed partial class NativeHostBridge
             FinalizeCallbackStates();
             return;
         }
-        _api->UnregisterModule(_module.Value);
+        _api->UnregisterModule(_context, _module.Value);
         if (!HasModuleQuiescenceApi) return;
         _ = Task.Run(() => {
-            var quiescence = (F4ForgeResult)_api->WaitModuleQuiescence(_module.Value, uint.MaxValue);
+            var quiescence = (F4ForgeResult)_api->WaitModuleQuiescence(_context, _module.Value, uint.MaxValue);
             if (quiescence is F4ForgeResult.Success or F4ForgeResult.InvalidHandle)
                 FinalizeCallbackStates();
         });

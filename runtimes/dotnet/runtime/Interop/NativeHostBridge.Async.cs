@@ -28,28 +28,28 @@ internal unsafe sealed partial class NativeHostBridge
         fixed (byte* bytes = data)
         {
             var result = emit
-                ? _api->EmitAsync(_module.Value, endpoint.Value, bytes, (uint)data.Length, &operation)
-                : _api->InvokeAsync(_module.Value, endpoint.Value, bytes, (uint)data.Length, &operation);
+                ? _api->EmitAsync(_context, _module.Value, endpoint.Value, bytes, (uint)data.Length, &operation)
+                : _api->InvokeAsync(_context, _module.Value, endpoint.Value, bytes, (uint)data.Length, &operation);
             return ((F4ForgeResult)result, operation);
         }
     }
 
     private AsyncOperationResult WaitAndCollect(ulong operation, CancellationToken cancellationToken)
     {
-        using var registration = cancellationToken.Register(() => _api->CancelOperation(operation));
-        var wait = (F4ForgeResult)_api->WaitOperation(operation, uint.MaxValue);
+        using var registration = cancellationToken.Register(() => _api->CancelOperation(_context, operation));
+        var wait = (F4ForgeResult)_api->WaitOperation(_context, operation, uint.MaxValue);
         var response = new byte[64 * 1024];
         uint responseSize = 0;
         var invocation = 0;
         F4ForgeResult get;
         fixed (byte* responsePointer = response)
         {
-            get = (F4ForgeResult)_api->GetOperationResult(operation, &invocation,
+            get = (F4ForgeResult)_api->GetOperationResult(_context, operation, &invocation,
                 responsePointer, (uint)response.Length, &responseSize);
         }
         if (get == F4ForgeResult.BufferTooSmall) response = [];
         else if (get == F4ForgeResult.Success) Array.Resize(ref response, (int)responseSize);
-        _api->ReleaseOperation(operation);
+        _api->ReleaseOperation(_context, operation);
         return new(wait, response, (F4ForgeResult)invocation);
     }
 }

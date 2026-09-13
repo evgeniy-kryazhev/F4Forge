@@ -17,6 +17,7 @@ internal sealed unsafe class PluginLoader : IDisposable
     private readonly int _failureThreshold;
     private readonly bool _allowManifestlessPlugins;
     private readonly NativeApi* _host;
+    private readonly void* _hostContext;
     private readonly ulong _runtime;
     private readonly NativeHostBridge? _eventBridge;
     private readonly NativeKeyDownEventRouter? _keyEvents;
@@ -24,18 +25,19 @@ internal sealed unsafe class PluginLoader : IDisposable
     private readonly ManagedTaskScheduler? _taskScheduler;
 
     public PluginLoader(int failureThreshold = 3, bool allowManifestlessPlugins = false,
-        NativeApi* host = null, ulong runtime = 0)
+        NativeApi* host = null, void* hostContext = null, ulong runtime = 0)
     {
         _failureThreshold = Math.Max(1, failureThreshold);
         _allowManifestlessPlugins = allowManifestlessPlugins;
         _host = host;
+        _hostContext = hostContext;
         _runtime = runtime;
 
-        if (host != null) _taskScheduler = new ManagedTaskScheduler(host, runtime);
+        if (host != null) _taskScheduler = new ManagedTaskScheduler(host, hostContext, runtime);
 
         if (host == null) return;
 
-        _eventBridge = new NativeHostBridge(host, runtime, "F4Forge.Managed.Input");
+        _eventBridge = new NativeHostBridge(host, hostContext, runtime, "F4Forge.Managed.Input");
         _keyEvents = new NativeKeyDownEventRouter(_eventBridge, DispatchKeyDown);
 
         if (host->Subscribe != null)
@@ -95,7 +97,7 @@ internal sealed unsafe class PluginLoader : IDisposable
             if (expectedId != null && !pluginId.Equals(expectedId, StringComparison.OrdinalIgnoreCase))
                 throw new InvalidOperationException($"Manifest ID '{expectedId}' does not match plugin ID '{pluginId}'.");
             instance = new PluginInstance(Path.GetFullPath(path), context, plugin, pluginId,
-                new PluginResourceScope(), _host, _runtime, _taskScheduler);
+                new PluginResourceScope(), _host, _hostContext, _runtime, _taskScheduler);
             lock (_gate)
             {
                 if (_plugins.ContainsKey(pluginId))

@@ -7,6 +7,7 @@ namespace F4Forge.DotNet.Runtime.Interop;
 internal unsafe sealed partial class NativeHostBridge : IPluginHostBridge, IDisposable
 {
     private readonly NativeApi* _api;
+    private readonly void* _context;
     private readonly SdkModuleHandle _module;
     private readonly List<CallbackRegistration> _registrations = [];
     private readonly TaskCompletionSource<bool> _quiesced =
@@ -15,15 +16,16 @@ internal unsafe sealed partial class NativeHostBridge : IPluginHostBridge, IDisp
     private bool _disposed;
     private int _finalizationStarted;
 
-    public NativeHostBridge(NativeApi* api, ulong runtime, string id)
+    public NativeHostBridge(NativeApi* api, void* context, ulong runtime, string id)
     {
         _api = api;
+        _context = context;
         if (api == null || api->RegisterModule == null) return;
         var bytes = Encoding.UTF8.GetBytes(id);
         fixed (byte* text = bytes)
         {
             ulong module = 0;
-            var result = api->RegisterModule(runtime,
+            var result = api->RegisterModule(context, runtime,
                 new F4ForgeStringView { Data = text, Length = (uint)bytes.Length }, 1, &module);
             if (result != (int)F4ForgeResult.Success)
                 throw new InvalidOperationException($"Native module registration failed: {result}");
@@ -38,7 +40,7 @@ internal unsafe sealed partial class NativeHostBridge : IPluginHostBridge, IDisp
         if (_api == null || _api->ResolveEndpoint == null) return default;
         var bytes = Encoding.UTF8.GetBytes(name);
         fixed (byte* text = bytes)
-            return new EndpointHandle(_api->ResolveEndpoint(
+            return new EndpointHandle(_api->ResolveEndpoint(_context,
                 new F4ForgeStringView { Data = text, Length = (uint)bytes.Length }, version));
     }
 
@@ -50,7 +52,7 @@ internal unsafe sealed partial class NativeHostBridge : IPluginHostBridge, IDisp
         fixed (byte* requestPointer = request)
         fixed (byte* responsePointer = response)
         fixed (uint* size = &responseSize)
-            return (F4ForgeResult)_api->Invoke(endpoint.Value,
+            return (F4ForgeResult)_api->Invoke(_context, endpoint.Value,
                 request.IsEmpty ? null : requestPointer, (uint)request.Length,
                 response.IsEmpty ? null : responsePointer, (uint)response.Length, size);
     }
@@ -60,7 +62,7 @@ internal unsafe sealed partial class NativeHostBridge : IPluginHostBridge, IDisp
         if (_api == null || _api->QueryCapability == null) return 0;
         var bytes = Encoding.UTF8.GetBytes(id);
         fixed (byte* text = bytes)
-            return _api->QueryCapability(
+            return _api->QueryCapability(_context,
                 new F4ForgeStringView { Data = text, Length = (uint)bytes.Length }, minimumVersion);
     }
 }

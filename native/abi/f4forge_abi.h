@@ -239,14 +239,17 @@ typedef struct F4ForgeEndpointDefinition {
 } F4ForgeEndpointDefinition;
 
 typedef void (F4FORGE_CALL* F4ForgeLogFn)(
+    void* hostContext,
     uint32_t level,
     F4ForgeStringView message) F4FORGE_NOEXCEPT;
 
 typedef F4ForgeEndpointHandle (F4FORGE_CALL* F4ForgeResolveEndpointFn)(
+    void* hostContext,
     F4ForgeStringView name,
     uint32_t version) F4FORGE_NOEXCEPT;
 
 typedef F4ForgeResult (F4FORGE_CALL* F4ForgeInvokeFn)(
+    void* hostContext,
     F4ForgeEndpointHandle endpoint,
     const void* request,
     uint32_t requestSize,
@@ -255,46 +258,56 @@ typedef F4ForgeResult (F4FORGE_CALL* F4ForgeInvokeFn)(
     uint32_t* responseSize) F4FORGE_NOEXCEPT;
 
 typedef F4ForgeEventSubscriptionHandle (F4FORGE_CALL* F4ForgeSubscribeFn)(
+    void* hostContext,
     F4ForgeModuleHandle subscriber,
     F4ForgeEndpointHandle endpoint,
     F4ForgeEventCallback callback,
     void* context) F4FORGE_NOEXCEPT;
 
 typedef void (F4FORGE_CALL* F4ForgeUnsubscribeFn)(
+    void* hostContext,
     F4ForgeEventSubscriptionHandle subscription) F4FORGE_NOEXCEPT;
 
 typedef F4ForgeInterceptorSubscriptionHandle (F4FORGE_CALL* F4ForgeInterceptFn)(
+    void* hostContext,
     F4ForgeModuleHandle interceptorOwner,
     F4ForgeEndpointHandle endpoint,
     F4ForgeInterceptorCallback callback,
     void* context) F4FORGE_NOEXCEPT;
 
 typedef void (F4FORGE_CALL* F4ForgeRemoveInterceptorFn)(
+    void* hostContext,
     F4ForgeInterceptorSubscriptionHandle subscription) F4FORGE_NOEXCEPT;
 
 typedef F4ForgeResult (F4FORGE_CALL* F4ForgeRegisterEndpointFn)(
+    void* hostContext,
     F4ForgeModuleHandle module,
     const F4ForgeEndpointDefinition* definition,
     F4ForgeEndpointHandle* endpoint) F4FORGE_NOEXCEPT;
 
 typedef F4ForgeResult (F4FORGE_CALL* F4ForgeRegisterModuleFn)(
+    void* hostContext,
     F4ForgeRuntimeHandle runtime,
     F4ForgeStringView id,
     uint32_t version,
     F4ForgeModuleHandle* module) F4FORGE_NOEXCEPT;
 
 typedef F4ForgeResult (F4FORGE_CALL* F4ForgeUnregisterModuleFn)(
+    void* hostContext,
     F4ForgeModuleHandle module) F4FORGE_NOEXCEPT;
 
 typedef uint32_t (F4FORGE_CALL* F4ForgeQueryCapabilityFn)(
+    void* hostContext,
     F4ForgeStringView id,
     uint32_t minimumVersion) F4FORGE_NOEXCEPT;
 
 typedef F4ForgeResult (F4FORGE_CALL* F4ForgeQueueTaskFn)(
+    void* hostContext,
     F4ForgeRuntimeHandle runtime,
     uint64_t taskHandle) F4FORGE_NOEXCEPT;
 
 typedef F4ForgeResult (F4FORGE_CALL* F4ForgeInvokeAsyncFn)(
+    void* hostContext,
     F4ForgeModuleHandle caller,
     F4ForgeEndpointHandle endpoint,
     const void* request,
@@ -302,6 +315,7 @@ typedef F4ForgeResult (F4FORGE_CALL* F4ForgeInvokeAsyncFn)(
     F4ForgeAsyncOperationHandle* operation) F4FORGE_NOEXCEPT;
 
 typedef F4ForgeResult (F4FORGE_CALL* F4ForgeEmitAsyncFn)(
+    void* hostContext,
     F4ForgeModuleHandle caller,
     F4ForgeEndpointHandle endpoint,
     const void* payload,
@@ -309,14 +323,17 @@ typedef F4ForgeResult (F4FORGE_CALL* F4ForgeEmitAsyncFn)(
     F4ForgeAsyncOperationHandle* operation) F4FORGE_NOEXCEPT;
 
 typedef F4ForgeResult (F4FORGE_CALL* F4ForgePollOperationFn)(
+    void* hostContext,
     F4ForgeAsyncOperationHandle operation,
     F4ForgeAsyncOperationState* state) F4FORGE_NOEXCEPT;
 
 typedef F4ForgeResult (F4FORGE_CALL* F4ForgeWaitOperationFn)(
+    void* hostContext,
     F4ForgeAsyncOperationHandle operation,
     uint32_t timeoutMilliseconds) F4FORGE_NOEXCEPT;
 
 typedef F4ForgeResult (F4FORGE_CALL* F4ForgeGetOperationResultFn)(
+    void* hostContext,
     F4ForgeAsyncOperationHandle operation,
     F4ForgeResult* invocationResult,
     void* response,
@@ -324,12 +341,15 @@ typedef F4ForgeResult (F4FORGE_CALL* F4ForgeGetOperationResultFn)(
     uint32_t* responseSize) F4FORGE_NOEXCEPT;
 
 typedef F4ForgeResult (F4FORGE_CALL* F4ForgeCancelOperationFn)(
+    void* hostContext,
     F4ForgeAsyncOperationHandle operation) F4FORGE_NOEXCEPT;
 
 typedef F4ForgeResult (F4FORGE_CALL* F4ForgeReleaseOperationFn)(
+    void* hostContext,
     F4ForgeAsyncOperationHandle operation) F4FORGE_NOEXCEPT;
 
 typedef F4ForgeResult (F4FORGE_CALL* F4ForgeWaitModuleQuiescenceFn)(
+    void* hostContext,
     F4ForgeModuleHandle module,
     uint32_t timeoutMilliseconds) F4FORGE_NOEXCEPT;
 
@@ -360,12 +380,19 @@ typedef struct F4ForgeHostApi {
     F4ForgeWaitModuleQuiescenceFn waitModuleQuiescence;
 } F4ForgeHostApi;
 
-typedef const F4ForgeHostApi* (F4FORGE_CALL* F4ForgeGetHostApiFn)(void) F4FORGE_NOEXCEPT;
+typedef struct F4ForgeHostBinding {
+    uint32_t abiVersion;
+    uint32_t structSize;
+    const F4ForgeHostApi* api;
+    void* context;
+} F4ForgeHostBinding;
+
+typedef F4ForgeHostBinding (F4FORGE_CALL* F4ForgeGetHostApiFn)(void) F4FORGE_NOEXCEPT;
 
 #if defined(_MSC_VER)
 __declspec(dllexport)
 #endif
-const F4ForgeHostApi* F4FORGE_CALL F4ForgeGetHostApi(void) F4FORGE_NOEXCEPT;
+F4ForgeHostBinding F4FORGE_CALL F4ForgeGetHostApi(void) F4FORGE_NOEXCEPT;
 
 #ifdef __cplusplus
 }
@@ -427,6 +454,13 @@ static_assert(offsetof(F4ForgeHostApi, cancelOperation) == 144);
 static_assert(offsetof(F4ForgeHostApi, releaseOperation) == 152);
 static_assert(offsetof(F4ForgeHostApi, waitModuleQuiescence) == 160);
 static_assert(sizeof(F4ForgeHostApi) == 168);
+static_assert(std::is_standard_layout_v<F4ForgeHostBinding>);
+static_assert(std::is_trivial_v<F4ForgeHostBinding>);
+static_assert(offsetof(F4ForgeHostBinding, abiVersion) == 0);
+static_assert(offsetof(F4ForgeHostBinding, structSize) == 4);
+static_assert(offsetof(F4ForgeHostBinding, api) == 8);
+static_assert(offsetof(F4ForgeHostBinding, context) == 16);
+static_assert(sizeof(F4ForgeHostBinding) == 24);
 static_assert(offsetof(F4ForgeEndpointDefinition, structSize) == 0);
 static_assert(offsetof(F4ForgeEndpointDefinition, kind) == 4);
 static_assert(offsetof(F4ForgeEndpointDefinition, version) == 8);

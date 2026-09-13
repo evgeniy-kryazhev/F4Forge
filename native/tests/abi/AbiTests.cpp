@@ -17,7 +17,8 @@ int main()
     CHECK(f4forge::HandleGeneration(f4forge::MakeHandle(42, 9)) == 42);
     CHECK(f4forge::HandleIndex(f4forge::MakeHandle(42, 9)) == 9);
     CHECK(F4FORGE_INVALID_HANDLE == 0);
-    CHECK(sizeof(F4ForgeRuntimeInitializeParams) == 56);
-    CHECK(sizeof(F4ForgeManagedBootstrapArgs) == 56);
+    CHECK(sizeof(F4ForgeHostBinding) == 24);
+    CHECK(sizeof(F4ForgeRuntimeInitializeParams) == 72);
+    CHECK(sizeof(F4ForgeManagedBootstrapArgs) == 72);
     return 0;
 }

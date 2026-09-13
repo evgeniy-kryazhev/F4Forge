@@ -67,7 +67,7 @@ public sealed class GameThreadDispatcherTests
         {
             _host = (NativeApi*)NativeMemory.Alloc((nuint)sizeof(NativeApi));
             *_host = new NativeApi { QueueTask = &QueueTask };
-            Scheduler = new ManagedTaskScheduler(_host, 7);
+            Scheduler = new ManagedTaskScheduler(_host, _host, 7);
         }
 
         internal ManagedTaskScheduler Scheduler { get; }
@@ -80,7 +80,7 @@ public sealed class GameThreadDispatcherTests
     }
 
     [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
-    private static int QueueTask(ulong runtime, ulong taskId)
+    private static int QueueTask(void* context, ulong runtime, ulong taskId)
     {
         queuedTaskId = taskId;
         return (int)F4ForgeResult.Success;

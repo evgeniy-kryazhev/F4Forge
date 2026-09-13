@@ -17,7 +17,8 @@ F4ForgeResult F4FORGE_CALL Initialize(const F4ForgeRuntimeInitializeParams* para
 {
     assert(params != nullptr);
     assert(params->abiVersion == F4FORGE_RUNTIME_PROVIDER_ABI_VERSION);
-    assert(params->host != nullptr);
+    assert(params->host.api != nullptr);
+    assert(params->host.context != nullptr);
     assert(callbackManager != nullptr);
     assert(callbackManager->ProviderCount() >= 1);
     ++initializeCalls;
@@ -76,15 +77,16 @@ int main()
     F4ForgeHostApi host{};
     host.abiVersion = F4FORGE_ABI_VERSION;
     host.structSize = sizeof(host);
+    const F4ForgeHostBinding binding{ F4FORGE_ABI_VERSION, sizeof(F4ForgeHostBinding), &host, &manager };
     F4ForgeRuntimeHandle runtime = F4FORGE_INVALID_HANDLE;
     const auto initializeResult = manager.Initialize(
-        { "test", 4 }, &host, { "plugins", 7 }, { "config", 6 }, &runtime);
+        { "test", 4 }, binding, { "plugins", 7 }, { "config", 6 }, &runtime);
     assert(initializeResult == F4FORGE_RESULT_SUCCESS);
     assert(runtime != F4FORGE_INVALID_HANDLE);
     assert(initializeCalls == 1);
     F4ForgeRuntimeHandle duplicateRuntime = F4FORGE_INVALID_HANDLE;
     const auto duplicateInitializeResult = manager.Initialize(
-        { "test", 4 }, &host, {}, {}, &duplicateRuntime);
+        { "test", 4 }, binding, {}, {}, &duplicateRuntime);
     assert(duplicateInitializeResult == F4FORGE_RESULT_ALREADY_REGISTERED);
     const auto shutdownResult = manager.Shutdown(runtime);
     assert(shutdownResult == F4FORGE_RESULT_SUCCESS);
@@ -93,12 +95,12 @@ int main()
     assert(duplicateShutdownResult == F4FORGE_RESULT_INVALID_HANDLE);
     F4ForgeRuntimeHandle restartedRuntime = F4FORGE_INVALID_HANDLE;
     const auto restartInitializeResult = manager.Initialize(
-        { "test", 4 }, &host, {}, {}, &restartedRuntime);
+        { "test", 4 }, binding, {}, {}, &restartedRuntime);
     assert(restartInitializeResult == F4FORGE_RESULT_SUCCESS);
     assert(restartedRuntime != runtime);
-    const auto missingInitializeResult = manager.Initialize({ "missing", 7 }, &host, {}, {}, &runtime);
+    const auto missingInitializeResult = manager.Initialize({ "missing", 7 }, binding, {}, {}, &runtime);
     assert(missingInitializeResult == F4FORGE_RESULT_RUNTIME_UNAVAILABLE);
-    const auto initializeAllResult = manager.InitializeAll(&host, { "plugins", 7 }, { "config", 6 });
+    const auto initializeAllResult = manager.InitializeAll(binding, { "plugins", 7 }, { "config", 6 });
     assert(initializeAllResult == 2);
     assert(initializeCalls == 2);
     const auto restartedShutdownResult = manager.Shutdown(restartedRuntime);
@@ -106,7 +108,7 @@ int main()
     for (uint32_t cycle = 0; cycle < 1000; ++cycle) {
         F4ForgeRuntimeHandle cycleRuntime = F4FORGE_INVALID_HANDLE;
         const auto cycleInitializeResult = manager.Initialize(
-            { "test", 4 }, &host, {}, {}, &cycleRuntime);
+            { "test", 4 }, binding, {}, {}, &cycleRuntime);
         assert(cycleInitializeResult == F4FORGE_RESULT_SUCCESS);
         const auto cycleShutdownResult = manager.Shutdown(cycleRuntime);
         assert(cycleShutdownResult == F4FORGE_RESULT_SUCCESS);
@@ -114,7 +116,7 @@ int main()
     }
     F4ForgeRuntimeHandle quarantinedRuntime = F4FORGE_INVALID_HANDLE;
     const auto quarantinedInitializeResult = manager.Initialize(
-        { "test", 4 }, &host, {}, {}, &quarantinedRuntime);
+        { "test", 4 }, binding, {}, {}, &quarantinedRuntime);
     assert(quarantinedInitializeResult == F4FORGE_RESULT_SUCCESS);
     uint32_t moduleShutdownAttempts = 0;
     manager.SetModuleShutdownCallback([&](F4ForgeRuntimeHandle) {

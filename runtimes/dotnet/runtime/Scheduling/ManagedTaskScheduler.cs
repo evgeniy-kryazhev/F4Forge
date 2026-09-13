@@ -8,13 +8,15 @@ internal unsafe sealed class ManagedTaskScheduler : IGameThreadScheduler, IDispo
 {
     private readonly ConcurrentDictionary<ulong, WorkItem> _tasks = new();
     private readonly NativeApi* _host;
+    private readonly void* _context;
     private readonly ulong _runtime;
     private long _nextTaskId;
     private int _quiescing;
 
-    internal ManagedTaskScheduler(NativeApi* host, ulong runtime)
+    internal ManagedTaskScheduler(NativeApi* host, void* context, ulong runtime)
     {
         _host = host;
+        _context = context;
         _runtime = runtime;
     }
 
@@ -51,7 +53,7 @@ internal unsafe sealed class ManagedTaskScheduler : IGameThreadScheduler, IDispo
         {
             if (_tasks.TryRemove(taskId, out var removed)) removed.Cancel();
         });
-        var result = (F4ForgeResult)_host->QueueTask(_runtime, taskId);
+        var result = (F4ForgeResult)_host->QueueTask(_context, _runtime, taskId);
         if (result != F4ForgeResult.Success && _tasks.TryRemove(taskId, out var rejected))
             rejected.Reject(result);
         return completion.Task;

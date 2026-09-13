@@ -70,19 +70,19 @@ public sealed unsafe class BootstrapTests : IDisposable
     {
         AbiVersion = 2,
         StructSize = (uint)sizeof(ManagedBootstrapArgs),
-        Host = host,
+        Host = new NativeHostBinding { AbiVersion = 3, StructSize = (uint)sizeof(NativeHostBinding), Api = host, Context = host },
         Runtime = 1
     };
 
     [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
-    private static ulong ResolveEndpoint(F4ForgeStringView name, uint version) => 1;
+    private static ulong ResolveEndpoint(void* context, F4ForgeStringView name, uint version) => 1;
 
     [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
-    private static int Invoke(ulong endpoint, void* request, uint requestSize, void* response, uint responseCapacity, uint* responseSize)
+    private static int Invoke(void* context, ulong endpoint, void* request, uint requestSize, void* response, uint responseCapacity, uint* responseSize)
         => (int)F4ForgeResult.Success;
 
     [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
-    private static void Log(uint level, F4ForgeStringView message)
+    private static void Log(void* context, uint level, F4ForgeStringView message)
     {
         if (logCount < LogLevels.Length)
         {
