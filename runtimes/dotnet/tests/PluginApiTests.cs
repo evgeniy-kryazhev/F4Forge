@@ -15,6 +15,19 @@ public sealed class PluginApiTests
         Assert.True(plugin.Loaded);
     }
 
+    [Fact]
+    public void ContextExposesSpecializedServices()
+    {
+        var context = new F4ForgePluginContext(default, _ => { }, null, CancellationToken.None);
+
+        Assert.NotNull(context.Events);
+        Assert.NotNull(context.Input);
+        Assert.NotNull(context.Endpoints);
+        Assert.NotNull(context.Capabilities);
+        Assert.Equal(default, context.Endpoints.Resolve("missing.endpoint"));
+        Assert.Equal(0u, context.Capabilities.Query("missing.capability"));
+    }
+
     private sealed class TestPlugin : F4ForgePlugin
     {
         public bool Loaded { get; private set; }

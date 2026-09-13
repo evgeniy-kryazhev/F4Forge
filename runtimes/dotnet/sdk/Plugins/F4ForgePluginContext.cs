@@ -3,8 +3,6 @@ namespace F4Forge.DotNet.Sdk;
 public sealed class F4ForgePluginContext
 {
     private readonly Action<IDisposable> _trackResource;
-    private readonly IPluginHostBridge? _bridge;
-
     internal F4ForgePluginContext(
         ModuleHandle module,
         Action<IDisposable> trackResource,
@@ -16,20 +14,22 @@ public sealed class F4ForgePluginContext
         Module = module;
         CancellationToken = cancellationToken;
         _trackResource = trackResource;
-        _bridge = bridge;
         Events = events ?? new PluginEvents();
         Input = input ?? new InputEvents();
+        Endpoints = new EndpointService(bridge, Track);
+        Capabilities = new CapabilityService(bridge);
     }
 
     public ModuleHandle Module { get; }
     public CancellationToken CancellationToken { get; }
     public PluginEvents Events { get; }
     public InputEvents Input { get; }
+    public EndpointService Endpoints { get; }
+    public CapabilityService Capabilities { get; }
 
     public EndpointHandle ResolveEndpoint(string name, uint version = 1)
     {
-        ArgumentException.ThrowIfNullOrEmpty(name);
-        return _bridge?.ResolveEndpoint(name, version) ?? default;
+        return Endpoints.Resolve(name, version);
     }
 
     public EndpointHandle RegisterEndpoint(
@@ -41,13 +41,7 @@ public sealed class F4ForgePluginContext
         EndpointCallback callback,
         ThreadPolicy threadPolicy = ThreadPolicy.Any)
     {
-        ArgumentException.ThrowIfNullOrEmpty(name);
-        ArgumentNullException.ThrowIfNull(callback);
-        var registration = _bridge?.RegisterEndpoint(
-            name, kind, version, requestSize, responseSize, threadPolicy, callback);
-        if (registration is null) return default;
-        Track(registration.Resource);
-        return registration.Handle;
+        return Endpoints.Register(name, kind, version, requestSize, responseSize, callback, threadPolicy);
     }
 
     public F4ForgeResult Invoke(
@@ -56,51 +50,39 @@ public sealed class F4ForgePluginContext
         Span<byte> response,
         out uint responseSize)
     {
-        if (_bridge == null) { responseSize = 0; return F4ForgeResult.InactiveRuntime; }
-        return _bridge.Invoke(endpoint, request, response, out responseSize);
+        return Endpoints.Invoke(endpoint, request, response, out responseSize);
     }
 
     public EventSubscriptionHandle Subscribe(
         EndpointHandle endpoint,
         Action<ReadOnlyMemory<byte>> callback)
     {
-        ArgumentNullException.ThrowIfNull(callback);
-        var subscription = _bridge?.Subscribe(endpoint, callback);
-        if (subscription is null) return default;
-        Track(subscription.Resource);
-        return subscription.Handle;
+        return Endpoints.Subscribe(endpoint, callback);
     }
 
     public InterceptorSubscriptionHandle Intercept(
         EndpointHandle endpoint,
         Func<Memory<byte>, F4ForgeResult> callback)
     {
-        ArgumentNullException.ThrowIfNull(callback);
-        var subscription = _bridge?.Intercept(endpoint, callback);
-        if (subscription is null) return default;
-        Track(subscription.Resource);
-        return subscription.Handle;
+        return Endpoints.Intercept(endpoint, callback);
     }
 
     public uint QueryCapability(string id, uint minimumVersion = 1)
     {
-        ArgumentException.ThrowIfNullOrEmpty(id);
-        return _bridge?.QueryCapability(id, minimumVersion) ?? 0;
+        return Capabilities.Query(id, minimumVersion);
     }
 
     public Task<AsyncOperationResult> InvokeAsync(
         EndpointHandle endpoint,
         ReadOnlyMemory<byte> request,
         CancellationToken cancellationToken = default)
-        => _bridge?.InvokeAsync(endpoint, request, cancellationToken) ??
-            Task.FromResult(new AsyncOperationResult(F4ForgeResult.InactiveRuntime, [], F4ForgeResult.InactiveRuntime));
+        => Endpoints.InvokeAsync(endpoint, request, cancellationToken);
 
     public Task<AsyncOperationResult> EmitAsync(
         EndpointHandle endpoint,
         ReadOnlyMemory<byte> payload,
         CancellationToken cancellationToken = default)
-        => _bridge?.EmitAsync(endpoint, payload, cancellationToken) ??
-            Task.FromResult(new AsyncOperationResult(F4ForgeResult.InactiveRuntime, [], F4ForgeResult.InactiveRuntime));
+        => Endpoints.EmitAsync(endpoint, payload, cancellationToken);
 
     public void Track(IDisposable resource)
     {
