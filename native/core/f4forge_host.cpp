@@ -206,7 +206,12 @@ F4ForgeResult F4FORGE_CALL F4ForgeHost::QueueTask(
     try {
         if (hostContext == nullptr) return F4FORGE_RESULT_INVALID_ARGUMENT;
         auto& host = *static_cast<F4ForgeHost*>(hostContext);
-        if (!host._runtimes.IsActive(runtime)) return F4FORGE_RESULT_INACTIVE_RUNTIME;
+        if (!host._runtimes.BeginTaskAdmission(runtime)) return F4FORGE_RESULT_INACTIVE_RUNTIME;
+        struct Admission final {
+            RuntimeManager& runtimes;
+            F4ForgeRuntimeHandle runtime;
+            ~Admission() { runtimes.EndTaskAdmission(runtime); }
+        } admission{ host._runtimes, runtime };
         if (host._gameThreadScheduler == nullptr) return F4FORGE_RESULT_SCHEDULER_UNAVAILABLE;
         auto* task = new Task{ &host._runtimes, runtime, taskHandle };
         const auto result = host._gameThreadScheduler->Post(

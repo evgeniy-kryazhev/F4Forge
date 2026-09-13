@@ -11,6 +11,7 @@ namespace {
 
 uint32_t initializeCalls = 0;
 uint32_t shutdownCalls = 0;
+uint32_t executeTaskCalls = 0;
 f4forge::core::RuntimeManager* callbackManager = nullptr;
 
 F4ForgeResult F4FORGE_CALL Initialize(const F4ForgeRuntimeInitializeParams* params) noexcept
@@ -32,7 +33,7 @@ void F4FORGE_CALL Shutdown(F4ForgeRuntimeHandle) noexcept
     ++shutdownCalls;
 }
 
-void F4FORGE_CALL ExecuteTask(F4ForgeRuntimeHandle, uint64_t) noexcept {}
+void F4FORGE_CALL ExecuteTask(F4ForgeRuntimeHandle, uint64_t) noexcept { ++executeTaskCalls; }
 
 }
 
@@ -98,6 +99,10 @@ int main()
         { "test", 4 }, binding, {}, {}, &restartedRuntime);
     assert(restartInitializeResult == F4FORGE_RESULT_SUCCESS);
     assert(restartedRuntime != runtime);
+    assert(manager.ExecuteTask(runtime, 1) == F4FORGE_RESULT_INACTIVE_RUNTIME);
+    assert(executeTaskCalls == 0);
+    assert(manager.ExecuteTask(restartedRuntime, 2) == F4FORGE_RESULT_SUCCESS);
+    assert(executeTaskCalls == 1);
     const auto missingInitializeResult = manager.Initialize({ "missing", 7 }, binding, {}, {}, &runtime);
     assert(missingInitializeResult == F4FORGE_RESULT_RUNTIME_UNAVAILABLE);
     const auto initializeAllResult = manager.InitializeAll(binding, { "plugins", 7 }, { "config", 6 });

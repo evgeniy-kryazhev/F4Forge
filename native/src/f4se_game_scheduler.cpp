@@ -42,32 +42,34 @@ F4ForgeResult F4seGameScheduler::Post(
     {
         std::lock_guard lock(_mutex);
         if (!_accepting) return F4FORGE_RESULT_SCHEDULER_UNAVAILABLE;
-        _pending.push_back(item);
-    }
-
-    try {
-        taskInterface->AddTask([this, item] {
-            {
-                std::lock_guard lock(_mutex);
-                _pending.erase(std::remove(_pending.begin(), _pending.end(), item), _pending.end());
-            }
-            if (!item->cancelled.load(std::memory_order_acquire)) item->execute(item->context);
-            Cleanup(item);
-        });
-    } catch (...) {
-        item->cancelled.store(true, std::memory_order_release);
-        std::lock_guard lock(_mutex);
-        _pending.erase(std::remove(_pending.begin(), _pending.end(), item), _pending.end());
-        return F4FORGE_RESULT_INTERNAL_ERROR;
+        try {
+            _pending.push_back(item);
+            taskInterface->AddTask([this, item] {
+                {
+                    std::lock_guard lock(_mutex);
+                    _pending.erase(std::remove(_pending.begin(), _pending.end(), item), _pending.end());
+                }
+                if (!item->cancelled.load(std::memory_order_acquire)) item->execute(item->context);
+                Cleanup(item);
+            });
+        } catch (...) {
+            _pending.erase(std::remove(_pending.begin(), _pending.end(), item), _pending.end());
+            return F4FORGE_RESULT_INTERNAL_ERROR;
+        }
     }
     return F4FORGE_RESULT_SUCCESS;
 }
 
 void F4seGameScheduler::CancelPending() noexcept
 {
-    std::lock_guard lock(_mutex);
-    _accepting = false;
-    for (const auto& item : _pending) item->cancelled.store(true, std::memory_order_release);
+    std::vector<std::shared_ptr<Job>> pending;
+    {
+        std::lock_guard lock(_mutex);
+        _accepting = false;
+        pending.swap(_pending);
+        for (const auto& item : pending) item->cancelled.store(true, std::memory_order_release);
+    }
+    for (const auto& item : pending) Cleanup(item);
 }
 
 int32_t F4FORGE_CALL F4seGameScheduler::CheckGameThread() noexcept

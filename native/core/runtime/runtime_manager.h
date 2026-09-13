@@ -4,6 +4,7 @@
 #include "f4forge_handles.h"
 
 #include <array>
+#include <condition_variable>
 #include <cstdint>
 #include <filesystem>
 #include <functional>
@@ -62,6 +63,8 @@ public:
     void SetModuleShutdownCallback(std::function<bool(F4ForgeRuntimeHandle)> callback) noexcept;
     RuntimeInstance* Find(F4ForgeRuntimeHandle runtime) noexcept;
     bool IsActive(F4ForgeRuntimeHandle runtime) const noexcept;
+    bool BeginTaskAdmission(F4ForgeRuntimeHandle runtime) noexcept;
+    void EndTaskAdmission(F4ForgeRuntimeHandle runtime) noexcept;
     F4ForgeResult ExecuteTask(F4ForgeRuntimeHandle runtime, uint64_t taskHandle) noexcept;
     bool CanRegisterModule(F4ForgeRuntimeHandle runtime) const noexcept;
     bool HasProvider(F4ForgeStringView id) const noexcept;
@@ -73,10 +76,12 @@ private:
     RuntimeInstance* FindUnlocked(F4ForgeRuntimeHandle runtime) const noexcept;
 
     mutable std::mutex _mutex;
+    std::condition_variable _taskUsersChanged;
     std::array<std::unique_ptr<RuntimeProvider>, MaxProviders> _providers{};
     struct Slot final {
         uint32_t generation{ 1 };
         std::unique_ptr<RuntimeInstance> instance;
+        uint32_t taskUsers{};
     };
 
     std::array<Slot, MaxRuntimes> _runtimes{};

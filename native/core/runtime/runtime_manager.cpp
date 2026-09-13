@@ -187,7 +187,7 @@ F4ForgeResult RuntimeManager::Shutdown(F4ForgeRuntimeHandle runtime)
     const RuntimeProvider* provider = nullptr;
     uint32_t slotIndex = 0;
     {
-        std::lock_guard lock(_mutex);
+        std::unique_lock lock(_mutex);
         instance = FindUnlocked(runtime);
         if (instance == nullptr) return F4FORGE_RESULT_INVALID_HANDLE;
         if (instance->state != RuntimeInstance::State::Active &&
@@ -196,6 +196,7 @@ F4ForgeResult RuntimeManager::Shutdown(F4ForgeRuntimeHandle runtime)
         instance->state = RuntimeInstance::State::ShuttingDown;
         provider = instance->provider;
         slotIndex = f4forge::HandleIndex(runtime);
+        _taskUsersChanged.wait(lock, [this, slotIndex] { return _runtimes[slotIndex].taskUsers == 0; });
     }
 
     F4ForgeResult result = F4FORGE_RESULT_SUCCESS;
@@ -275,22 +276,50 @@ bool RuntimeManager::IsActive(F4ForgeRuntimeHandle runtime) const noexcept
     return instance != nullptr && instance->state == RuntimeInstance::State::Active;
 }
 
+bool RuntimeManager::BeginTaskAdmission(F4ForgeRuntimeHandle runtime) noexcept
+{
+    std::lock_guard lock(_mutex);
+    const auto* instance = FindUnlocked(runtime);
+    if (instance == nullptr || instance->state != RuntimeInstance::State::Active) return false;
+    ++_runtimes[f4forge::HandleIndex(runtime)].taskUsers;
+    return true;
+}
+
+void RuntimeManager::EndTaskAdmission(F4ForgeRuntimeHandle runtime) noexcept
+{
+    std::lock_guard lock(_mutex);
+    const auto index = f4forge::HandleIndex(runtime);
+    if (index == 0 || index >= _slotCount ||
+        _runtimes[index].generation != f4forge::HandleGeneration(runtime)) return;
+    auto& users = _runtimes[index].taskUsers;
+    if (users != 0 && --users == 0) _taskUsersChanged.notify_all();
+}
+
 F4ForgeResult RuntimeManager::ExecuteTask(F4ForgeRuntimeHandle runtime, uint64_t taskHandle) noexcept
 {
     F4ForgeRuntimeExecuteTaskFn executeTask{};
+    const auto index = f4forge::HandleIndex(runtime);
     {
         std::lock_guard lock(_mutex);
         const auto* instance = FindUnlocked(runtime);
         if (instance == nullptr || instance->state != RuntimeInstance::State::Active)
             return F4FORGE_RESULT_INACTIVE_RUNTIME;
         executeTask = instance->provider->provider.executeTask;
+        ++_runtimes[index].taskUsers;
     }
+    F4ForgeResult result = F4FORGE_RESULT_SUCCESS;
     try {
         executeTask(runtime, taskHandle);
-        return F4FORGE_RESULT_SUCCESS;
     } catch (...) {
-        return F4FORGE_RESULT_INTERNAL_ERROR;
+        result = F4FORGE_RESULT_INTERNAL_ERROR;
     }
+    {
+        std::lock_guard lock(_mutex);
+        auto& users = _runtimes[index].taskUsers;
+        --users;
+        if (users == 0) _taskUsersChanged.notify_all();
+    }
+    return result;
 }
 
 bool RuntimeManager::CanRegisterModule(F4ForgeRuntimeHandle runtime) const noexcept

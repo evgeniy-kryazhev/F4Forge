@@ -9,6 +9,7 @@ namespace F4Forge.DotNet.Tests;
 public sealed class GameThreadDispatcherTests
 {
     private static ulong queuedTaskId;
+    private static bool rejectQueue;
 
     [Fact]
     public async Task QueuedActionCompletesWhenNativeTaskExecutes()
@@ -49,14 +50,35 @@ public sealed class GameThreadDispatcherTests
         var scheduler = harness.Scheduler;
         var dispatcher = new GameThreadDispatcher(scheduler);
         using var cancellation = new CancellationTokenSource();
-        var cancelled = dispatcher.InvokeAsync(() => { }, cancellation.Token);
+        var calls = 0;
+        var cancelled = dispatcher.InvokeAsync(() => ++calls, cancellation.Token);
+        var cancelledId = queuedTaskId;
         cancellation.Cancel();
         await Assert.ThrowsAsync<TaskCanceledException>(() => cancelled);
+        scheduler.Execute(cancelledId);
+        Assert.Equal(0, calls);
 
-        var shutdown = dispatcher.InvokeAsync(() => { });
+        var shutdown = dispatcher.InvokeAsync(() => ++calls);
+        var shutdownId = queuedTaskId;
         scheduler.Dispose();
         await Assert.ThrowsAsync<TaskCanceledException>(() => shutdown);
+        scheduler.Execute(shutdownId);
+        Assert.Equal(0, calls);
         await Assert.ThrowsAsync<InvalidOperationException>(() => dispatcher.InvokeAsync(() => { }));
+    }
+
+    [Fact]
+    public async Task NativeRejectionFaultsReturnedTask()
+    {
+        using var harness = new SchedulerHarness();
+        rejectQueue = true;
+        try
+        {
+            var task = new GameThreadDispatcher(harness.Scheduler).InvokeAsync(() => 42);
+            var exception = await Assert.ThrowsAsync<InvalidOperationException>(() => task);
+            Assert.Contains(nameof(F4ForgeResult.InactiveRuntime), exception.Message);
+        }
+        finally { rejectQueue = false; }
     }
 
     private sealed unsafe class SchedulerHarness : IDisposable
@@ -83,6 +105,6 @@ public sealed class GameThreadDispatcherTests
     private static int QueueTask(void* context, ulong runtime, ulong taskId)
     {
         queuedTaskId = taskId;
-        return (int)F4ForgeResult.Success;
+        return (int)(rejectQueue ? F4ForgeResult.InactiveRuntime : F4ForgeResult.Success);
     }
 }

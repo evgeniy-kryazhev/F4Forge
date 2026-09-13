@@ -10,6 +10,7 @@ internal unsafe sealed class ManagedTaskScheduler : IGameThreadScheduler, IDispo
     private readonly NativeApi* _host;
     private readonly void* _context;
     private readonly ulong _runtime;
+    private readonly object _gate = new();
     private long _nextTaskId;
     private int _quiescing;
 
@@ -28,31 +29,43 @@ internal unsafe sealed class ManagedTaskScheduler : IGameThreadScheduler, IDispo
 
     internal void Execute(ulong taskId)
     {
-        if (_tasks.TryRemove(taskId, out var task)) task.Execute();
+        WorkItem? task;
+        lock (_gate)
+        {
+            if (!_tasks.TryRemove(taskId, out task)) return;
+            if (_quiescing != 0) { task.Cancel(); return; }
+        }
+        task.Execute();
     }
 
     public void Dispose()
     {
-        if (Interlocked.Exchange(ref _quiescing, 1) != 0) return;
-        foreach (var pair in _tasks)
-            if (_tasks.TryRemove(pair.Key, out var task)) task.Cancel();
+        lock (_gate)
+        {
+            if (_quiescing != 0) return;
+            _quiescing = 1;
+            foreach (var pair in _tasks)
+                if (_tasks.TryRemove(pair.Key, out var task)) task.Cancel();
+        }
     }
 
     private Task<TResult> Queue<TResult>(Func<TResult> action, CancellationToken cancellationToken)
     {
         if (cancellationToken.IsCancellationRequested) return Task.FromCanceled<TResult>(cancellationToken);
-        if (Volatile.Read(ref _quiescing) != 0 || _host == null || _host->QueueTask == null)
-            return Task.FromException<TResult>(new InvalidOperationException("The runtime is shutting down."));
-
         var completion = new TaskCompletionSource<TResult>(TaskCreationOptions.RunContinuationsAsynchronously);
         var taskId = unchecked((ulong)Interlocked.Increment(ref _nextTaskId));
         var item = new WorkItem<TResult>(action, completion, cancellationToken);
-        if (!_tasks.TryAdd(taskId, item))
-            return Task.FromException<TResult>(new InvalidOperationException("Could not allocate a managed task ID."));
-        item.RegisterCancellation(() =>
+        lock (_gate)
         {
-            if (_tasks.TryRemove(taskId, out var removed)) removed.Cancel();
-        });
+            if (_quiescing != 0 || _host == null || _host->QueueTask == null)
+                return Task.FromException<TResult>(new InvalidOperationException("The runtime is shutting down."));
+            if (!_tasks.TryAdd(taskId, item))
+                return Task.FromException<TResult>(new InvalidOperationException("Could not allocate a managed task ID."));
+            item.RegisterCancellation(() =>
+            {
+                if (_tasks.TryRemove(taskId, out var removed)) removed.Cancel();
+            });
+        }
         var result = (F4ForgeResult)_host->QueueTask(_context, _runtime, taskId);
         if (result != F4ForgeResult.Success && _tasks.TryRemove(taskId, out var rejected))
             rejected.Reject(result);

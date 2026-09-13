@@ -14,6 +14,8 @@ public:
     virtual ~GameThreadScheduler() = default;
 
     virtual bool IsGameThread() const noexcept = 0;
+    // On success the scheduler owns context and calls cleanup exactly once after execution or
+    // cancellation. On failure ownership remains with the caller and cleanup is not called.
     virtual F4ForgeResult Post(
         SchedulerJob job,
         void* context,
