@@ -1,4 +1,5 @@
 #include "input_module.h"
+#include "../lifecycle/lifecycle_registry.h"
 
 #include "RE/C/Console.h"
 #include "RE/C/ControlMap.h"
@@ -8,21 +9,28 @@
 
 namespace f4forge::core {
 
+struct InputModule::CallbackState final {
+    LifecycleRegistry lifecycle;
+    InputModule* owner{};
+};
+
 class InputModule::MenuHandler final : public RE::BSInputEventUser {
 public:
-    explicit MenuHandler(InputModule& owner) noexcept : _owner(owner) {}
+    explicit MenuHandler(std::shared_ptr<CallbackState> state) noexcept : _state(std::move(state)) {}
 
     bool ShouldHandleEvent(const RE::InputEvent*) override { return true; }
 
     void OnButtonEvent(const RE::ButtonEvent* event) override
     {
-        if (event != nullptr && event->device.get() == RE::INPUT_DEVICE::kKeyboard && event->QPressed() &&
-            _owner.IsActive() && _owner.IsMainMenuActive())
-            _owner.Publish(*event, true);
+        _state->lifecycle.Invoke([&] {
+            if (event != nullptr && event->device.get() == RE::INPUT_DEVICE::kKeyboard && event->QPressed() &&
+                _state->owner->IsMainMenuActive())
+                _state->owner->Publish(*event, true);
+        });
     }
 
 private:
-    InputModule& _owner;
+    std::shared_ptr<CallbackState> _state;
 };
 
 namespace {
@@ -49,26 +57,29 @@ bool IsKeyboardKey(uint32_t code) noexcept
 
 class InputModule::GameplayHandler final : public RE::PlayerInputHandler {
 public:
-    GameplayHandler(RE::PlayerControlsData& data, InputModule& owner) noexcept :
-        RE::PlayerInputHandler(data), _owner(owner)
+    GameplayHandler(RE::PlayerControlsData& data, std::shared_ptr<CallbackState> state) noexcept :
+        RE::PlayerInputHandler(data), _state(std::move(state))
     {}
 
     bool ShouldHandleEvent(const RE::InputEvent*) override { return true; }
 
     void OnButtonEvent(const RE::ButtonEvent* event) override
     {
-        if (event != nullptr && event->device.get() == RE::INPUT_DEVICE::kKeyboard && event->QPressed() &&
-            _owner.IsActive() && !_owner.IsGameplayInputBlocked())
-            _owner.Publish(*event, false);
+        _state->lifecycle.Invoke([&] {
+            if (event != nullptr && event->device.get() == RE::INPUT_DEVICE::kKeyboard && event->QPressed() &&
+                !_state->owner->IsGameplayInputBlocked())
+                _state->owner->Publish(*event, false);
+        });
     }
 
 private:
-    InputModule& _owner;
+    std::shared_ptr<CallbackState> _state;
 };
 
 InputModule::InputModule(EndpointRegistry& endpoints, EventRegistry& events) noexcept :
-    _endpoints(endpoints), _events(events)
+    _endpoints(endpoints), _events(events), _callbackState(std::make_shared<CallbackState>())
 {
+    _callbackState->owner = this;
     const F4ForgeEndpointDefinition definition{
         sizeof(F4ForgeEndpointDefinition), F4FORGE_ENDPOINT_EVENT, 1, F4FORGE_ENDPOINT_NONE,
         F4FORGE_THREAD_GAME_ONLY, 0, 0, sizeof(F4ForgeKeyEventData),
@@ -80,21 +91,31 @@ InputModule::InputModule(EndpointRegistry& endpoints, EventRegistry& events) noe
 InputModule::~InputModule()
 {
     Stop();
+    if (_menuInstalled) _menuHandler.release();
+    if (_gameplayInstalled) _gameplayHandler.release();
 }
 
 bool InputModule::Start() noexcept
 {
-    _active = true;
-    return InstallInputHandler();
+    if (_callbackState->lifecycle.IsActive()) return true;
+    const bool installed = InstallInputHandler() && InstallGameplayHandler();
+    if (installed) _callbackState->lifecycle.Start();
+    return installed;
 }
 
 void InputModule::Stop() noexcept
 {
-    _active = false;
+    _callbackState->lifecycle.Stop();
+}
+
+bool InputModule::IsActive() const noexcept
+{
+    return _callbackState->lifecycle.IsActive();
 }
 
 bool InputModule::InstallInputHandler() noexcept
 {
+    if (_registrationFailed) return false;
     if (_menuInstalled && _gameplayInstalled) return true;
     try {
         if (!_menuInstalled) {
@@ -103,29 +124,32 @@ bool InputModule::InstallInputHandler() noexcept
                 REX::ERROR("F4Forge: MenuControls singleton unavailable; input handler will be retried");
                 return false;
             }
-            _menuHandler = std::make_unique<MenuHandler>(*this);
-            controls->RegisterHandler(_menuHandler.get());
+            _menuHandler = std::make_unique<MenuHandler>(_callbackState);
+            // Registration has no removal API. From this point the pointer must be treated as retained.
             _menuInstalled = true;
+            controls->RegisterHandler(_menuHandler.get());
         }
         InstallGameplayHandler();
         return _menuInstalled;
     } catch (...) {
+        _registrationFailed = true;
         return false;
     }
 }
 
 bool InputModule::InstallGameplayHandler() noexcept
 {
+    if (_registrationFailed) return false;
     if (_gameplayInstalled) return true;
     try {
         auto* controls = RE::PlayerControls::GetSingleton();
         if (controls == nullptr) return false;
-        _gameplayHandler = std::make_unique<GameplayHandler>(controls->data, *this);
-        controls->RegisterHandler(_gameplayHandler.get());
+        _gameplayHandler = std::make_unique<GameplayHandler>(controls->data, _callbackState);
         _gameplayInstalled = true;
+        controls->RegisterHandler(_gameplayHandler.get());
         return true;
     } catch (...) {
-        _gameplayHandler.reset();
+        _registrationFailed = true;
         return false;
     }
 }

@@ -3,14 +3,15 @@
 #include "registry/event_registry.h"
 #include "registry/endpoint_registry.h"
 #include "modules/builtin_module.h"
+#include <atomic>
 
 namespace f4forge::core {
 
 class FrameworkEvents final : public BuiltinModule {
 public:
     FrameworkEvents(EndpointRegistry& endpoints, EventRegistry& events) noexcept;
-    bool Start() noexcept override { return true; }
-    void Stop() noexcept override {}
+    bool Start() noexcept override { _active.store(true, std::memory_order_release); return true; }
+    void Stop() noexcept override { _active.store(false, std::memory_order_release); }
     F4ForgeEndpointHandle GameDataReady() const noexcept { return _gameDataReady; }
     F4ForgeEndpointHandle GameLoaded() const noexcept { return _gameLoaded; }
     F4ForgeEndpointHandle NewGame() const noexcept { return _newGame; }
@@ -28,6 +29,7 @@ private:
     F4ForgeEndpointHandle _gameDataReady{ F4FORGE_INVALID_HANDLE };
     F4ForgeEndpointHandle _gameLoaded{ F4FORGE_INVALID_HANDLE };
     F4ForgeEndpointHandle _newGame{ F4FORGE_INVALID_HANDLE };
+    std::atomic<bool> _active{};
 };
 
 }

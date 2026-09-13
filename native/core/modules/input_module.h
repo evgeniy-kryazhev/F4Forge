@@ -25,13 +25,14 @@ public:
     bool InstallGameplayHandler() noexcept;
     bool IsMenuHandlerInstalled() const noexcept { return _menuInstalled; }
     bool IsGameplayHandlerInstalled() const noexcept { return _gameplayInstalled; }
-    bool IsActive() const noexcept { return _active; }
+    bool IsActive() const noexcept;
     bool IsMainMenuActive() const noexcept;
     F4ForgeEndpointHandle KeyDownEndpoint() const noexcept { return _keyDownEndpoint; }
     static F4ForgeKey NormalizeKey(uint32_t code) noexcept;
     void Publish(const RE::ButtonEvent& event, bool isMenu) noexcept;
 
 private:
+    struct CallbackState;
     class MenuHandler;
     class GameplayHandler;
 
@@ -43,9 +44,10 @@ private:
     F4ForgeEndpointHandle _keyDownEndpoint{ F4FORGE_INVALID_HANDLE };
     std::unique_ptr<MenuHandler> _menuHandler;
     std::unique_ptr<GameplayHandler> _gameplayHandler;
+    std::shared_ptr<CallbackState> _callbackState;
     bool _menuInstalled{ false };
     bool _gameplayInstalled{ false };
-    bool _active{ false };
+    bool _registrationFailed{ false };
 };
 
 }

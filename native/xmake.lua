@@ -82,6 +82,21 @@ target("F4ForgeEventTests")
     add_includedirs("abi", "core")
     add_cxxflags("/WX", "/permissive-", "/EHsc", "/utf-8", { public = false })
 
+target("F4ForgeLifecycleRegistryTests")
+    set_kind("binary")
+    add_files("tests/lifecycle/LifecycleRegistryTests.cpp")
+    add_includedirs("core", "tests")
+    add_cxxflags("/WX", "/permissive-", "/EHsc", "/utf-8", { public = false })
+
+target("F4ForgeBuiltinServicesTests")
+    set_kind("binary")
+    add_files("core/modules/builtin_services.cpp", "core/modules/input_module.cpp", "core/framework_events.cpp",
+        "core/registry/endpoint_registry.cpp", "core/registry/event_registry.cpp", "tests/modules/BuiltinServicesTests.cpp")
+    add_deps("commonlibf4")
+    add_includedirs("abi", "core", "tests")
+    set_pcxxheader("lib/commonlibf4/include/F4SE/Impl/PCH.h")
+    add_cxxflags("/WX", "/permissive-", "/EHsc", "/utf-8", { public = false })
+
 target("F4ForgeInputTests")
     set_kind("binary")
     add_files("core/modules/input_module.cpp", "core/registry/endpoint_registry.cpp",

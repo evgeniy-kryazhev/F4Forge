@@ -34,16 +34,19 @@ void FrameworkEvents::Register(const char* name, F4ForgeEndpointHandle& endpoint
 
 void FrameworkEvents::EmitGameDataReady() const noexcept
 {
+    if (!_active.load(std::memory_order_acquire)) return;
     _events.Emit(_gameDataReady, nullptr, 0);
 }
 
 void FrameworkEvents::EmitGameLoaded() const noexcept
 {
+    if (!_active.load(std::memory_order_acquire)) return;
     _events.Emit(_gameLoaded, nullptr, 0);
 }
 
 void FrameworkEvents::EmitNewGame() const noexcept
 {
+    if (!_active.load(std::memory_order_acquire)) return;
     _events.Emit(_newGame, nullptr, 0);
 }
 

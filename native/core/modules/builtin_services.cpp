@@ -3,7 +3,13 @@
 namespace f4forge::core {
 
 BuiltinServices::BuiltinServices(EndpointRegistry& endpoints, EventRegistry& events) noexcept :
-    _frameworkEvents(endpoints, events), _input(endpoints, events)
+    _ownedFrameworkEvents(std::make_unique<FrameworkEvents>(endpoints, events)),
+    _ownedInput(std::make_unique<InputModule>(endpoints, events)),
+    _frameworkEvents(_ownedFrameworkEvents.get()), _input(_ownedInput.get())
+{}
+
+BuiltinServices::BuiltinServices(BuiltinModule& frameworkEvents, BuiltinModule& input) noexcept :
+    _frameworkEvents(&frameworkEvents), _input(&input)
 {}
 
 BuiltinServices::~BuiltinServices()
@@ -14,35 +20,39 @@ BuiltinServices::~BuiltinServices()
 bool BuiltinServices::Start() noexcept
 {
     if (_started) return true;
-    if (!_frameworkEvents.Start()) return false;
-    _started = _input.Start();
-    return _started;
+    if (!_frameworkEvents->Start()) return false;
+    if (_input->Start()) {
+        _started = true;
+        return true;
+    }
+    _input->Stop();
+    _frameworkEvents->Stop();
+    return false;
 }
 
 void BuiltinServices::Stop() noexcept
 {
-    if (!_started) return;
-    _input.Stop();
-    _frameworkEvents.Stop();
+    _input->Stop();
+    _frameworkEvents->Stop();
     _started = false;
 }
 
 void BuiltinServices::OnGameDataReady() noexcept
 {
-    _input.Start();
-    _frameworkEvents.EmitGameDataReady();
+    if (!Start()) return;
+    _ownedFrameworkEvents->EmitGameDataReady();
 }
 
 void BuiltinServices::OnGameLoaded() noexcept
 {
-    _input.Start();
-    _frameworkEvents.EmitGameLoaded();
+    if (!Start()) return;
+    _ownedFrameworkEvents->EmitGameLoaded();
 }
 
 void BuiltinServices::OnNewGame() noexcept
 {
-    _input.Start();
-    _frameworkEvents.EmitNewGame();
+    if (!Start()) return;
+    _ownedFrameworkEvents->EmitNewGame();
 }
 
 }

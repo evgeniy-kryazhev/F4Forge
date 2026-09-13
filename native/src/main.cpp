@@ -18,7 +18,7 @@ namespace {
 
 f4forge::native::F4seGameScheduler gameScheduler;
 f4forge::core::F4ForgeHost host;
-std::unique_ptr<f4forge::core::BuiltinServices> builtinServices;
+f4forge::core::BuiltinServices* builtinServices;
 
 void F4SEAPI OnMessage(F4SE::MessagingInterface::Message* message)
 {
@@ -123,7 +123,8 @@ F4SE_PLUGIN_LOAD(const F4SE::LoadInterface* a_f4se)
 		host.SetGameThreadScheduler(&gameScheduler);
 		host.Endpoints().SetGameThreadCheck(&f4forge::native::F4seGameScheduler::CheckGameThread);
 		host.SetLogSink(&NativeLog);
-        builtinServices = std::make_unique<f4forge::core::BuiltinServices>(host.Endpoints(), host.Events());
+        // F4SE and the input engine offer no unregister operation; registered owners are process-lifetime.
+        builtinServices = new f4forge::core::BuiltinServices(host.Endpoints(), host.Events());
         builtinServices->Start();
         REX::INFO("F4Forge: input endpoint = {}, menu handler = {}, gameplay handler = {}",
             builtinServices->Input().KeyDownEndpoint(), builtinServices->Input().IsMenuHandlerInstalled(),
