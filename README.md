@@ -24,7 +24,10 @@ dotnet test tests/dotnet/F4Forge.Net.Tests/F4Forge.Net.Tests.csproj -c Release
 ```
 
 Две DLL для установки находятся в `build/bin/`. PDB, LIB и EXP нужны только для разработки.
-Положите `F4Forge.Core.dll` и `F4Forge.Net.dll` рядом в `Data/F4SE/Plugins/`.
+Положите `F4Forge.Core.dll` в `Data/F4SE/Plugins/`, а `F4Forge.Net.dll` — в
+`Data/F4SE/Plugins/F4Forge/`. В корне `Plugins` должны быть только нативные плагины:
+управляемая DLL SDK прерывает сканирование F4SE. При обновлении удалите старую
+`Data/F4SE/Plugins/F4Forge.Net.dll`; в MO2 устанавливайте архив с полной заменой мода.
 На машине игрока нужны F4SE и .NET Runtime 10 x64. Дополнительный `nethost.dll` не нужен:
 его код включён в Core. Конфигурация запуска CLR создаётся во временном файле и удаляется.
 
@@ -39,7 +42,8 @@ DLL модов размещаются в `Data/F4ForgeNet/`; поддержив�
 Data/
   F4SE/Plugins/
     F4Forge.Core.dll
-    F4Forge.Net.dll
+    F4Forge/
+      F4Forge.Net.dll
   F4ForgeNet/
     MyMod.dll
     OtherMod/

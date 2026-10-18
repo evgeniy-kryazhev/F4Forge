@@ -47,10 +47,19 @@ try {
     }
 
     # Use an explicit payload so test DLLs, symbols and stale binaries stay out.
-    $payloadNames = @('F4Forge.Core.dll', 'F4Forge.Net.dll')
+    $payload = @(
+        [pscustomobject]@{
+            FileName = 'F4Forge.Core.dll'
+            ArchivePath = 'F4SE/Plugins/F4Forge.Core.dll'
+        }
+        [pscustomobject]@{
+            FileName = 'F4Forge.Net.dll'
+            ArchivePath = 'F4SE/Plugins/F4Forge/F4Forge.Net.dll'
+        }
+    )
     $binaryDirectory = Join-Path $repositoryDirectory 'build/bin'
-    foreach ($name in $payloadNames) {
-        $sourcePath = Join-Path $binaryDirectory $name
+    foreach ($file in $payload) {
+        $sourcePath = Join-Path $binaryDirectory $file.FileName
         if (-not (Test-Path -LiteralPath $sourcePath -PathType Leaf)) {
             throw "Build output is missing: $sourcePath"
         }
@@ -66,13 +75,12 @@ try {
     try {
         $archive = [IO.Compression.ZipFile]::Open($temporaryPath, [IO.Compression.ZipArchiveMode]::Create)
         try {
-            foreach ($name in $payloadNames) {
-                $sourcePath = Join-Path $binaryDirectory $name
-                $entryPath = "F4SE/Plugins/$name"
+            foreach ($file in $payload) {
+                $sourcePath = Join-Path $binaryDirectory $file.FileName
                 [IO.Compression.ZipFileExtensions]::CreateEntryFromFile(
                     $archive,
                     $sourcePath,
-                    $entryPath,
+                    $file.ArchivePath,
                     [IO.Compression.CompressionLevel]::Optimal
                 ) | Out-Null
             }

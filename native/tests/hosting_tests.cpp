@@ -6,12 +6,17 @@ int main()
     f4forge::Channel channel;
     f4forge::Components components;
     try {
-        const auto dataDirectory = std::filesystem::absolute("build/hosting-test/Data");
+        const auto dataDirectory = std::filesystem::absolute("build/hosting-test/nested-sdk/Data");
         const auto directory = dataDirectory / "F4SE/Plugins";
+        const auto sdkDirectory = directory / "F4Forge";
         const auto modDirectory = dataDirectory / "F4ForgeNet/Nested/Fixture";
         std::filesystem::create_directories(directory);
+        std::filesystem::create_directories(sdkDirectory);
+        if (std::filesystem::exists(directory / "F4Forge.Net.dll")) {
+            throw std::runtime_error("Managed SDK must not be deployed in the native plugin scan directory.");
+        }
         std::filesystem::create_directories(modDirectory);
-        std::filesystem::copy_file("build/bin/F4Forge.Net.dll", directory / "F4Forge.Net.dll", std::filesystem::copy_options::overwrite_existing);
+        std::filesystem::copy_file("build/bin/F4Forge.Net.dll", sdkDirectory / "F4Forge.Net.dll", std::filesystem::copy_options::overwrite_existing);
         std::filesystem::copy_file("tests/dotnet/Fixture/bin/Release/net10.0/Fixture.dll", modDirectory / "Fixture.dll", std::filesystem::copy_options::overwrite_existing);
         std::filesystem::copy_file("tests/dotnet/FixtureDependency/bin/Release/net10.0/FixtureDependency.dll", modDirectory / "FixtureDependency.dll", std::filesystem::copy_options::overwrite_existing);
         channel.Add("native.echo", [](const auto& arguments) {

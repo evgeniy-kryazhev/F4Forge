@@ -87,7 +87,9 @@ Function Export(HMODULE library, const char* name)
 
 void Start(f4forge::Channel& channel, const std::filesystem::path& directory)
 {
-    const auto assembly = std::filesystem::absolute(directory / L"F4Forge.Net.dll");
+    // F4SE scans DLLs directly in Plugins as native plugins. Keep managed SDKs
+    // below that directory so they cannot interrupt its PE export scan.
+    const auto assembly = std::filesystem::absolute(directory / L"F4Forge/F4Forge.Net.dll");
     if (!std::filesystem::exists(assembly)) {
         return; // SDKs are optional; only deployed SDK assemblies are started.
     }
