@@ -1,4 +1,4 @@
-using System.Text.Json;
+using System.Reflection;
 using F4Forge.Net.Messaging;
 using F4Forge.Net.Mods;
 using F4Forge.Net.Events;
@@ -16,34 +16,38 @@ internal sealed class ModLoader(IMessageChannel messages, IEventChannel events, 
     public void LoadDirectory(string directory)
     {
         System.IO.Directory.CreateDirectory(directory);
-        foreach (var modDirectory in System.IO.Directory.EnumerateDirectories(directory).Order(StringComparer.Ordinal))
+        var assemblyPaths = System.IO.Directory.EnumerateFiles(directory, "*.dll", SearchOption.AllDirectories)
+            .Order(StringComparer.OrdinalIgnoreCase);
+        foreach (var assemblyPath in assemblyPaths)
         {
-            var manifestPath = Path.Combine(modDirectory, "mod.json");
-            if (!File.Exists(manifestPath))
-            {
-                continue;
-            }
             try
             {
-                LoadMod(modDirectory, manifestPath);
+                // Native dependencies are also DLLs, but cannot contain a managed mod.
+                AssemblyName assemblyName;
+                try
+                {
+                    assemblyName = AssemblyName.GetAssemblyName(assemblyPath);
+                }
+                catch (BadImageFormatException)
+                {
+                    continue;
+                }
+                if (assemblyName.Name == typeof(IMod).Assembly.GetName().Name)
+                {
+                    continue;
+                }
+                LoadMod(Path.GetFullPath(assemblyPath));
             }
             catch (Exception exception)
             {
-                reportError($"{modDirectory}: {exception}");
+                reportError($"{assemblyPath}: {exception}");
             }
         }
     }
 
-    private void LoadMod(string directory, string manifestPath)
+    private void LoadMod(string assemblyPath)
     {
-        using var manifest = JsonDocument.Parse(File.ReadAllText(manifestPath));
-        var assemblyName = manifest.RootElement.GetProperty("assembly").GetString();
-        if (string.IsNullOrWhiteSpace(assemblyName) || Path.GetFileName(assemblyName) != assemblyName
-            || !assemblyName.EndsWith(".dll", StringComparison.OrdinalIgnoreCase))
-        {
-            throw new InvalidDataException("The manifest assembly must be a DLL filename inside the mod directory.");
-        }
-        var assemblyPath = Path.GetFullPath(Path.Combine(directory, assemblyName));
+        var directory = Path.GetDirectoryName(assemblyPath)!;
         var loadContext = new ModLoadContext(assemblyPath);
         var lifetime = new ModLifetime();
         var scope = new ScopedChannel(messages, lifetime);
@@ -57,6 +61,12 @@ internal sealed class ModLoader(IMessageChannel messages, IEventChannel events, 
             var entryPoints = assembly.GetExportedTypes()
                 .Where(type => type.IsClass && !type.IsAbstract && typeof(IMod).IsAssignableFrom(type))
                 .ToArray();
+            if (entryPoints.Length == 0)
+            {
+                // A managed dependency is not a mod. Release its discovery context.
+                Release(new LoadedMod(null, scope, eventScope, loadContext));
+                return;
+            }
             if (entryPoints.Length != 1)
             {
                 throw new InvalidDataException("A mod assembly must contain exactly one public IMod implementation.");

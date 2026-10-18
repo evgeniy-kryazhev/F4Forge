@@ -26,11 +26,13 @@ internal static unsafe class Bootstrap
             {
                 return 1;
             }
-            var directory = Path.Combine(new string(arguments->Directory), "F4Forge");
+            var pluginDirectory = Path.GetFullPath(new string(arguments->Directory));
+            var directory = Path.Combine(pluginDirectory, "F4Forge");
             System.IO.Directory.CreateDirectory(directory);
             var channel = new NativeChannel(arguments->Channel);
             _loader = new ModLoader(channel, channel, channel.Serializer, message => Log(directory, message));
-            _loader.LoadDirectory(Path.Combine(directory, "mods", "dotnet"));
+            var modDirectory = Path.GetFullPath(Path.Combine(pluginDirectory, "..", "..", "F4ForgeNet"));
+            _loader.LoadDirectory(modDirectory);
             return 0;
         }
         catch (Exception exception)

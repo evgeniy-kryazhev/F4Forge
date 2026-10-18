@@ -25,7 +25,13 @@ internal sealed class ModLoadContext(string assemblyPath) : AssemblyLoadContext(
                 path = adjacentAssembly;
             }
         }
-        return path is null ? null : LoadFromAssemblyPath(path);
+        if (path is null)
+        {
+            return null;
+        }
+        // Dependency DLLs must remain replaceable, just like the mod's main DLL.
+        using var assemblyStream = File.OpenRead(path);
+        return LoadFromStream(assemblyStream);
     }
 
     protected override nint LoadUnmanagedDll(string unmanagedDllName)

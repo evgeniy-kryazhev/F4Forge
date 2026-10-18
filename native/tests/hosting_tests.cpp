@@ -6,12 +6,14 @@ int main()
     f4forge::Channel channel;
     f4forge::Components components;
     try {
-        const auto directory = std::filesystem::absolute("build/hosting-test");
-        const auto modDirectory = directory / "F4Forge/mods/dotnet/Fixture";
+        const auto dataDirectory = std::filesystem::absolute("build/hosting-test/Data");
+        const auto directory = dataDirectory / "F4SE/Plugins";
+        const auto modDirectory = dataDirectory / "F4ForgeNet/Nested/Fixture";
+        std::filesystem::create_directories(directory);
         std::filesystem::create_directories(modDirectory);
         std::filesystem::copy_file("build/bin/F4Forge.Net.dll", directory / "F4Forge.Net.dll", std::filesystem::copy_options::overwrite_existing);
         std::filesystem::copy_file("tests/dotnet/Fixture/bin/Release/net10.0/Fixture.dll", modDirectory / "Fixture.dll", std::filesystem::copy_options::overwrite_existing);
-        std::filesystem::copy_file("tests/dotnet/Fixture/mod.json", modDirectory / "mod.json", std::filesystem::copy_options::overwrite_existing);
+        std::filesystem::copy_file("tests/dotnet/FixtureDependency/bin/Release/net10.0/FixtureDependency.dll", modDirectory / "FixtureDependency.dll", std::filesystem::copy_options::overwrite_existing);
         channel.Add("native.echo", [](const auto& arguments) {
             return arguments;
         });

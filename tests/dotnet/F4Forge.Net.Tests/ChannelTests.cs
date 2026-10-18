@@ -111,7 +111,7 @@ public sealed partial class ChannelTests : IDisposable
         var directory = Path.Combine(root, "Fixture");
         Directory.CreateDirectory(directory);
         File.Copy(Path.Combine(AppContext.BaseDirectory, "Fixture.dll"), Path.Combine(directory, "Fixture.dll"));
-        File.WriteAllText(Path.Combine(directory, "mod.json"), "{\"assembly\":\"Fixture.dll\"}");
+        File.Copy(Path.Combine(AppContext.BaseDirectory, "FixtureDependency.dll"), Path.Combine(directory, "FixtureDependency.dll"));
         if (failStartup)
         {
             File.WriteAllText(Path.Combine(directory, "fail-start"), "");
