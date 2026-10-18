@@ -1,6 +1,7 @@
 using F4Forge.Net.Messaging;
 using F4Forge.Net.Events;
 using F4Forge.Net.Serialization;
+using F4Forge.Net.Commands;
 
 namespace F4Forge.Net.Mods;
 
@@ -13,6 +14,7 @@ public sealed class ModContext
         Messages = messages;
         Events = events;
         Serializer = serializer;
+        Console = new ConsoleService(messages);
     }
 
     /// <summary>Absolute path to the mod directory.</summary>
@@ -26,4 +28,7 @@ public sealed class ModContext
 
     /// <summary>The same serializer used for messages, events, arguments and results.</summary>
     public IDataSerializer Serializer { get; }
+
+    /// <summary>Game console commands with registrations owned by this mod.</summary>
+    public IConsole Console { get; }
 }

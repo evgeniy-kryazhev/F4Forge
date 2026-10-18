@@ -1,0 +1,3 @@
+// Keep the dependency notices in the distributed Core binary. This does not add
+// another runtime DLL or change the SDK loading and MO2 payload layout.
+F4FORGE_MINHOOK_LICENSE RCDATA "native/modules/console/LICENSE.MinHook.txt"

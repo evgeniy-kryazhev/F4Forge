@@ -7,6 +7,7 @@ set_languages("c++23")
 set_arch("x64")
 add_rules("mode.debug", "mode.releasedbg")
 add_requires("nlohmann_json 3.12.0")
+add_requires("minhook v1.3.4", {configs = {shared = false}})
 
 rule("f4forge.native")
     on_load(function(target)
@@ -23,6 +24,7 @@ target("F4Forge.Core")
     set_kind("shared")
     set_targetdir("build/bin")
     add_rules("f4forge.native")
+    add_packages("minhook")
     for _, directory in ipairs(os.dirs("sdk/*")) do
         add_rules("f4forge.sdk." .. path.filename(directory))
     end
@@ -32,6 +34,7 @@ target("F4Forge.Core")
         description = "Modular SDK host"
     })
     add_files("native/src/**.cpp", "native/core/**.cpp", "sdk/*/native/**.cpp")
+    add_files("native/modules/**.rc")
     for _, source in ipairs(os.files("native/modules/**.cpp")) do
         add_files(source)
     end
