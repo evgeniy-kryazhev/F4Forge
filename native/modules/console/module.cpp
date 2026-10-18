@@ -2,6 +2,7 @@
 #include "command_hook.h"
 #include "dispatch.h"
 #include "components.h"
+#include "../diagnostics/store.h"
 #include <RE/C/Console.h>
 #include <RE/C/ConsoleLog.h>
 #include <RE/S/SCRIPT_FUNCTION.h>
@@ -70,13 +71,19 @@ const game_events::AdapterRegistration adapter({
             // CommonLib supplies the function signature; Address Library resolves
             // the entry point. MinHook relocates its instructions, not a guessed offset.
             const REL::Relocation<CommandHook::Function> target{RE::ID::Console::ExecuteCommand};
-            hook.Install(target.get(), &OnCommand);
+            diagnostics::CheckAndInstall("console.execute", "function", [&] {
+                diagnostics::CheckCode(target.address());
+                hook.Install(target.get(), &OnCommand);
+            });
+        } else {
+            diagnostics::Global().Hook("console.execute", "function", "inactive", "Game data is unavailable.");
         }
     },
     [] {
         // Runtime::Stop has disabled and drained routing before this callback.
         // Retain the entry hook as an inactive pass-through, including its original
         // trampoline, so an already-entered engine call can safely finish.
+        diagnostics::Global().Hook("console.execute", "function", "inactive", "Host stopped; original trampoline retained.");
     }
 });
 

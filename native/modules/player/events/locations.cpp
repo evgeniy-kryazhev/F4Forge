@@ -1,6 +1,7 @@
 #include "locations.h"
 #include "location_event.h"
 #include "../../game_events/vtable_hook.h"
+#include "../../diagnostics/store.h"
 #include <REL/Relocation.h>
 
 namespace f4forge::game_events {
@@ -33,13 +34,16 @@ REL::Relocation<std::uintptr_t> Table()
 
 Handler ReadSlot()
 {
-    return reinterpret_cast<Handler*>(Table().address())[1];
+    return reinterpret_cast<Handler>(diagnostics::CheckVtableSlot(Table().address(), 1));
 }
 
 void WriteSlot(Handler handler)
 {
     auto table = Table();
     table.write_vfunc(1, handler);
+    if (ReadSlot() != handler) {
+        throw std::runtime_error("Cannot write the player location vtable slot.");
+    }
 }
 
 void Detach()
@@ -49,11 +53,17 @@ void Detach()
 
 const AdapterRegistration adapter({"locations", [](Runtime& runtime, const Message&) {
     if (runtime.DataReady()) {
-        hook.Attach(&OnLocation, ReadSlot, WriteSlot);
+        diagnostics::CheckAndInstall("player.location", "vtable", [] {
+            hook.Attach(&OnLocation, ReadSlot, WriteSlot);
+        });
     } else {
         Detach();
+        diagnostics::Global().Hook("player.location", "vtable", "inactive", "Game data is unavailable.");
     }
-}, Detach});
+}, [] {
+    Detach();
+    diagnostics::Global().Hook("player.location", "vtable", "inactive", "Host stopped.");
+}});
 
 }
 }

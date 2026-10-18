@@ -3,6 +3,7 @@ using F4Forge.Net.Messaging;
 using F4Forge.Net.Mods;
 using F4Forge.Net.Events;
 using F4Forge.Net.Serialization;
+using F4Forge.Net.Diagnostics;
 
 namespace F4Forge.Net.Hosting;
 
@@ -36,7 +37,11 @@ internal sealed class ModLoader(IMessageChannel messages, IEventChannel events, 
                 {
                     continue;
                 }
-                LoadMod(Path.GetFullPath(assemblyPath));
+                DiagnosticTrace.Run(Path.GetFullPath(assemblyPath), "mod.load", Path.GetFileName(assemblyPath), messages, () =>
+                {
+                    LoadMod(Path.GetFullPath(assemblyPath));
+                    return true;
+                });
             }
             catch (Exception exception)
             {
@@ -64,20 +69,24 @@ internal sealed class ModLoader(IMessageChannel messages, IEventChannel events, 
             if (entryPoints.Length == 0)
             {
                 // A managed dependency is not a mod. Release its discovery context.
-                Release(new LoadedMod(null, scope, eventScope, loadContext));
+                Release(new LoadedMod(null, scope, eventScope, loadContext, assemblyPath));
                 return;
             }
             if (entryPoints.Length != 1)
             {
                 throw new InvalidDataException("A mod assembly must contain exactly one public IMod implementation.");
             }
-            mod = (IMod)Activator.CreateInstance(entryPoints[0])!;
-            mod.Start(new ModContext(directory, scope, eventScope, serializer));
-            _mods.Add(new LoadedMod(mod, scope, eventScope, loadContext));
+            DiagnosticTrace.Run(assemblyPath, "mod.start", entryPoints[0].FullName ?? assemblyPath, messages, () =>
+            {
+                mod = (IMod)Activator.CreateInstance(entryPoints[0])!;
+                mod.Start(new ModContext(directory, scope, eventScope, serializer, assemblyPath));
+                return true;
+            });
+            _mods.Add(new LoadedMod(mod, scope, eventScope, loadContext, assemblyPath));
         }
         catch
         {
-            Release(new LoadedMod(mod, scope, eventScope, loadContext));
+            Release(new LoadedMod(mod, scope, eventScope, loadContext, assemblyPath));
             throw;
         }
     }
@@ -93,21 +102,30 @@ internal sealed class ModLoader(IMessageChannel messages, IEventChannel events, 
 
     private void Release(LoadedMod mod)
     {
-        mod.Events.Dispose();
-        mod.Messages.Dispose();
-        try
+        // Release every owned resource even if an earlier cleanup stage fails.
+        (string Name, Action Cleanup)[] stages =
+        [
+            ("events", mod.Events.Dispose),
+            ("messages", mod.Messages.Dispose),
+            ("instance", () => mod.Instance?.Dispose()),
+            ("assembly", mod.Context.Unload)
+        ];
+        foreach (var stage in stages)
         {
-            mod.Instance?.Dispose();
-        }
-        catch (Exception exception)
-        {
-            reportError($"Mod cleanup failed: {exception}");
-        }
-        finally
-        {
-            mod.Context.Unload();
+            try
+            {
+                DiagnosticTrace.Run(mod.ModId, "mod.stop", stage.Name, messages, () =>
+                {
+                    stage.Cleanup();
+                    return true;
+                });
+            }
+            catch (Exception exception)
+            {
+                reportError($"Mod '{mod.ModId}' cleanup failed ({stage.Name}): {exception}");
+            }
         }
     }
 
-    private sealed record LoadedMod(IMod? Instance, ScopedChannel Messages, ScopedEvents Events, ModLoadContext Context);
+    private sealed record LoadedMod(IMod? Instance, ScopedChannel Messages, ScopedEvents Events, ModLoadContext Context, string ModId);
 }

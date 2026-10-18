@@ -4,6 +4,7 @@ using System.Text;
 using F4Forge.Net.Events;
 using F4Forge.Net.Messaging;
 using F4Forge.Net.Serialization;
+using F4Forge.Net.Diagnostics;
 
 namespace F4Forge.Net.Interop;
 
@@ -107,7 +108,8 @@ internal sealed unsafe class NativeChannel : IMessageChannel, IEventChannel
     {
         ValidateName(name);
         var encodedName = Encoding.UTF8.GetBytes(name);
-        var handle = GCHandle.Alloc(new Callback(Serializer, handler));
+        var handle = GCHandle.Alloc(new Callback(Serializer, handler, DiagnosticTrace.CurrentOwner, name, subscribe,
+            entry => Call<bool>("diagnostics.record", entry)));
         try
         {
             fixed (byte* namePointer = encodedName)
@@ -172,7 +174,9 @@ internal sealed unsafe class NativeChannel : IMessageChannel, IEventChannel
             byte[] response;
             try
             {
-                response = callback.Handler(new ReadOnlySpan<byte>(data, (int)length).ToArray());
+                var payload = new ReadOnlySpan<byte>(data, (int)length).ToArray();
+                response = DiagnosticTrace.Run(callback.ModId, callback.Subscribe ? "event.handle" : "message.handle",
+                    callback.Name, callback.Record, () => callback.Handler(payload));
             }
             catch (Exception exception)
             {
@@ -195,7 +199,8 @@ internal sealed unsafe class NativeChannel : IMessageChannel, IEventChannel
         }
     }
 
-    private sealed record Callback(IDataSerializer Serializer, Func<byte[], byte[]> Handler);
+    private sealed record Callback(IDataSerializer Serializer, Func<byte[], byte[]> Handler,
+        string? ModId, string Name, bool Subscribe, Action<DiagnosticRecord> Record);
 
     private sealed class ResponseBuffer
     {
