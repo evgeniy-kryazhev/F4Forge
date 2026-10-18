@@ -13,6 +13,10 @@ public enum ThreadPolicy : uint
     GameOnly = 1
 }
 
+/// <summary>
+/// Reports native wait status, response bytes, and the endpoint invocation result.
+/// When response collection fails, InvocationResult contains that failure and Response is empty.
+/// </summary>
 public readonly record struct AsyncOperationResult(
     F4ForgeResult WaitResult,
     byte[] Response,

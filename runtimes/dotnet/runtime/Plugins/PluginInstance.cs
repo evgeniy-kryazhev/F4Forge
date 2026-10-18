@@ -40,14 +40,14 @@ internal sealed unsafe class PluginInstance
             ContextInfo = new F4ForgePluginContext(
                 bridge.Module, scope.Add, bridge, scope.CancellationToken,
                 new PluginEvents(id), new InputEvents(id),
-                taskScheduler == null ? null : new PluginGameThreadScheduler(taskScheduler, scope.CancellationToken));
+                taskScheduler == null ? null : new PluginGameThreadScheduler(taskScheduler, this, scope.CancellationToken));
         }
         else
         {
             ContextInfo = new F4ForgePluginContext(
                 F4Forge.DotNet.Sdk.ModuleHandle.Invalid, scope.Add, null, scope.CancellationToken,
                 new PluginEvents(id), new InputEvents(id),
-                taskScheduler == null ? null : new PluginGameThreadScheduler(taskScheduler, scope.CancellationToken));
+                taskScheduler == null ? null : new PluginGameThreadScheduler(taskScheduler, this, scope.CancellationToken));
         }
     }
 
@@ -95,7 +95,11 @@ internal sealed unsafe class PluginInstance
         lock (_lifecycleGate)
         {
             ++_failures;
-            if (_failures >= failureThreshold) _state = PluginState.Disabled;
+            // Failure accounting must never reopen a plugin whose teardown has started.
+            if (_failures >= failureThreshold && _state == PluginState.Active)
+            {
+                _state = PluginState.Disabled;
+            }
             return _failures;
         }
     }

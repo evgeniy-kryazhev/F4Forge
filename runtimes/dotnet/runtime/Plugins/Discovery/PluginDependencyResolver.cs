@@ -10,18 +10,28 @@ internal sealed class PluginDependencyResolver
     {
         var ids = new Dictionary<string, PluginCandidate>(_comparer);
         var capabilities = new Dictionary<string, PluginCandidate>(_comparer);
+        var hasConflicts = false;
         foreach (var candidate in candidates)
         {
             if (!string.IsNullOrWhiteSpace(candidate.Manifest.Id) && !ids.TryAdd(candidate.Manifest.Id!, candidate))
+            {
                 Logger.Error($"Duplicate managed plugin id: {candidate.Manifest.Id}");
+                hasConflicts = true;
+            }
             foreach (var capability in candidate.Manifest.ProvidedCapabilities ?? [])
+            {
                 if (!capabilities.TryAdd(capability, candidate))
+                {
                     Logger.Error($"Duplicate managed capability provider: {capability}");
+                    hasConflicts = true;
+                }
+            }
         }
 
-        if (ids.Count != candidates.Count(candidate => !string.IsNullOrWhiteSpace(candidate.Manifest.Id)) ||
-            capabilities.Count != candidates.SelectMany(candidate => candidate.Manifest.ProvidedCapabilities ?? [])
-                .Distinct(StringComparer.OrdinalIgnoreCase).Count()) return [];
+        if (hasConflicts)
+        {
+            return [];
+        }
 
         var providers = new Dictionary<string, PluginCandidate>(ids, _comparer);
         foreach (var capability in capabilities)

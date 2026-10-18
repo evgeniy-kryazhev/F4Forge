@@ -42,6 +42,138 @@ public sealed class PluginComponentTests
         Assert.Equal([provider, consumer], new PluginDependencyResolver().Order([consumer, provider]));
     }
 
+    [Theory]
+    [InlineData("shared", "shared")]
+    [InlineData("shared", "SHARED")]
+    public void DependencyResolverRejectsConflictingCapabilityProviders(string firstCapability, string secondCapability)
+    {
+        var first = new PluginCandidate("first.dll", new PluginManifest
+        {
+            Id = "first",
+            ProvidedCapabilities = [firstCapability]
+        });
+        var second = new PluginCandidate("second.dll", new PluginManifest
+        {
+            Id = "second",
+            ProvidedCapabilities = [secondCapability]
+        });
+
+        Assert.Empty(new PluginDependencyResolver().Order([first, second]));
+        Assert.Empty(new PluginDependencyResolver().Order([second, first]));
+    }
+
+    [Fact]
+    public async Task CallbackFailureDuringUnloadDoesNotPreventFinalization()
+    {
+        using var harness = new SchedulerHarness();
+        var instance = harness.CreateActivator().Create(typeof(FixturePlugin).Assembly.Location)!;
+        var registry = new PluginInstanceRegistry();
+        Assert.True(registry.TryAdd(instance));
+        Assert.True(instance.Activate());
+        var dispatcher = new PluginDispatcher(registry, 1);
+        using var callbackEntered = new ManualResetEventSlim();
+        using var releaseCallback = new ManualResetEventSlim();
+        var dispatch = Task.Run(() => dispatcher.Dispatch(_ =>
+        {
+            callbackEntered.Set();
+            if (!releaseCallback.Wait(TimeSpan.FromSeconds(10)))
+            {
+                throw new TimeoutException("The test did not release the callback.");
+            }
+            throw new InvalidOperationException("Failure after quiescing starts.");
+        }));
+
+        try
+        {
+            Assert.True(callbackEntered.Wait(TimeSpan.FromSeconds(10)));
+            Assert.False(instance.Stop());
+            Assert.Equal(PluginState.Quarantined, instance.State);
+        }
+        finally
+        {
+            releaseCallback.Set();
+            await dispatch.WaitAsync(TimeSpan.FromSeconds(10));
+        }
+
+        await instance.Stopped.WaitAsync(TimeSpan.FromSeconds(10));
+        Assert.Equal(PluginState.Unloaded, instance.State);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task RunningGameThreadWorkKeepsPluginResourcesAliveUntilCompletion(bool generic)
+    {
+        using var harness = new SchedulerHarness();
+        var instance = harness.CreateActivator().Create(typeof(FixturePlugin).Assembly.Location)!;
+        Assert.True(instance.Activate());
+        var resource = new DisposalProbe();
+        instance.Scope.Add(resource);
+        using var actionEntered = new ManualResetEventSlim();
+        using var releaseAction = new ManualResetEventSlim();
+        int Action()
+        {
+            actionEntered.Set();
+            if (!releaseAction.Wait(TimeSpan.FromSeconds(10)))
+            {
+                throw new TimeoutException("The test did not release the action.");
+            }
+            Assert.False(resource.IsDisposed);
+            return 42;
+        }
+
+        Task work = generic
+            ? instance.ContextInfo.GameThread.InvokeAsync(Action)
+            : instance.ContextInfo.GameThread.InvokeAsync(() => { Action(); });
+        var execution = Task.Run(() => harness.Scheduler.Execute(_queuedTask));
+        try
+        {
+            Assert.True(actionEntered.Wait(TimeSpan.FromSeconds(10)));
+            Assert.False(instance.Stop());
+            Assert.False(resource.IsDisposed);
+            Assert.False(instance.Stopped.IsCompleted);
+        }
+        finally
+        {
+            releaseAction.Set();
+            await execution.WaitAsync(TimeSpan.FromSeconds(10));
+        }
+
+        await work.WaitAsync(TimeSpan.FromSeconds(10));
+        await instance.Stopped.WaitAsync(TimeSpan.FromSeconds(10));
+        Assert.True(resource.IsDisposed);
+        Assert.Equal(PluginState.Unloaded, instance.State);
+    }
+
+    [Fact]
+    public async Task GameThreadActionCanRequestItsOwnUnload()
+    {
+        using var harness = new SchedulerHarness();
+        var instance = harness.CreateActivator().Create(typeof(FixturePlugin).Assembly.Location)!;
+        Assert.True(instance.Activate());
+        var work = instance.ContextInfo.GameThread.InvokeAsync(() =>
+        {
+            Assert.False(instance.Stop());
+            Assert.Equal(PluginState.Quiescing, instance.State);
+        });
+
+        harness.Scheduler.Execute(_queuedTask);
+
+        await work.WaitAsync(TimeSpan.FromSeconds(10));
+        await instance.Stopped.WaitAsync(TimeSpan.FromSeconds(10));
+        Assert.Equal(PluginState.Unloaded, instance.State);
+    }
+
+    private sealed class DisposalProbe : IDisposable
+    {
+        public bool IsDisposed { get; private set; }
+
+        public void Dispose()
+        {
+            IsDisposed = true;
+        }
+    }
+
     [Fact]
     public unsafe void ActivatorAssemblesPluginWithPublicContextServices()
     {
