@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <IsTestProject>true</IsTestProject>
+        <IsPackable>false</IsPackable>
+    </PropertyGroup>
+    <ItemGroup>
+        <ProjectReference Include="../../../sdk/dotnet/F4Forge.Net/F4Forge.Net.csproj" />
+        <ProjectReference Include="../Fixture/Fixture.csproj" />
+        <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
+        <PackageReference Include="xunit" Version="2.9.3" />
+        <PackageReference Include="xunit.runner.visualstudio" Version="3.1.4" />
+        <Using Include="Xunit" />
+        <None Include="../../../build/tests/F4Forge.TestTransport.dll" CopyToOutputDirectory="PreserveNewest" Link="F4Forge.TestTransport.dll" />
+    </ItemGroup>
+</Project>

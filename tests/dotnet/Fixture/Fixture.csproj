@@ -1,0 +1,5 @@
+<Project Sdk="Microsoft.NET.Sdk">
+    <ItemGroup>
+        <ProjectReference Include="../../../sdk/dotnet/F4Forge.Net/F4Forge.Net.csproj" />
+    </ItemGroup>
+</Project>

@@ -1,140 +1,80 @@
 # F4Forge
 
-F4Forge is an experimental/pre-alpha .NET modding framework for Fallout 4. It provides a C++23 native core, a C ABI for runtime providers, a .NET 10 runtime, a C# SDK, and collectible AssemblyLoadContext-based plugin loading.
+Минимальный модульный хост SDK для Fallout 4 / F4SE, Windows x64.
 
-## Requirements
+- `F4Forge.Core.dll` — нативное ядро, канал сообщений, F4SE и нативные загрузчики SDK.
+- `F4Forge.Net.dll` — C# API, загрузка .NET-модов и управляемая сторона канала.
+- `sdk/<language>/` — независимый SDK; он сам определяет правила загрузки своих модов.
 
-- Windows x64
-- Visual Studio 2022 or newer with MSVC C++23 support
-- .NET SDK 10
-- xmake 3.x
-- cppcheck for native analysis
-- F4SE/CommonLibF4, checked out through submodules
+Игровых функций пока нет. Версионная совместимость старого API не поддерживается.
 
-Clone the repository with dependencies:
+## Сборка и проверка
 
-```powershell
-git clone --recurse-submodules https://github.com/evgeniy-kryazhev/F4Forge.git
-cd F4Forge
-```
-
-## Build
-
-The build script discovers the .NET native host pack automatically when possible:
+Нужны MSVC с C++23, .NET SDK 10 x64, xmake 3.1+ и зависимости подмодуля:
 
 ```powershell
-.\scripts\build.ps1
+git submodule update --init --recursive
+xmake f -m releasedbg -y
+xmake -j 2
+xmake run F4Forge.Channel.Tests
+xmake run F4Forge.Components.Tests
+xmake run F4Forge.Hosting.Tests
+dotnet test tests/dotnet/F4Forge.Net.Tests/F4Forge.Net.Tests.csproj -c Release
 ```
 
-Use `-Clean` for a clean output directory or `-DotNetHostDir` to provide an explicit `nethost.h` directory.
+Две DLL для установки находятся в `build/bin/`. PDB, LIB и EXP нужны только для разработки.
+Положите `F4Forge.Core.dll` и `F4Forge.Net.dll` рядом в `Data/F4SE/Plugins/`.
+На машине игрока нужны F4SE и .NET Runtime 10 x64. Дополнительный `nethost.dll` не нужен:
+его код включён в Core. Конфигурация запуска CLR создаётся во временном файле и удаляется.
 
-The build produces separate installable framework and demo packages. Extract either ZIP into the Fallout 4 game directory; install the framework before the optional demo:
+## .NET-моды
 
-```text
-build/F4Forge-framework.zip
-  F4SE/Plugins/F4Forge.dll
-  F4SE/Plugins/F4Forge/F4Forge.Dotnet.dll
-  F4SE/Plugins/F4Forge/F4Forge.DotNet.Runtime.dll
-  F4SE/Plugins/F4Forge/F4Forge.DotNet.Runtime.deps.json
-  F4SE/Plugins/F4Forge/F4Forge.DotNet.Runtime.runtimeconfig.json
-  F4SE/Plugins/F4Forge/F4Forge.DotNet.Sdk.dll
-
-build/F4Forge-demo.zip
-  F4SE/Plugins/F4Forge/Plugins/F4Forge.DotNet.Sample/F4Forge.DotNet.Sample.dll
-  F4SE/Plugins/F4Forge/Plugins/F4Forge.DotNet.Sample/f4forge.plugin.json
-```
-
-Expanded staging trees are also available under `build/packages/framework` and `build/packages/demo`.
-
-## Tests and Analysis
-
-```powershell
-.\scripts\test.ps1
-.\scripts\cppcheck.ps1
-```
-
-The test script builds native and managed targets, runs native executables, runs managed tests, and verifies `dotnet format`.
-
-## Plugin Manifest
-
-Plugins may include `f4forge.plugin.json`:
-
-```json
-{
-  "id": "example.plugin",
-  "version": "1.0.0",
-  "minimumF4ForgeVersion": "0.1.0",
-  "runtime": "dotnet",
-  "entryAssembly": "Example.Plugin.dll",
-  "dependencies": [],
-  "providedCapabilities": []
-}
-```
-
-The loader validates framework compatibility, rejects malformed manifests and path traversal, checks dependencies, detects cycles, and loads dependencies before dependents.
-
-## C# Plugin
+Каждый мод размещается в `Data/F4SE/Plugins/F4Forge/mods/dotnet/<Name>/` и содержит
+свою DLL, зависимости и `mod.json`: `{"assembly":"MyMod.dll"}`.
+Мод ссылается на `F4Forge.Net.dll` и содержит ровно один публичный класс `IMod`:
 
 ```csharp
-using F4Forge.DotNet.Sdk;
-
-public sealed class ExamplePlugin : F4ForgePlugin
+public sealed class MyMod : IMod
 {
-    public override string Id => "example.plugin";
-
-    public override void OnLoad(F4ForgePluginContext context)
+    public void Start(ModContext context)
     {
-        context.CancellationToken.ThrowIfCancellationRequested();
+        context.Messages.Register("mymod.title", _ => "My mod");
+    }
+
+    public void Dispose()
+    {
+        // Stop background work and release resources owned by the mod.
     }
 }
 ```
 
-Resources registered with `context.Track` are disposed during plugin unload. Plugin dispatch is quiesced before its collectible AssemblyLoadContext is unloaded.
+SDK автоматически снимает регистрации при остановке или ошибке запуска мода.
+Моды изолированы через `AssemblyLoadContext`; ошибки отдельных модов записываются в
+`F4Forge/Net.log`. Автоматическая перезагрузка модов пока не реализована.
 
-## ABI and Threading Policy
+## Общий канал и расширение
 
-The current public host ABI is version 3 and the runtime-provider ABI is version 2, with no v2 host compatibility shim. `F4ForgeGetHostApi` returns an instance-scoped `{ abiVersion, structSize, api, context }` binding, and every host-table callback receives that context first. C ABI structures use fixed-width fields and explicit `structSize` checks. See [docs/abi.md](docs/abi.md) for the exact layouts, ownership and scheduling contract, [docs/adding-features.md](docs/adding-features.md) for the endpoint-based feature workflow, and [docs/migration-v2-to-v3.md](docs/migration-v2-to-v3.md) for breaking changes.
+Запрос: `{"method":"mymod.title","arguments":null}`.
+Ответ: `{"value":"My mod"}` или `{"error":{"code":"method_not_found","message":"..."}}`.
 
-Synchronous APIs never perform implicit cross-thread marshalling. `GAME_ONLY` calls from a worker thread return `F4FORGE_RESULT_WRONG_THREAD`. Explicit operation APIs such as `InvokeAsync` and `EmitAsync` provide scheduling and operation handles.
+C#: `context.Messages.Call<string>("mymod.title", null)`.
+C++: зарегистрируйте обработчик через `Channel::Add`, вызовите через `Channel::Call`.
+Канал синхронный, сериализует обработчики и допускает вложенные вызовы в том же потоке.
+Не ждите внутри обработчика другой поток, который обращается к каналу. Передаваемые JSON
+буферы копируются во время вызова; указатели и игровые объекты через канал не передаются.
+Лимит сообщения — 1 MiB. Канал не переносит вызовы на игровой поток автоматически.
 
-Async operations copy caller buffers, use generation-based handles, support cancellation, and never enqueue raw pointers to unloadable plugin code. A target dispatch lease is acquired only immediately before execution.
+Нативные модули запускаются раньше компонентов с фазой `ComponentPhase::Sdk`.
+Новая функция добавляет файл в `native/modules/` с `ComponentRegistration` и отдельный
+C# extension-класс в SDK. Центральный маршрутизатор и таблица interop не меняются.
+Новый SDK добавляет `sdk/<language>/xmake.lua` с правилом `f4forge.sdk.<language>` и
+`native/*.cpp` с регистрацией компонента. Повторите `xmake f` после добавления файлов.
+Все нативные адаптеры попадут в Core; новые языковые DLL получают собственное имя `F4Forge.<Language>`.
 
-Managed plugins explicitly marshal work to the game thread without exposing delegates through the ABI. The managed runtime owns the numeric task-to-delegate map; native admission and execution revalidate the active runtime generation, and quiescing/cancellation make pending work complete or become inert:
+## Инструменты разработки
 
-```csharp
-await context.GameThread.InvokeAsync(() =>
-{
-    // Game-thread-only work.
-}, context.CancellationToken);
-
-var value = await context.GameThread.InvokeAsync(() => 42);
-```
-
-Plugins can receive keyboard button-down events synchronously on the game thread:
-
-```csharp
-context.Input.KeyDown += (_, args) =>
-    Logger.Info($"Some event triggered! {args}");
-```
-
-Handlers must not block. Autorepeat is reported by `KeyDownEventArgs.IsRepeat`; unknown codes use `Key.Unknown`. `KeyDownEventArgs.IsMenu` distinguishes main-menu input from gameplay input, and the two native input sinks are mutually exclusive.
-
-Plugins can subscribe to lifecycle events through the same event collection:
-
-```csharp
-context.Events.GameDataReady += (_, _) => Logger.Info("Game data is ready");
-context.Events.GameLoaded += (_, _) => Logger.Info("A saved game was loaded");
-context.Events.NewGame += (_, _) => Logger.Info("A new game was started");
-```
-
-## Hot Reload
-
-The framework prevents new dispatch leases after an owner enters quiescing and waits for active leases before unload. Pending operations can be cancelled; running native callbacks are not forcefully interrupted.
-
-Plugins must not retain unmanaged threads, static references, or external callbacks after unload. The framework tracks resources explicitly registered through `F4ForgePluginContext`; arbitrary plugin-created roots remain the plugin's responsibility.
-
-The native host exposes an explicit `F4ForgeHost::Shutdown()` lifecycle boundary for integrations and tests. F4SE does not provide an exit-process message; process termination is handled by the operating system.
-
-## License
-
-F4Forge is released under the MIT License. See `LICENSE`. Third-party dependencies retain their own licenses.
+Навыки: `.agents/skills/cpp-pro` из `Jeffallan/claude-skills` и
+`.agents/skills/dotnet-pinvoke` из официального `dotnet/skills`.
+Проектные MCP в `.codex/config.toml`: Microsoft Learn (MSVC/C++/.NET) и Context7
+(документация библиотек). После установки перезапустите MCP-соединения; навыки доступны
+со следующего хода. MCP нужны только помощнику разработчика, не сборке и не игре.

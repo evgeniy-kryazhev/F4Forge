@@ -10,8 +10,11 @@ $RECYCLE.BIN/
 
 # Windows shortcuts
 *.lnk
-native/lib
 .xmake/
 build/
-runtimes/dotnet/.idea/
-runtimes/dotnet/.vs/
+**/bin/
+**/obj/
+**/.idea/
+**/.vs/
+*.user
+compile_commands.json
