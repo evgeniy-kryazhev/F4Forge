@@ -1,9 +1,11 @@
 #include "../../modules/diagnostics/store.h"
 #include "../../modules/forms/service.h"
+#include "../../modules/console/router.h"
 #include <array>
 #include <atomic>
 #include <future>
 #include <iostream>
+#include <thread>
 
 namespace {
 
@@ -139,7 +141,10 @@ void HookChecks()
 void Objects(std::shared_ptr<const f4forge::IDataSerializer> serializer)
 {
     f4forge::Channel channel(std::move(serializer));
-    f4forge::forms::Session session;
+    const auto gameThread = std::this_thread::get_id();
+    f4forge::forms::Session session([gameThread] {
+        return std::this_thread::get_id() == gameThread;
+    });
     float base = 50;
     f4forge::forms::Backend backend;
     backend.describe = [](std::uint32_t id) -> DataValue {
@@ -156,10 +161,26 @@ void Objects(std::shared_ptr<const f4forge::IDataSerializer> serializer)
     {
         f4forge::forms::Service service(channel, session, backend);
         Require(Call(channel, "forms.player", nullptr).at("success") == false, "Objects were accessible before readiness");
-        session.Ready(true);
+        // F4SE can deliver load completion on a loader thread. It must not
+        // change which thread is allowed to execute console object operations.
+        std::async(std::launch::async, [&] { session.Ready(true); }).get();
         const auto player = Call(channel, "forms.player", nullptr).at("value");
         const auto generation = player.at("session").get<std::uint64_t>();
         Require(player.at("formId") == 0x14 && generation != 0, "Session was not attached to object");
+        std::vector<std::string> output;
+        f4forge::console::Router router(channel, [&](std::string_view line) {
+            output.emplace_back(line);
+        }, [](std::string_view) { return false; });
+        const auto command = channel.Add("console.command.hlog", [&](const DataValue&) -> DataValue {
+            const auto resolved = Call(channel, "forms.player", nullptr);
+            Require(resolved.at("success") == true, "Console could not resolve the player after background loading");
+            const auto snapshot = Call(channel, "forms.reference", resolved.at("value"));
+            Require(snapshot.at("success") == true, "Console could not read the player snapshot");
+            return {{"lines", {"Player snapshot read"}}};
+        });
+        Require(router.Execute("hlog", 0), "Registered object command was not handled");
+        Require(output == std::vector<std::string>{"Player snapshot read"}, "Console object command failed");
+        channel.Remove(command);
         Require(Call(channel, "forms.describe", {{"formId", 0}}).at("value").is_null(), "Null form did not remain null");
         Require(Call(channel, "forms.describe", {{"formId", -1}}).at("success") == false, "Negative form ID was accepted");
         Require(Call(channel, "forms.describe", {{"formId", 0x100000000ULL}}).at("success") == false, "Overflowed form ID was accepted");
@@ -173,6 +194,12 @@ void Objects(std::shared_ptr<const f4forge::IDataSerializer> serializer)
         arguments["kind"] = "invalid";
         Require(Call(channel, "forms.actor_value", arguments).at("success") == false, "Unknown actor value kind was accepted");
         Require(std::async(std::launch::async, [&] { return Throws([&] { session.Require(); }); }).get(), "Off-thread access was allowed");
+        const auto workerResult = std::async(std::launch::async, [&] {
+            session.Ready(true);
+            return Call(channel, "forms.player", nullptr);
+        }).get();
+        Require(workerResult.at("success") == false, "Load notification granted a worker access to objects");
+        Require(Call(channel, "forms.player", nullptr).at("success") == true, "Load notification revoked game-thread access");
         session.Reset();
         Require(Call(channel, "forms.reference", arguments).at("success") == false, "Expired session still accessed the backend");
         session.Ready(false);

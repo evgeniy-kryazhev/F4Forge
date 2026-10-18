@@ -41,7 +41,7 @@ context.Events.OnActorDied(notification =>
 
 `Form` describes any form. `Reference` adds a copied position and base/cell/location IDs. `Actor` and `ActorValue` enable `actor.GetValue(value, kind)` and `actor.SetBaseValue(value, amount)` for any actor-value definition, including mod-defined values. Base writes preserve damage and temporary modifiers. `0` means an absent linked object.
 
-Operations are synchronous and allowed only on the thread captured when game data becomes ready. Calls during loading, from other threads, after mod disposal or with a previous session's identity fail explicitly. Resolve wrappers again after loading/new game. Form IDs are not persistent handles; missing objects are checked again in C++. No native pointer is retained by a managed wrapper.
+Operations are synchronous and allowed only on the engine's main thread, identified by `RE::Main::threadID`. Load notifications update readiness and session identity without changing thread ownership; they may arrive on a loader thread. Console handlers on the main thread can resolve the player and read snapshots through nested channel calls. Calls during loading, from other threads, after mod disposal or with a previous session's identity fail explicitly. Calls do not queue work or wait on another thread while holding the shared dispatch lane. Resolve wrappers again after loading/new game. Form IDs are not persistent handles; missing objects are checked again in C++. No native pointer is retained by a managed wrapper.
 
 ## Additive extensions
 

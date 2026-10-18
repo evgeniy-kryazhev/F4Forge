@@ -8,7 +8,12 @@ namespace {
 
 Session& World()
 {
-    static Session session;
+    static Session session([] {
+        // Load notifications may run on a loader thread. Only the engine's
+        // main-thread identity authorizes synchronous access to game objects.
+        const auto* main = RE::Main::GetSingleton();
+        return main != nullptr && main->threadID != 0 && main->threadID == REX::W32::GetCurrentThreadId();
+    });
     return session;
 }
 

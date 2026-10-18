@@ -1,7 +1,6 @@
 #pragma once
 
 #include "channel.h"
-#include <thread>
 #include <vector>
 
 namespace f4forge::forms {
@@ -10,13 +9,16 @@ namespace f4forge::forms {
 // stale references and off-thread calls can be tested without launching the game.
 class Session final {
 public:
+    using IsGameThread = std::function<bool()>;
+
+    explicit Session(IsGameThread isGameThread);
     void Ready(bool ready);
     void Reset();
     std::uint64_t Require(std::uint64_t expected = 0) const;
 
 private:
     mutable std::mutex gate_;
-    std::thread::id thread_;
+    IsGameThread isGameThread_;
     bool ready_ = false;
     std::uint64_t generation_ = 1;
 };

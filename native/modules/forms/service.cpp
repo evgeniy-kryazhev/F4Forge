@@ -36,6 +36,13 @@ std::uint64_t Generation(const DataValue& arguments, const char* name = "session
 
 }
 
+Session::Session(IsGameThread isGameThread) : isGameThread_(std::move(isGameThread))
+{
+    if (!isGameThread_) {
+        throw std::invalid_argument("An engine game-thread check is required.");
+    }
+}
+
 void Session::Ready(bool ready)
 {
     std::lock_guard lock(gate_);
@@ -43,9 +50,6 @@ void Session::Ready(bool ready)
         ++generation_;
     }
     ready_ = ready;
-    if (ready) {
-        thread_ = std::this_thread::get_id();
-    }
 }
 
 void Session::Reset()
@@ -60,7 +64,7 @@ std::uint64_t Session::Require(std::uint64_t expected) const
     if (!ready_) {
         throw std::runtime_error("Game objects are unavailable until game data is ready and loading has finished.");
     }
-    if (thread_ != std::this_thread::get_id()) {
+    if (!isGameThread_()) {
         throw std::runtime_error("Game object operations must execute in the game thread.");
     }
     if (expected != 0 && expected != generation_) {
