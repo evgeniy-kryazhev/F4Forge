@@ -1,22 +1,76 @@
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Text;
-using System.Text.Json;
+using F4Forge.Net.Events;
 using F4Forge.Net.Messaging;
+using F4Forge.Net.Serialization;
 
 namespace F4Forge.Net.Interop;
 
-internal sealed unsafe class NativeChannel(ChannelBinding binding) : IMessageChannel
+internal sealed unsafe class NativeChannel : IMessageChannel, IEventChannel
 {
     private const int MaximumMessageBytes = 1024 * 1024;
+    private readonly ChannelBinding _binding;
+
+    public NativeChannel(ChannelBinding binding, IDataSerializer? serializer = null)
+    {
+        if (binding.Context == 0 || binding.Call is null || binding.Add is null || binding.Remove is null
+            || binding.Publish is null || binding.Subscribe is null || binding.Unsubscribe is null || binding.DataFormat is null)
+        {
+            throw new ArgumentException("Incomplete channel binding.", nameof(binding));
+        }
+        var format = Marshal.PtrToStringUTF8((nint)binding.DataFormat)!;
+        Serializer = serializer ?? DataSerializers.Create(format);
+        if (Serializer.Format != format)
+        {
+            throw new ArgumentException($"The host uses '{format}', but the SDK serializer uses '{Serializer.Format}'.", nameof(serializer));
+        }
+        _binding = binding;
+    }
+
+    public IDataSerializer Serializer { get; }
 
     public TResult Call<TResult>(string method, object? arguments)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(method);
-        var request = JsonSerializer.SerializeToUtf8Bytes(new { method, arguments });
+        ValidateName(method);
+        var request = Serializer.Serialize(new MessageRequest(method, arguments));
+        return Send<TResult>(request, publish: false);
+    }
+
+    public void Publish<T>(string name, T data)
+    {
+        ValidateName(name);
+        var request = Serializer.Serialize(new EventRequest(name, data));
+        Send<object?>(request, publish: true);
+    }
+
+    public IDisposable Register<TArguments, TResult>(string method, Func<TArguments, TResult> handler)
+    {
+        ArgumentNullException.ThrowIfNull(handler);
+        return RegisterCallback(method, bytes =>
+        {
+            var arguments = Serializer.Deserialize<TArguments>(bytes);
+            var result = handler(arguments);
+            return Serializer.Serialize(new ProtocolResponse<TResult>(true, result));
+        }, subscribe: false);
+    }
+
+    public IDisposable Subscribe<T>(string name, Action<T> handler)
+    {
+        ArgumentNullException.ThrowIfNull(handler);
+        return RegisterCallback(name, bytes =>
+        {
+            var data = Serializer.Deserialize<T>(bytes);
+            handler(data);
+            return Serializer.Serialize(new ProtocolResponse<object?>(true));
+        }, subscribe: true);
+    }
+
+    private TResult Send<TResult>(byte[] request, bool publish)
+    {
         if (request.Length > MaximumMessageBytes)
         {
-            throw new ArgumentException("Message exceeds the size limit.", nameof(arguments));
+            throw new ArgumentException("Message exceeds the size limit.", nameof(request));
         }
         var response = new ResponseBuffer();
         var responseHandle = GCHandle.Alloc(response);
@@ -24,19 +78,24 @@ internal sealed unsafe class NativeChannel(ChannelBinding binding) : IMessageCha
         {
             fixed (byte* requestPointer = request)
             {
-                var status = binding.Call(binding.Context, requestPointer, (uint)request.Length,
+                var dispatch = publish ? _binding.Publish : _binding.Call;
+                var status = dispatch(_binding.Context, requestPointer, (uint)request.Length,
                     &Receive, GCHandle.ToIntPtr(responseHandle));
                 if (status != 0 || response.Bytes is null)
                 {
                     throw new MessageException("transport_failed", "The native transport failed.");
                 }
             }
-            using var document = JsonDocument.Parse(response.Bytes);
-            if (document.RootElement.TryGetProperty("error", out var error))
+            var envelope = Serializer.Deserialize<ProtocolResponse<TResult>>(response.Bytes);
+            if (envelope is null || (!envelope.Success && envelope.Error is null))
             {
-                throw new MessageException(error.GetProperty("code").GetString()!, error.GetProperty("message").GetString()!);
+                throw new MessageException("invalid_response", "The host returned an invalid response envelope.");
             }
-            return document.RootElement.GetProperty("value").Deserialize<TResult>()!;
+            if (envelope.Error is not null)
+            {
+                throw new MessageException(envelope.Error.Code, envelope.Error.Message);
+            }
+            return envelope.Value!;
         }
         finally
         {
@@ -44,28 +103,38 @@ internal sealed unsafe class NativeChannel(ChannelBinding binding) : IMessageCha
         }
     }
 
-    public IDisposable Register(string method, Func<JsonElement, object?> handler)
+    private IDisposable RegisterCallback(string name, Func<byte[], byte[]> handler, bool subscribe)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(method);
-        ArgumentNullException.ThrowIfNull(handler);
-        var name = Encoding.UTF8.GetBytes(method);
-        var handle = GCHandle.Alloc(handler);
+        ValidateName(name);
+        var encodedName = Encoding.UTF8.GetBytes(name);
+        var handle = GCHandle.Alloc(new Callback(Serializer, handler));
         try
         {
-            fixed (byte* namePointer = name)
+            fixed (byte* namePointer = encodedName)
             {
-                var registration = binding.Add(binding.Context, namePointer, (uint)name.Length, &Invoke, GCHandle.ToIntPtr(handle));
+                var add = subscribe ? _binding.Subscribe : _binding.Add;
+                var registration = add(_binding.Context, namePointer, (uint)encodedName.Length, &Invoke, GCHandle.ToIntPtr(handle));
                 if (registration == 0)
                 {
-                    throw new InvalidOperationException($"Cannot register method '{method}'; it may already exist.");
+                    throw new InvalidOperationException($"Cannot register '{name}'; it may already exist.");
                 }
-                return new Registration(binding, registration, handle);
+                var remove = subscribe ? _binding.Unsubscribe : _binding.Remove;
+                return new Registration(_binding.Context, remove, registration, handle);
             }
         }
         catch
         {
             handle.Free();
             throw;
+        }
+    }
+
+    private static void ValidateName(string name)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(name);
+        if (Encoding.UTF8.GetByteCount(name) > 256)
+        {
+            throw new ArgumentException("Names must fit in 256 UTF-8 bytes.", nameof(name));
         }
     }
 
@@ -98,16 +167,17 @@ internal sealed unsafe class NativeChannel(ChannelBinding binding) : IMessageCha
             {
                 return 1;
             }
+            // This local root keeps a self-unsubscribing callback alive until it returns.
+            var callback = (Callback)GCHandle.FromIntPtr(context).Target!;
             byte[] response;
             try
             {
-                var handler = (Func<JsonElement, object?>)GCHandle.FromIntPtr(context).Target!;
-                using var arguments = JsonDocument.Parse(new ReadOnlySpan<byte>(data, (int)length).ToArray());
-                response = JsonSerializer.SerializeToUtf8Bytes(new { value = handler(arguments.RootElement) });
+                response = callback.Handler(new ReadOnlySpan<byte>(data, (int)length).ToArray());
             }
             catch (Exception exception)
             {
-                response = JsonSerializer.SerializeToUtf8Bytes(new { error = new { message = exception.Message } });
+                var error = new ProtocolError("handler_failed", exception.Message);
+                response = callback.Serializer.Serialize(new ProtocolResponse<object?>(false, Error: error));
             }
             if (response.Length > MaximumMessageBytes)
             {
@@ -120,30 +190,32 @@ internal sealed unsafe class NativeChannel(ChannelBinding binding) : IMessageCha
         }
         catch
         {
-            // Exceptions must never unwind through a native function pointer.
+            // Serializer failures also stay on the managed side of this boundary.
             return 1;
         }
     }
+
+    private sealed record Callback(IDataSerializer Serializer, Func<byte[], byte[]> Handler);
 
     private sealed class ResponseBuffer
     {
         public byte[]? Bytes { get; set; }
     }
 
-    private sealed class Registration(ChannelBinding host, ulong identifier, GCHandle handler) : IDisposable
+    private sealed class Registration(nint context, delegate* unmanaged[Cdecl]<nint, ulong, void> remove,
+        ulong identifier, GCHandle handler) : IDisposable
     {
-        private long _identifier = checked((long)identifier);
+        private int _freed;
 
         public void Dispose()
         {
-            var identifierToRemove = Interlocked.Exchange(ref _identifier, 0);
-            if (identifierToRemove == 0)
+            // Every disposer joins native quiescence, including concurrent disposers.
+            // A callback disposing itself is already rooted by Invoke's local state.
+            remove(context, identifier);
+            if (Interlocked.Exchange(ref _freed, 1) == 0)
             {
-                return;
+                handler.Free();
             }
-            // Native removal waits for active callbacks before their GC root is freed.
-            host.Remove(host.Context, (ulong)identifierToRemove);
-            handler.Free();
         }
     }
 }

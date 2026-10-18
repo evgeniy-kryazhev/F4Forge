@@ -3,7 +3,7 @@
 ## Structure and Architecture
 
 F4Forge targets Windows x64, C++23, .NET 10, and F4SE. `native/core/` contains the shared
-message channel and component registry; `native/src/` integrates F4SE. New native features
+message/event channels, serializer interfaces, and component registry; `native/src/` integrates F4SE. New native features
 belong in `native/modules/`. `native/lib/commonlibf4/` is an external submodule.
 
 `sdk/<language>/` owns each SDK, including its native adapter and mod-loading policy.
@@ -31,6 +31,7 @@ Run from the repository root:
 xmake f -m releasedbg -y
 xmake -j 2
 xmake run F4Forge.Channel.Tests
+xmake run F4Forge.Events.Tests
 xmake run F4Forge.Components.Tests
 xmake run F4Forge.Hosting.Tests
 dotnet test tests/dotnet/F4Forge.Net.Tests/F4Forge.Net.Tests.csproj -c Release
@@ -38,7 +39,8 @@ dotnet test tests/dotnet/F4Forge.Net.Tests/F4Forge.Net.Tests.csproj -c Release
 
 The hosting test starts the real CLR and loads a fixture mod. Managed tests use xUnit
 and a native transport fixture. Test Unicode, error boundaries, registration lifetime,
-startup rollback, and nested calls. No numeric coverage threshold is imposed.
+startup rollback, nested calls, event subscription races, and alternate serialization.
+No numeric coverage threshold is imposed.
 
 ## Readability and Ownership
 
@@ -47,6 +49,9 @@ control flow, and concise comments for invariants. C# types/methods use PascalCa
 private fields use `_camelCase`. Keep warnings as errors. Never let exceptions cross
 unmanaged callbacks. Handlers are synchronous: do not block on another thread that
 needs the channel. Dispose registrations before releasing callback state.
+Use `IDataSerializer` for all wire data, including errors. Keep format-specific parsing
+inside serializer implementations. Messages and events share one serializer and dispatch
+lane per host; never invoke handlers while holding a registry lock.
 
 ## Contributions and Tools
 

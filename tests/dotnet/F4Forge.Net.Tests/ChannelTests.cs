@@ -29,14 +29,14 @@ public sealed partial class ChannelTests : IDisposable
     [Fact]
     public void ManagedHandlerCanCallNativeHandler()
     {
-        using var registration = _channel.Register("managed.echo", arguments => _channel.Call<JsonElement>("native.echo", arguments));
+        using var registration = _channel.Register<JsonElement, JsonElement>("managed.echo", arguments => _channel.Call<JsonElement>("native.echo", arguments));
         Assert.Equal(42, _channel.Call<int>("managed.echo", 42));
     }
 
     [Fact]
     public void DisposalRemovesHandlerAndIsIdempotent()
     {
-        var registration = _channel.Register("managed.temporary", _ => true);
+        var registration = _channel.Register<object?, bool>("managed.temporary", _ => true);
         registration.Dispose();
         registration.Dispose();
         var exception = Assert.Throws<MessageException>(() => _channel.Call<bool>("managed.temporary", null));
@@ -46,7 +46,7 @@ public sealed partial class ChannelTests : IDisposable
     [Fact]
     public void HandlerExceptionsStayInsideMessageBoundary()
     {
-        using var registration = _channel.Register("managed.fail", _ => throw new InvalidOperationException("Failure Ω"));
+        using var registration = _channel.Register<object?, bool>("managed.fail", _ => throw new InvalidOperationException("Failure Ω"));
         var exception = Assert.Throws<MessageException>(() => _channel.Call<bool>("managed.fail", null));
         Assert.Equal("handler_failed", exception.Code);
         Assert.Equal("Failure Ω", exception.Message);
@@ -55,8 +55,8 @@ public sealed partial class ChannelTests : IDisposable
     [Fact]
     public void DuplicateRegistrationDoesNotReplaceOriginal()
     {
-        using var registration = _channel.Register("managed.unique", _ => 1);
-        Assert.Throws<InvalidOperationException>(() => _channel.Register("managed.unique", _ => 2));
+        using var registration = _channel.Register<object?, int>("managed.unique", _ => 1);
+        Assert.Throws<InvalidOperationException>(() => _channel.Register<object?, int>("managed.unique", _ => 2));
         Assert.Equal(1, _channel.Call<int>("managed.unique", null));
     }
 
@@ -71,7 +71,7 @@ public sealed partial class ChannelTests : IDisposable
     {
         using var entered = new ManualResetEventSlim();
         using var release = new ManualResetEventSlim();
-        var registration = _channel.Register("managed.wait", _ =>
+        var registration = _channel.Register<object?, int>("managed.wait", _ =>
         {
             entered.Set();
             if (!release.Wait(TimeSpan.FromSeconds(10)))
@@ -117,7 +117,7 @@ public sealed partial class ChannelTests : IDisposable
             File.WriteAllText(Path.Combine(directory, "fail-start"), "");
         }
         var errors = new List<string>();
-        using var loader = new ModLoader(_channel, errors.Add);
+        using var loader = new ModLoader(_channel, _channel, _channel.Serializer, errors.Add);
         try
         {
             loader.LoadDirectory(root);
@@ -127,7 +127,13 @@ public sealed partial class ChannelTests : IDisposable
             {
                 Assert.Equal("Loaded", _channel.Call<string>("fixture.echo", "Loaded"));
             }
+            var received = new List<string>();
+            using var listener = _channel.Subscribe<string>("fixture.output", received.Add);
+            _channel.Publish("fixture.input", "Before stop");
+            Assert.Equal(failStartup ? 0 : 1, received.Count);
             loader.Dispose();
+            _channel.Publish("fixture.input", "After stop");
+            Assert.Equal(failStartup ? 0 : 1, received.Count);
             Assert.Throws<MessageException>(() => _channel.Call<string>("fixture.echo", null));
         }
         finally
@@ -140,8 +146,8 @@ public sealed partial class ChannelTests : IDisposable
     [Fact]
     public void InteropLayoutsMatchNativeX64()
     {
-        Assert.Equal(32, Marshal.SizeOf<ChannelBinding>());
-        Assert.Equal(40, Marshal.SizeOf<Bootstrap.Arguments>());
+        Assert.Equal(64, Marshal.SizeOf<ChannelBinding>());
+        Assert.Equal(72, Marshal.SizeOf<Bootstrap.Arguments>());
     }
 
     public void Dispose()

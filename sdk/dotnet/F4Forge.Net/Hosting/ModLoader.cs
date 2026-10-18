@@ -1,10 +1,13 @@
 using System.Text.Json;
 using F4Forge.Net.Messaging;
 using F4Forge.Net.Mods;
+using F4Forge.Net.Events;
+using F4Forge.Net.Serialization;
 
 namespace F4Forge.Net.Hosting;
 
-internal sealed class ModLoader(IMessageChannel messages, Action<string> reportError) : IDisposable
+internal sealed class ModLoader(IMessageChannel messages, IEventChannel events, IDataSerializer serializer,
+    Action<string> reportError) : IDisposable
 {
     private readonly List<LoadedMod> _mods = [];
 
@@ -42,7 +45,9 @@ internal sealed class ModLoader(IMessageChannel messages, Action<string> reportE
         }
         var assemblyPath = Path.GetFullPath(Path.Combine(directory, assemblyName));
         var loadContext = new ModLoadContext(assemblyPath);
-        var scope = new ScopedChannel(messages);
+        var lifetime = new ModLifetime();
+        var scope = new ScopedChannel(messages, lifetime);
+        var eventScope = new ScopedEvents(events, lifetime);
         IMod? mod = null;
         try
         {
@@ -57,12 +62,12 @@ internal sealed class ModLoader(IMessageChannel messages, Action<string> reportE
                 throw new InvalidDataException("A mod assembly must contain exactly one public IMod implementation.");
             }
             mod = (IMod)Activator.CreateInstance(entryPoints[0])!;
-            mod.Start(new ModContext(directory, scope));
-            _mods.Add(new LoadedMod(mod, scope, loadContext));
+            mod.Start(new ModContext(directory, scope, eventScope, serializer));
+            _mods.Add(new LoadedMod(mod, scope, eventScope, loadContext));
         }
         catch
         {
-            Release(new LoadedMod(mod, scope, loadContext));
+            Release(new LoadedMod(mod, scope, eventScope, loadContext));
             throw;
         }
     }
@@ -78,6 +83,7 @@ internal sealed class ModLoader(IMessageChannel messages, Action<string> reportE
 
     private void Release(LoadedMod mod)
     {
+        mod.Events.Dispose();
         mod.Messages.Dispose();
         try
         {
@@ -93,5 +99,5 @@ internal sealed class ModLoader(IMessageChannel messages, Action<string> reportE
         }
     }
 
-    private sealed record LoadedMod(IMod? Instance, ScopedChannel Messages, ModLoadContext Context);
+    private sealed record LoadedMod(IMod? Instance, ScopedChannel Messages, ScopedEvents Events, ModLoadContext Context);
 }

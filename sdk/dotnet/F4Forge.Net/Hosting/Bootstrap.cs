@@ -29,7 +29,7 @@ internal static unsafe class Bootstrap
             var directory = Path.Combine(new string(arguments->Directory), "F4Forge");
             System.IO.Directory.CreateDirectory(directory);
             var channel = new NativeChannel(arguments->Channel);
-            _loader = new ModLoader(channel, message => Log(directory, message));
+            _loader = new ModLoader(channel, channel, channel.Serializer, message => Log(directory, message));
             _loader.LoadDirectory(Path.Combine(directory, "mods", "dotnet"));
             return 0;
         }

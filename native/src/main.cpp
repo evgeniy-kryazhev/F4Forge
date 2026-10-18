@@ -6,10 +6,12 @@
 #undef ERROR
 #endif
 #include <vector>
+#include <cstdlib>
+#include <memory>
 
 namespace {
 
-f4forge::Channel channel;
+std::unique_ptr<f4forge::Channel> channel;
 f4forge::Components components;
 
 std::filesystem::path PluginDirectory()
@@ -33,7 +35,18 @@ F4SE_PLUGIN_LOAD(const F4SE::LoadInterface* loadInterface)
 {
     try {
         F4SE::Init(loadInterface);
-        components.Start(channel, PluginDirectory());
+        char* configuredFormat = nullptr;
+        std::size_t formatLength = 0;
+        if (_dupenv_s(&configuredFormat, &formatLength, "F4FORGE_DATA_FORMAT") != 0) {
+            throw std::runtime_error("Cannot read F4FORGE_DATA_FORMAT.");
+        }
+        const std::unique_ptr<char, decltype(&std::free)> formatOwner(configuredFormat, &std::free);
+        const std::string format = configuredFormat == nullptr ? "json" : configuredFormat;
+        channel = std::make_unique<f4forge::Channel>(f4forge::CreateDataSerializer(format));
+        channel->Events().SetErrorSink([](std::string_view message) {
+            REX::ERROR("{}", message);
+        });
+        components.Start(*channel, PluginDirectory());
         REX::INFO("F4Forge.Core loaded");
         return true;
     } catch (const std::exception& exception) {

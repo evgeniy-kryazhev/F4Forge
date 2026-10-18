@@ -48,7 +48,7 @@ int main()
         Require(f4forge::Json::parse(channel.Call(std::string(f4forge::Channel::MaxMessageBytes + 1, 'x')))["error"]["code"] == "invalid_request", "Oversized request accepted");
         const auto binding = channel.Binding();
         Require(binding.call(binding.context, nullptr, 0, nullptr, nullptr) != 0, "Invalid transport arguments accepted");
-        static_assert(sizeof(f4forge::ChannelBinding) == 32);
+        static_assert(sizeof(f4forge::ChannelBinding) == 64);
         std::cout << "Native channel checks passed\n";
         return 0;
     } catch (const std::exception& exception) {

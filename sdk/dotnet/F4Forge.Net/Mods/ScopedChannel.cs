@@ -1,9 +1,8 @@
-using System.Text.Json;
 using F4Forge.Net.Messaging;
 
 namespace F4Forge.Net.Mods;
 
-internal sealed class ScopedChannel(IMessageChannel channel) : IMessageChannel, IDisposable
+internal sealed class ScopedChannel(IMessageChannel channel, ModLifetime lifetime) : IMessageChannel, IDisposable
 {
     private readonly object _gate = new();
     private readonly List<IDisposable> _registrations = [];
@@ -12,13 +11,20 @@ internal sealed class ScopedChannel(IMessageChannel channel) : IMessageChannel, 
     public TResult Call<TResult>(string method, object? arguments)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
+        lifetime.ThrowIfClosed();
         return channel.Call<TResult>(method, arguments);
     }
 
-    public IDisposable Register(string method, Func<JsonElement, object?> handler)
+    public IDisposable Register<TArguments, TResult>(string method, Func<TArguments, TResult> handler)
     {
+        ArgumentNullException.ThrowIfNull(handler);
         ObjectDisposedException.ThrowIf(_disposed, this);
-        var registration = channel.Register(method, handler);
+        lifetime.ThrowIfClosed();
+        var registration = channel.Register<TArguments, TResult>(method, arguments =>
+        {
+            lifetime.ThrowIfClosed();
+            return handler(arguments);
+        });
         lock (_gate)
         {
             if (!_disposed)
@@ -33,6 +39,7 @@ internal sealed class ScopedChannel(IMessageChannel channel) : IMessageChannel, 
 
     public void Dispose()
     {
+        lifetime.Close();
         IDisposable[] registrations;
         lock (_gate)
         {

@@ -10,4 +10,8 @@ internal unsafe struct ChannelBinding
     public delegate* unmanaged[Cdecl]<nint, byte*, uint, delegate* unmanaged[Cdecl]<nint, byte*, uint, int>, nint, int> Call;
     public delegate* unmanaged[Cdecl]<nint, byte*, uint, delegate* unmanaged[Cdecl]<nint, byte*, uint, delegate* unmanaged[Cdecl]<nint, byte*, uint, int>, nint, int>, nint, ulong> Add;
     public delegate* unmanaged[Cdecl]<nint, ulong, void> Remove;
+    public delegate* unmanaged[Cdecl]<nint, byte*, uint, delegate* unmanaged[Cdecl]<nint, byte*, uint, int>, nint, int> Publish;
+    public delegate* unmanaged[Cdecl]<nint, byte*, uint, delegate* unmanaged[Cdecl]<nint, byte*, uint, delegate* unmanaged[Cdecl]<nint, byte*, uint, int>, nint, int>, nint, ulong> Subscribe;
+    public delegate* unmanaged[Cdecl]<nint, ulong, void> Unsubscribe;
+    public byte* DataFormat;
 }

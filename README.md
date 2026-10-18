@@ -17,6 +17,7 @@ git submodule update --init --recursive
 xmake f -m releasedbg -y
 xmake -j 2
 xmake run F4Forge.Channel.Tests
+xmake run F4Forge.Events.Tests
 xmake run F4Forge.Components.Tests
 xmake run F4Forge.Hosting.Tests
 dotnet test tests/dotnet/F4Forge.Net.Tests/F4Forge.Net.Tests.csproj -c Release
@@ -38,7 +39,7 @@ public sealed class MyMod : IMod
 {
     public void Start(ModContext context)
     {
-        context.Messages.Register("mymod.title", _ => "My mod");
+        context.Messages.Register<object?, string>("mymod.title", _ => "My mod");
     }
 
     public void Dispose()
@@ -55,7 +56,8 @@ SDK автоматически снимает регистрации при ос
 ## Общий канал и расширение
 
 Запрос: `{"method":"mymod.title","arguments":null}`.
-Ответ: `{"value":"My mod"}` или `{"error":{"code":"method_not_found","message":"..."}}`.
+Ответ: `{"success":true,"value":"My mod"}` или
+`{"success":false,"error":{"code":"method_not_found","message":"..."}}`.
 
 C#: `context.Messages.Call<string>("mymod.title", null)`.
 C++: зарегистрируйте обработчик через `Channel::Add`, вызовите через `Channel::Call`.
@@ -78,3 +80,64 @@ C# extension-класс в SDK. Центральный маршрутизато�
 Проектные MCP в `.codex/config.toml`: Microsoft Learn (MSVC/C++/.NET) и Context7
 (документация библиотек). После установки перезапустите MCP-соединения; навыки доступны
 со следующего хода. MCP нужны только помощнику разработчика, не сборке и не игре.
+
+## События
+
+Канал событий доступен через `channel.Events()` в C++ и `context.Events` в C#:
+
+```cpp
+channel.Events().Publish("game.loaded", {{"saveName", saveName}});
+```
+
+```csharp
+var subscription = context.Events.Subscribe<GameLoaded>(
+    "game.loaded",
+    notification => Console.WriteLine(notification.SaveName));
+
+context.Events.Publish("mymod.ready", new { name = "My mod" });
+subscription.Dispose();
+
+public sealed record GameLoaded(string SaveName);
+```
+
+Это пример публикации из игрового модуля: сам канал не устанавливает игровые перехватчики.
+Подписки принадлежат моду и снимаются при остановке или ошибке запуска. Подписчики
+вызываются последовательно, в порядке регистрации, в потоке публикации. Истории и
+повторной доставки нет. Ошибка подписчика записывается в лог и не прерывает остальных.
+Новые подписки не получают уже начавшуюся публикацию; снятые до своей очереди пропускаются.
+
+Сообщения и события используют общую последовательную область исполнения, допускающую
+вложенные вызовы в том же потоке. Блокировка реестра во время обработчиков не удерживается.
+Отписка запрещает дальнейшие вызовы и ждёт активный обработчик; отписка из самого
+обработчика возвращается сразу. Сам обработчик после этого завершает текущий вызов.
+Остановку всего SDK выполняет хост вне обработчиков; перезагрузка из обработчика не поддерживается.
+
+## Единая сериализация
+
+`IDataSerializer` в C++ и C# используется для запросов, аргументов, результатов, ошибок
+и событий. Оба канала на каждой стороне используют один экземпляр сериализатора.
+В C# он также доступен через `context.Serializer`; обработчики методов типизированы:
+
+```csharp
+context.Messages.Register<RenameRequest, bool>("mymod.rename", request =>
+{
+    return Rename(request.Name);
+});
+```
+
+Транспорт передаёт байты с длиной, включая нулевые байты. UTF-8 JSON — текущая реализация
+по умолчанию, а не требование транспорта. Конвертация JSON находится в `json_serializer.cpp`
+и `JsonDataSerializer.cs`. Нативные обработчики используют `DataValue` — дерево значений
+на основе nlohmann; альтернативное кодирование должно поддерживать те же значения.
+Названия методов/событий и идентификатор формата остаются UTF-8 строками.
+
+Новый формат добавляется двумя реализациями `IDataSerializer`: C++ с `SerializerRegistration`
+и C# с публичным конструктором без аргументов в сборке SDK. Они должны одинаково кодировать
+поля протокола `method`, `arguments`, `event`, `data`, `success`, `value`, `error`, `code`,
+`message`. Выбор — переменная окружения `F4FORGE_DATA_FORMAT` перед запуском игры
+(по умолчанию `json`). SDK автоматически находит соответствующую реализацию;
+неизвестный или несовпадающий формат отклоняется до загрузки модов.
+
+Сериализаторы должны быть потокобезопасными, не удерживать входные буферы и сигнализировать
+ошибку разбора исключением. Формат фиксируется при создании хоста. JSON-манифесты модов
+сохраняют собственный файловый формат и не зависят от кодирования канала.

@@ -16,11 +16,23 @@ int main()
             return arguments;
         });
         components.Start(channel, directory);
+        std::vector<std::string> events;
+        channel.Events().Subscribe("fixture.output", [&](const auto& data) {
+            events.push_back(data.template get<std::string>());
+        });
+        channel.Events().Publish("fixture.input", "Native → managed → native event");
+        if (events != std::vector<std::string>{"Native → managed → native event"}) {
+            throw std::runtime_error("Managed event round trip failed.");
+        }
         const auto response = f4forge::Json::parse(channel.Call(R"({"method":"fixture.echo","arguments":{"text":"C++ → .NET → C++"}})"));
         if (response.at("value").at("text") != "C++ → .NET → C++") {
             throw std::runtime_error("Managed mod did not return the expected message.");
         }
         components.Stop();
+        channel.Events().Publish("fixture.input", "After stop");
+        if (events.size() != 1) {
+            throw std::runtime_error("Managed event subscription survived SDK shutdown.");
+        }
         const auto removed = f4forge::Json::parse(channel.Call(R"({"method":"fixture.echo","arguments":null})"));
         if (removed.at("error").at("code") != "method_not_found") {
             throw std::runtime_error("Managed handler survived SDK shutdown.");
