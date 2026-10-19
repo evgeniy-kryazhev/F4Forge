@@ -1,4 +1,4 @@
-namespace F4Forge.Net.Commands;
+namespace F4Forge.Net.Console;
 
 /// <summary>Custom aliases entered directly into the Fallout 4 console.</summary>
 public interface IConsole

@@ -124,7 +124,7 @@ public sealed partial class FoundationTests : IDisposable
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void TypedObjectsUseSharedSerializerAndAllowExternalViews(bool binary)
+    public void TypedObjectsUseSharedSerializerAndAllowExternalFormTypes(bool binary)
     {
         var channel = Open(binary);
         var context = Context(channel);
@@ -449,7 +449,7 @@ public sealed partial class FoundationTests : IDisposable
         public object Arguments => new { EditorId };
     }
 
-    private sealed class Weapon : Form, IFormView<Weapon>
+    private sealed class Weapon : Form, IFormType<Weapon>
     {
         private Weapon(Form source) : base(source) { }
         public new static bool Matches(FormSnapshot snapshot) => snapshot.Type == "WEAP";

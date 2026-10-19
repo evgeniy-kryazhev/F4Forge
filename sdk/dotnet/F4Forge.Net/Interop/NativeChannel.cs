@@ -146,7 +146,7 @@ internal sealed unsafe class NativeChannel : IMessageChannel, IEventChannel
     {
         ArgumentNullException.ThrowIfNull(handler);
         return new AsyncNotification<T>(_notifications, name, handler, callback => Subscribe(name, callback),
-            _ => { }, Console.Error.WriteLine);
+            _ => { }, System.Console.Error.WriteLine);
     }
 
     private TResult Send<TResult>(byte[] request, bool publish)

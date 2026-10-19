@@ -13,7 +13,7 @@ internal sealed class ModLifetime
 
     internal ModLifetime(Action<string>? reportError = null)
     {
-        _reportError = reportError ?? Console.Error.WriteLine;
+        _reportError = reportError ?? System.Console.Error.WriteLine;
     }
 
     internal CancellationToken Token => _cancellation.Token;

@@ -35,7 +35,7 @@ internal sealed class ScopedEvents(IEventChannel events, ModLifetime lifetime,
         ArgumentNullException.ThrowIfNull(handler);
         using var operation = lifetime.Enter();
         var notification = new AsyncNotification<T>(lifetime, name, handler,
-            callback => events.Subscribe(name, callback), record ?? (_ => { }), report ?? Console.Error.WriteLine);
+            callback => events.Subscribe(name, callback), record ?? (_ => { }), report ?? System.Console.Error.WriteLine);
         return lifetime.Own(notification);
     }
 

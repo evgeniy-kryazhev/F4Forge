@@ -51,7 +51,7 @@ internal static unsafe class Bootstrap
         {
             try
             {
-                Console.Error.WriteLine(exception);
+                System.Console.Error.WriteLine(exception);
                 Cleanup();
             }
             catch
@@ -101,7 +101,7 @@ internal static unsafe class Bootstrap
         }
         catch (Exception exception)
         {
-            Console.Error.WriteLine($"{message}{Environment.NewLine}Logging failed: {exception.Message}");
+            System.Console.Error.WriteLine($"{message}{Environment.NewLine}Logging failed: {exception.Message}");
         }
     }
 }

@@ -1,7 +1,7 @@
 using F4Forge.Net.Messaging;
 using F4Forge.Net.Events;
 using F4Forge.Net.Serialization;
-using F4Forge.Net.Commands;
+using F4Forge.Net.Console;
 using F4Forge.Net.Diagnostics;
 using F4Forge.Net.Objects;
 using F4Forge.Net.Threading;

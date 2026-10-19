@@ -169,7 +169,7 @@ internal sealed class ModLoader(IMessageChannel messages, IEventChannel events, 
         }
         catch (ObjectDisposedException)
         {
-            (managedLog ?? Console.Error.WriteLine)($"Mod '{mod.Path}', {entry.Kind}/{entry.Name}: {entry.Message}");
+            (managedLog ?? System.Console.Error.WriteLine)($"Mod '{mod.Path}', {entry.Kind}/{entry.Name}: {entry.Message}");
         }
         catch
         {

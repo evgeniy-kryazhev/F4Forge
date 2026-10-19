@@ -41,7 +41,7 @@ context.Events.Subscribe<ActorDied>(notification =>
 });
 ```
 
-All lookups use `context.Objects.Query(query)`. The query declares its native method, wire arguments and expected view through `IFormQuery<TForm>`; the common executor handles transport, missing forms and type validation. Query metadata is never serialized with the arguments.
+All lookups use `context.Objects.Query(query)`. The query declares its native method, wire arguments and expected form type through `IFormQuery<TForm>`; the common executor handles transport, missing forms and type validation. Query metadata is never serialized with the arguments.
 
 ```csharp
 Actor? player = context.Objects.Query(new GetPlayer());
@@ -49,9 +49,9 @@ var weapon = context.Objects.Query(new FormByPlugin<Weapon>("Example.esp", 0x123
 var form = context.Objects.Query(new FormByEditorId<Form>("ExampleWeapon"));
 ```
 
-`GetPlayer` belongs to `Player/Queries`; generic lookups belong to `Objects/Queries`. `FormById<TForm>`, `FormByPlugin<TForm>` and `FormByEditorId<TForm>` support built-in and external views. Missing forms return `null`; incompatible types throw `InvalidCastException`. Editor IDs work only when retained by the game's runtime index. Plugin-local lookup supports regular and light plugins. The previous `Get`, `Resolve`, `Find` and `GetPlayer` service methods are replaced by these query contracts.
+`GetPlayer` belongs to `Player/Queries`; generic lookups belong to `Objects/Queries`. `FormById<TForm>`, `FormByPlugin<TForm>` and `FormByEditorId<TForm>` support built-in and external form types. Missing forms return `null`; incompatible types throw `InvalidCastException`. Editor IDs work only when retained by the game's runtime index. Plugin-local lookup supports regular and light plugins. The previous `Get`, `Resolve`, `Find` and `GetPlayer` service methods are replaced by these query contracts.
 
-Add a module-specific lookup by implementing `IFormQuery<TForm>` in that module. Only `Arguments` crosses the channel, so it must contain exactly the native method's wire fields. For example, the player query supplies `forms.player` and null arguments with `Actor` as its result view. Unlike event names, query names are instance properties: `Query` infers its result type from `IFormQuery<TForm>` and supports parameterized query objects without reflection or a central method table.
+Add a module-specific lookup by implementing `IFormQuery<TForm>` in that module. Only `Arguments` crosses the channel, so it must contain exactly the native method's wire fields. For example, the player query supplies `forms.player` and null arguments with `Actor` as its result type. Unlike event names, query names are instance properties: `Query` infers its result type from `IFormQuery<TForm>` and supports parameterized query objects without reflection or a central method table.
 
 `Form` describes any form. Use `Messages.Query(new DescribeForm(form))` to refresh its copied description, or `Messages.Query(new GetReferenceSnapshot(reference))` for position and base/cell/location IDs. `GetActorValue(actor, value, kind)` and `SetActorBaseValue(actor, value, amount)` live in `Actors/Queries` and `Actors/Commands`; invoke them with `Messages.Query(...)` and `Messages.Execute(...)`. They support built-in and mod-defined actor values. Base writes preserve damage and temporary modifiers. `0` means an absent linked object. The old `Describe`, `GetSnapshot`, `GetValue` and `SetBaseValue` methods are replaced by these contracts; see [typed operations](operations.md).
 
@@ -59,10 +59,12 @@ Operations are synchronous and allowed only on the engine's main thread, identif
 
 ## Additive extensions
 
-A custom view needs only a new class; no SDK type table changes:
+A custom form type implements `IFormType<T>` in a new class; no SDK type table changes.
+`Matches` checks the copied description; `Create` retains the original form identity and
+mod-owned channel. Neither method creates a game object or owns native memory:
 
 ```csharp
-public sealed class Weapon : Form, IFormView<Weapon>
+public sealed class Weapon : Form, IFormType<Weapon>
 {
     private Weapon(Form source) : base(source) { }
 

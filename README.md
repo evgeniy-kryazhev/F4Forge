@@ -89,6 +89,29 @@ SDK автоматически снимает регистрации при ос
 
 ## Общий канал и расширение
 
+SDK использует существующие каналы и типизированные контракты:
+
+| Назначение | API | Пространство имён |
+| --- | --- | --- |
+| Вызовы и ответы | `context.Messages`, `IMessageChannel` | `F4Forge.Net.Messaging` |
+| Типизированные запросы и изменения | `Query`, `Execute`, `IQuery<T>`, `ICommand<T>` | `F4Forge.Net.Operations` |
+| Уведомления | `context.Events`, `IEventChannel`, `IGameEvent` | `F4Forge.Net.Events` |
+| Разрешение и типы игровых объектов | `context.Objects`, `Form`, `IFormQuery<T>`, `IFormType<T>` | `F4Forge.Net.Objects` |
+| Консольные обработчики | `context.Console`, `IConsole` | `F4Forge.Net.Console` |
+| Синхронные решения перед действием | `context.Interceptors` | `F4Forge.Net.Interception` |
+| Вызовы скриптов | `context.Papyrus` | `F4Forge.Net.Papyrus` |
+
+`Query` и `Execute` вызывают тот же `IMessageChannel`; отдельного транспорта у них нет.
+`Objects.Query` дополнительно создаёт объект нужного C# типа из ответа канала.
+`IFormType<T>` задаёт проверку типа и создание обёртки с теми же `FormId`, `Session`
+и каналом мода. Пользовательские типы добавляются без центрального реестра;
+пример приведён в [foundations.md](docs/foundations.md).
+
+Конкретные события, запросы и команды лежат в модулях по назначению:
+`Player`, `Actors`, `Objects`, `Game`, `Saves` и `UI`.
+Консольные обработчики сгруппированы в `Console`; команды изменения состояния —
+в подпапках `Commands` соответствующих модулей.
+
 Запрос: `{"method":"mymod.title","arguments":null}`.
 Ответ: `{"success":true,"value":"My mod"}` или
 `{"success":false,"error":{"code":"method_not_found","message":"..."}}`.

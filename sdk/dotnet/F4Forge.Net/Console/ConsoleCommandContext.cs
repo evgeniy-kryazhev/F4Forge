@@ -1,6 +1,6 @@
 using F4Forge.Net.Callbacks;
 
-namespace F4Forge.Net.Commands;
+namespace F4Forge.Net.Console;
 
 /// <summary>One synchronous invocation in the game console's calling thread.</summary>
 public sealed class ConsoleCommandContext : InvocationContext

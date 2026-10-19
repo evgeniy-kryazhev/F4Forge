@@ -2,26 +2,15 @@ using F4Forge.Net.Messaging;
 
 namespace F4Forge.Net.Objects;
 
-/// <summary>Extensible typed views require no central type switch or native exports.</summary>
-/// <typeparam name="TSelf">The typed form view.</typeparam>
-public interface IFormView<TSelf> where TSelf : Form
-{
-    /// <summary>Checks the copied native description.</summary>
-    static abstract bool Matches(FormSnapshot snapshot);
-
-    /// <summary>Constructs a view retaining the original scope and identity.</summary>
-    static abstract TSelf Create(Form form);
-}
-
 /// <summary>A scoped form identity. Every operation resolves it again in C++; it owns no native object.</summary>
-public class Form : IFormView<Form>
+public class Form : IFormType<Form>
 {
     /// <summary>Accepts every copied form description.</summary>
     /// <param name="snapshot">Copied native form data.</param>
-    /// <returns>True because this view represents every form type.</returns>
+    /// <returns>True because Form accepts every form type.</returns>
     public static bool Matches(FormSnapshot snapshot) => true;
 
-    /// <summary>Retains a generic form identity without allocating another view.</summary>
+    /// <summary>Retains a generic form identity without allocating another wrapper.</summary>
     /// <param name="form">Resolved form in the current mod scope.</param>
     /// <returns>The supplied form.</returns>
     public static Form Create(Form form) => form;
@@ -32,7 +21,7 @@ public class Form : IFormView<Form>
         Snapshot = snapshot;
     }
 
-    /// <summary>Allows external typed views to retain the original identity and mod scope.</summary>
+    /// <summary>Allows external form types to retain the original identity and mod scope.</summary>
     protected Form(Form source) : this(source.Messages, source.Snapshot)
     {
     }
@@ -49,18 +38,22 @@ public class Form : IFormView<Form>
     /// <summary>Session generation that native operations must validate.</summary>
     public ulong Session => Snapshot.Session;
 
-    /// <summary>Tests a typed view using the copied description, without accessing game memory.</summary>
-    public bool Is<T>() where T : Form, IFormView<T>
+    /// <summary>Tests a form type using the copied description, without accessing game memory.</summary>
+    /// <typeparam name="T">The form type to check.</typeparam>
+    /// <returns>Whether the copied description matches the requested type.</returns>
+    public bool Is<T>() where T : Form, IFormType<T>
     {
         return T.Matches(Snapshot);
     }
 
-    /// <summary>Creates a typed view, or throws if the copied type is incompatible.</summary>
-    public T As<T>() where T : Form, IFormView<T>
+    /// <summary>Creates a typed form wrapper, or throws if the copied type is incompatible.</summary>
+    /// <typeparam name="T">The form type to create.</typeparam>
+    /// <returns>A wrapper retaining this form's identity and mod scope.</returns>
+    public T As<T>() where T : Form, IFormType<T>
     {
         if (!T.Matches(Snapshot))
         {
-            throw new InvalidCastException($"Form {FormId:X8} ({Snapshot.Type}) cannot be viewed as {typeof(T).Name}.");
+            throw new InvalidCastException($"Form {FormId:X8} ({Snapshot.Type}) cannot be converted to {typeof(T).Name}.");
         }
         return T.Create(this);
     }

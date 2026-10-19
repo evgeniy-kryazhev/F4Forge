@@ -14,10 +14,10 @@ public sealed class GameObjects
     }
 
     /// <summary>Executes a typed lookup through the mod's shared message channel.</summary>
-    /// <typeparam name="TForm">The view inferred from the query contract.</typeparam>
+    /// <typeparam name="TForm">The form type inferred from the query contract.</typeparam>
     /// <param name="query">Module-owned method name and wire arguments.</param>
-    /// <returns>A scoped typed view, or null if the requested form does not exist.</returns>
-    public TForm? Query<TForm>(IFormQuery<TForm> query) where TForm : Form, IFormView<TForm>
+    /// <returns>A scoped form of the requested type, or null if the requested form does not exist.</returns>
+    public TForm? Query<TForm>(IFormQuery<TForm> query) where TForm : Form, IFormType<TForm>
     {
         var snapshot = _messages.Query(query);
         if (snapshot is null)

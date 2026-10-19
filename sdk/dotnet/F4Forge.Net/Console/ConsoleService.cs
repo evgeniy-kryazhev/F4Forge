@@ -1,7 +1,7 @@
 using F4Forge.Net.Callbacks;
 using F4Forge.Net.Messaging;
 
-namespace F4Forge.Net.Commands;
+namespace F4Forge.Net.Console;
 
 internal sealed class ConsoleService(IMessageChannel messages) : IConsole
 {

@@ -1,7 +1,7 @@
 namespace F4Forge.Net.Objects;
 
-/// <summary>A world-reference view over a scoped form identity.</summary>
-public class Reference : Form, IFormView<Reference>
+/// <summary>A world-reference identity scoped to one mod and game session.</summary>
+public class Reference : Form, IFormType<Reference>
 {
     /// <summary>Copies a compatible form identity.</summary>
     protected Reference(Form source) : base(source)

@@ -1,5 +1,5 @@
 using System.Runtime.InteropServices;
-using F4Forge.Net.Commands;
+using F4Forge.Net.Console;
 using F4Forge.Net.Interop;
 using F4Forge.Net.Messaging;
 using F4Forge.Net.Mods;
