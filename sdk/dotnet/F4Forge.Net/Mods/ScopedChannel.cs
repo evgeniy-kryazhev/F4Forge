@@ -8,8 +8,12 @@ internal sealed class ScopedChannel(IMessageChannel channel, ModLifetime lifetim
     private readonly List<IDisposable> _registrations = [];
     private volatile bool _disposed;
 
+    // Used exclusively by synchronous detach while the native host is alive.
+    internal IMessageChannel Transport => channel;
+
     public TResult Call<TResult>(string method, object? arguments)
     {
+        using var operation = lifetime.Enter();
         ObjectDisposedException.ThrowIf(_disposed, this);
         lifetime.ThrowIfClosed();
         return channel.Call<TResult>(method, arguments);
@@ -17,12 +21,13 @@ internal sealed class ScopedChannel(IMessageChannel channel, ModLifetime lifetim
 
     public IDisposable Register<TArguments, TResult>(string method, Func<TArguments, TResult> handler)
     {
+        using var operation = lifetime.Enter();
         ArgumentNullException.ThrowIfNull(handler);
         ObjectDisposedException.ThrowIf(_disposed, this);
         lifetime.ThrowIfClosed();
         var registration = channel.Register<TArguments, TResult>(method, arguments =>
         {
-            lifetime.ThrowIfClosed();
+            using var invocation = lifetime.Enter();
             return handler(arguments);
         });
         lock (_gate)

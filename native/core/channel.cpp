@@ -176,6 +176,12 @@ void Channel::Remove(std::uint64_t registration)
     std::lock_guard dispatchLock(dispatchMutex_);
 }
 
+DataValue Channel::Dispatch(const Handler& action)
+{
+    std::lock_guard dispatchLock(dispatchMutex_);
+    return action(nullptr);
+}
+
 std::string Channel::Call(std::string_view request)
 {
     if (request.size() > MaxMessageBytes) {

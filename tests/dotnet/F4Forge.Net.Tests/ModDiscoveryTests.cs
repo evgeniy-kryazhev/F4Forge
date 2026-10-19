@@ -18,13 +18,13 @@ public sealed partial class ModDiscoveryTests : IDisposable
     [Theory]
     [InlineData("")]
     [InlineData("Nested/AnotherLevel")]
-    public void DiscoversDllWithoutManifestAndResolvesAdjacentDependency(string relativeDirectory)
+    public async Task DiscoversDllWithoutManifestAndResolvesAdjacentDependency(string relativeDirectory)
     {
         var directory = DeployFixture(relativeDirectory);
         // Assembly discovery must not depend on the filename matching its folder or assembly name.
         File.Move(Path.Combine(directory, "Fixture.dll"), Path.Combine(directory, "AnyModName.DLL"));
         var errors = new List<string>();
-        using var loader = new ModLoader(_channel, _channel, _channel.Serializer, errors.Add);
+        await using var loader = new ModLoader(_channel, _channel, _channel.Serializer, errors.Add);
 
         loader.LoadDirectory(_root);
 
@@ -36,7 +36,7 @@ public sealed partial class ModDiscoveryTests : IDisposable
     }
 
     [Fact]
-    public void SkipsDependenciesSdkCopiesAndNativeDlls()
+    public async Task SkipsDependenciesSdkCopiesAndNativeDlls()
     {
         var directory = DeployFixture("");
         File.Copy(Path.Combine(AppContext.BaseDirectory, "F4Forge.Net.dll"),
@@ -44,7 +44,7 @@ public sealed partial class ModDiscoveryTests : IDisposable
         File.Copy(Path.Combine(AppContext.BaseDirectory, "F4Forge.TestTransport.dll"),
             Path.Combine(directory, "NativeDependency.dll"));
         var errors = new List<string>();
-        using var loader = new ModLoader(_channel, _channel, _channel.Serializer, errors.Add);
+        await using var loader = new ModLoader(_channel, _channel, _channel.Serializer, errors.Add);
 
         loader.LoadDirectory(_root);
 
@@ -54,13 +54,13 @@ public sealed partial class ModDiscoveryTests : IDisposable
     }
 
     [Fact]
-    public void FailedModDoesNotPreventLoadingAnotherDll()
+    public async Task FailedModDoesNotPreventLoadingAnotherDll()
     {
         var failedDirectory = DeployFixture("A-Failed");
         File.WriteAllText(Path.Combine(failedDirectory, "fail-start"), "");
         var workingDirectory = DeployFixture("B-Working/Nested");
         var errors = new List<string>();
-        using var loader = new ModLoader(_channel, _channel, _channel.Serializer, errors.Add);
+        await using var loader = new ModLoader(_channel, _channel, _channel.Serializer, errors.Add);
 
         loader.LoadDirectory(_root);
 
@@ -71,10 +71,10 @@ public sealed partial class ModDiscoveryTests : IDisposable
     }
 
     [Fact]
-    public void CreatesMissingModDirectory()
+    public async Task CreatesMissingModDirectory()
     {
         var errors = new List<string>();
-        using var loader = new ModLoader(_channel, _channel, _channel.Serializer, errors.Add);
+        await using var loader = new ModLoader(_channel, _channel, _channel.Serializer, errors.Add);
 
         loader.LoadDirectory(_root);
 

@@ -21,4 +21,26 @@ public static partial class ActorEventExtensions
         ArgumentNullException.ThrowIfNull(handler);
         return events.Subscribe("game.actor.died", handler);
     }
+
+    /// <summary>Subscribes an asynchronous notification without delaying the engine.</summary>
+    /// <param name="events">The mod-owned event channel.</param>
+    /// <param name="handler">Asynchronous callback; use GameThread.RunAsync for engine access after await.</param>
+    /// <returns>A subscription cancelled automatically when its mod stops.</returns>
+    public static IDisposable OnActorDied(this IEventChannel events, Func<ActorDied, Task> handler)
+    {
+        ArgumentNullException.ThrowIfNull(events);
+        ArgumentNullException.ThrowIfNull(handler);
+        return events.Subscribe("game.actor.died", handler);
+    }
+
+    /// <summary>Subscribes an asynchronous notification without delaying the engine.</summary>
+    /// <param name="events">The mod-owned event channel.</param>
+    /// <param name="handler">Asynchronous callback; use GameThread.RunAsync for engine access after await.</param>
+    /// <returns>A subscription cancelled automatically when its mod stops.</returns>
+    public static IDisposable OnActorDied(this IEventChannel events, Func<ActorDied, CancellationToken, Task> handler)
+    {
+        ArgumentNullException.ThrowIfNull(events);
+        ArgumentNullException.ThrowIfNull(handler);
+        return events.Subscribe("game.actor.died", handler);
+    }
 }

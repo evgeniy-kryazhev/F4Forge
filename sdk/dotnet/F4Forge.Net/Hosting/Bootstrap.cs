@@ -7,6 +7,9 @@ namespace F4Forge.Net.Hosting;
 internal static unsafe class Bootstrap
 {
     private static ModLoader? _loader;
+    private static readonly object Gate = new();
+    private static Task _cleanup = Task.CompletedTask;
+    private static NativeChannel? _channel;
 
     [StructLayout(LayoutKind.Sequential)]
     internal struct Arguments
@@ -20,19 +23,28 @@ internal static unsafe class Bootstrap
     {
         try
         {
-            if (arguments is null || arguments->Directory is null || _loader is not null
+            if (arguments is null || arguments->Directory is null
                 || arguments->Channel.Context == 0 || arguments->Channel.Call is null
                 || arguments->Channel.Add is null || arguments->Channel.Remove is null)
             {
                 return 1;
             }
-            var pluginDirectory = Path.GetFullPath(new string(arguments->Directory));
-            var directory = Path.Combine(pluginDirectory, "F4Forge");
-            System.IO.Directory.CreateDirectory(directory);
-            var channel = new NativeChannel(arguments->Channel);
-            _loader = new ModLoader(channel, channel, channel.Serializer, message => Log(directory, message));
-            var modDirectory = Path.GetFullPath(Path.Combine(pluginDirectory, "..", "..", "F4ForgeNet"));
-            _loader.LoadDirectory(modDirectory);
+            lock (Gate)
+            {
+                if (_loader is not null || !_cleanup.IsCompleted)
+                {
+                    return 1;
+                }
+                var pluginDirectory = Path.GetFullPath(new string(arguments->Directory));
+                var directory = Path.Combine(pluginDirectory, "F4Forge");
+                System.IO.Directory.CreateDirectory(directory);
+                var channel = new NativeChannel(arguments->Channel);
+                _channel = channel;
+                _loader = new ModLoader(channel, channel, channel.Serializer,
+                    message => Log(directory, message), message => Log(directory, message));
+                var modDirectory = Path.GetFullPath(Path.Combine(pluginDirectory, "..", "..", "F4ForgeNet"));
+                _loader.LoadDirectory(modDirectory);
+            }
             return 0;
         }
         catch (Exception exception)
@@ -66,9 +78,19 @@ internal static unsafe class Bootstrap
 
     private static void Cleanup()
     {
-        var loader = _loader;
-        _loader = null;
-        loader?.Dispose();
+        lock (Gate)
+        {
+            var loader = _loader;
+            if (loader is null)
+            {
+                return;
+            }
+            loader.Dispose();
+            _channel?.DetachTransport();
+            _channel = null;
+            _cleanup = loader.Completion;
+            _loader = null;
+        }
     }
 
     private static void Log(string directory, string message)

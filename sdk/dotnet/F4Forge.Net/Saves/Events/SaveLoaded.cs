@@ -20,4 +20,26 @@ public static partial class SaveEventExtensions
         ArgumentNullException.ThrowIfNull(handler);
         return events.Subscribe("game.save.loaded", handler);
     }
+
+    /// <summary>Subscribes an asynchronous notification without delaying the engine.</summary>
+    /// <param name="events">The mod-owned event channel.</param>
+    /// <param name="handler">Asynchronous callback; use GameThread.RunAsync for engine access after await.</param>
+    /// <returns>A subscription cancelled automatically when its mod stops.</returns>
+    public static IDisposable OnSaveLoaded(this IEventChannel events, Func<SaveLoaded, Task> handler)
+    {
+        ArgumentNullException.ThrowIfNull(events);
+        ArgumentNullException.ThrowIfNull(handler);
+        return events.Subscribe("game.save.loaded", handler);
+    }
+
+    /// <summary>Subscribes an asynchronous notification without delaying the engine.</summary>
+    /// <param name="events">The mod-owned event channel.</param>
+    /// <param name="handler">Asynchronous callback; use GameThread.RunAsync for engine access after await.</param>
+    /// <returns>A subscription cancelled automatically when its mod stops.</returns>
+    public static IDisposable OnSaveLoaded(this IEventChannel events, Func<SaveLoaded, CancellationToken, Task> handler)
+    {
+        ArgumentNullException.ThrowIfNull(events);
+        ArgumentNullException.ThrowIfNull(handler);
+        return events.Subscribe("game.save.loaded", handler);
+    }
 }

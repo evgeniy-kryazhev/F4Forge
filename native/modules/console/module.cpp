@@ -3,6 +3,8 @@
 #include "dispatch.h"
 #include "components.h"
 #include "../diagnostics/store.h"
+#include "../interception/registry.h"
+#include "interception.h"
 #include <RE/C/Console.h>
 #include <RE/C/ConsoleLog.h>
 #include <RE/S/SCRIPT_FUNCTION.h>
@@ -55,10 +57,14 @@ void WriteLine(std::string_view line)
 
 void OnCommand(const char* text) noexcept
 {
-    ForwardCommand(game_events::Host(), text, [](const char* input) {
+    std::uint32_t selectedFormId = 0;
+    ForwardCommand(game_events::Host(), text, [&](const char* input) {
         const auto selected = RE::Console::GetCurrentPickREFR().get();
+        selectedFormId = selected ? selected->GetFormID() : 0;
+        return InterceptCommand(interception::Active(), input, selectedFormId);
+    }, [&](const char* input) {
         const auto& router = ActiveRouter();
-        return router != nullptr && router->Execute(input, selected ? selected->GetFormID() : 0);
+        return router != nullptr && router->Execute(input, selectedFormId);
     }, [](const char* input) {
         hook.Original()(input);
     });

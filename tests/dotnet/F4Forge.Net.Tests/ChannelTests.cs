@@ -105,7 +105,7 @@ public sealed partial class ChannelTests : IDisposable
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void ModLoaderLoadsOrRollsBackPartialStartup(bool failStartup)
+    public async Task ModLoaderLoadsOrRollsBackPartialStartup(bool failStartup)
     {
         var root = Path.Combine(Path.GetTempPath(), "F4ForgeTests", Guid.NewGuid().ToString("N"));
         var directory = Path.Combine(root, "Fixture");
@@ -117,7 +117,7 @@ public sealed partial class ChannelTests : IDisposable
             File.WriteAllText(Path.Combine(directory, "fail-start"), "");
         }
         var errors = new List<string>();
-        using var loader = new ModLoader(_channel, _channel, _channel.Serializer, errors.Add);
+        await using var loader = new ModLoader(_channel, _channel, _channel.Serializer, errors.Add);
         try
         {
             loader.LoadDirectory(root);
@@ -131,14 +131,14 @@ public sealed partial class ChannelTests : IDisposable
             using var listener = _channel.Subscribe<string>("fixture.output", received.Add);
             _channel.Publish("fixture.input", "Before stop");
             Assert.Equal(failStartup ? 0 : 1, received.Count);
-            loader.Dispose();
+            await loader.DisposeAsync();
             _channel.Publish("fixture.input", "After stop");
             Assert.Equal(failStartup ? 0 : 1, received.Count);
             Assert.Throws<MessageException>(() => _channel.Call<string>("fixture.echo", null));
         }
         finally
         {
-            loader.Dispose();
+            await loader.DisposeAsync();
             Directory.Delete(root, recursive: true);
         }
     }

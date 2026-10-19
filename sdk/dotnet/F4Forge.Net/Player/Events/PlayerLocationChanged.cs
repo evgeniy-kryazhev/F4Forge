@@ -20,4 +20,26 @@ public static partial class PlayerEventExtensions
         ArgumentNullException.ThrowIfNull(handler);
         return events.Subscribe("game.player.location.changed", handler);
     }
+
+    /// <summary>Subscribes an asynchronous notification without delaying the engine.</summary>
+    /// <param name="events">The mod-owned event channel.</param>
+    /// <param name="handler">Asynchronous callback; use GameThread.RunAsync for engine access after await.</param>
+    /// <returns>A subscription cancelled automatically when its mod stops.</returns>
+    public static IDisposable OnPlayerLocationChanged(this IEventChannel events, Func<PlayerLocationChanged, Task> handler)
+    {
+        ArgumentNullException.ThrowIfNull(events);
+        ArgumentNullException.ThrowIfNull(handler);
+        return events.Subscribe("game.player.location.changed", handler);
+    }
+
+    /// <summary>Subscribes an asynchronous notification without delaying the engine.</summary>
+    /// <param name="events">The mod-owned event channel.</param>
+    /// <param name="handler">Asynchronous callback; use GameThread.RunAsync for engine access after await.</param>
+    /// <returns>A subscription cancelled automatically when its mod stops.</returns>
+    public static IDisposable OnPlayerLocationChanged(this IEventChannel events, Func<PlayerLocationChanged, CancellationToken, Task> handler)
+    {
+        ArgumentNullException.ThrowIfNull(events);
+        ArgumentNullException.ThrowIfNull(handler);
+        return events.Subscribe("game.player.location.changed", handler);
+    }
 }

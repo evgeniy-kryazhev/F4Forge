@@ -12,6 +12,75 @@ internal sealed unsafe class NativeChannel : IMessageChannel, IEventChannel
 {
     private const int MaximumMessageBytes = 1024 * 1024;
     private readonly ChannelBinding _binding;
+    private readonly F4Forge.Net.Mods.ModLifetime _notifications = new();
+    private readonly object _transportGate = new();
+    private int _activeCalls;
+    private bool _detaching;
+    private bool _detached;
+    private readonly HashSet<Registration> _registrations = [];
+    [ThreadStatic]
+    private static int _callbackDepth;
+
+    internal void DetachTransport()
+    {
+        _notifications.Close();
+        Registration[] registrations;
+        lock (_transportGate)
+        {
+            if (_detaching)
+            {
+                while (!_detached && _callbackDepth == 0)
+                {
+                    Monitor.Wait(_transportGate);
+                }
+                return;
+            }
+            _detaching = true;
+            // A reentrant stop must return to its current native publisher. Normal
+            // host shutdown occurs outside callbacks and drains all transport users.
+            while (_activeCalls != 0 && _callbackDepth == 0)
+            {
+                Monitor.Wait(_transportGate);
+            }
+            registrations = _registrations.ToArray();
+        }
+        foreach (var registration in registrations)
+        {
+            registration.Dispose();
+        }
+        lock (_transportGate)
+        {
+            while (_activeCalls != 0 && _callbackDepth == 0)
+            {
+                Monitor.Wait(_transportGate);
+            }
+            _detached = true;
+            Monitor.PulseAll(_transportGate);
+        }
+    }
+
+    private IDisposable EnterTransport(bool removing = false)
+    {
+        var lease = new TransportLease(this);
+        lock (_transportGate)
+        {
+            ObjectDisposedException.ThrowIf(_detached || (_detaching && !removing), this);
+            _activeCalls++;
+        }
+        return lease;
+    }
+
+    private sealed class TransportLease(NativeChannel channel) : IDisposable
+    {
+        public void Dispose()
+        {
+            lock (channel._transportGate)
+            {
+                channel._activeCalls--;
+                Monitor.PulseAll(channel._transportGate);
+            }
+        }
+    }
 
     public NativeChannel(ChannelBinding binding, IDataSerializer? serializer = null)
     {
@@ -67,8 +136,22 @@ internal sealed unsafe class NativeChannel : IMessageChannel, IEventChannel
         }, subscribe: true);
     }
 
+    public IDisposable Subscribe<T>(string name, Func<T, Task> handler)
+    {
+        ArgumentNullException.ThrowIfNull(handler);
+        return Subscribe<T>(name, (value, _) => handler(value));
+    }
+
+    public IDisposable Subscribe<T>(string name, Func<T, CancellationToken, Task> handler)
+    {
+        ArgumentNullException.ThrowIfNull(handler);
+        return new AsyncNotification<T>(_notifications, name, handler, callback => Subscribe(name, callback),
+            _ => { }, Console.Error.WriteLine);
+    }
+
     private TResult Send<TResult>(byte[] request, bool publish)
     {
+        using var transport = EnterTransport();
         if (request.Length > MaximumMessageBytes)
         {
             throw new ArgumentException("Message exceeds the size limit.", nameof(request));
@@ -106,26 +189,40 @@ internal sealed unsafe class NativeChannel : IMessageChannel, IEventChannel
 
     private IDisposable RegisterCallback(string name, Func<byte[], byte[]> handler, bool subscribe)
     {
+        using var transport = EnterTransport();
         ValidateName(name);
         var encodedName = Encoding.UTF8.GetBytes(name);
-        var handle = GCHandle.Alloc(new Callback(Serializer, handler, DiagnosticTrace.CurrentOwner, name, subscribe,
+        var handle = GCHandle.Alloc(new Callback(Serializer, handler, DiagnosticTrace.CurrentOwner,
+            DiagnosticTrace.CurrentLifetime, name, subscribe,
             entry => Call<bool>("diagnostics.record", entry)));
+        ulong registration = 0;
+        var remove = subscribe ? _binding.Unsubscribe : _binding.Remove;
         try
         {
             fixed (byte* namePointer = encodedName)
             {
                 var add = subscribe ? _binding.Subscribe : _binding.Add;
-                var registration = add(_binding.Context, namePointer, (uint)encodedName.Length, &Invoke, GCHandle.ToIntPtr(handle));
+                registration = add(_binding.Context, namePointer, (uint)encodedName.Length, &Invoke, GCHandle.ToIntPtr(handle));
                 if (registration == 0)
                 {
                     throw new InvalidOperationException($"Cannot register '{name}'; it may already exist.");
                 }
-                var remove = subscribe ? _binding.Unsubscribe : _binding.Remove;
-                return new Registration(_binding.Context, remove, registration, handle);
+                var owned = new Registration(this, _binding.Context, remove, registration, handle);
+                lock (_transportGate)
+                {
+                    _registrations.Add(owned);
+                }
+                return owned;
             }
         }
         catch
         {
+            if (registration != 0)
+            {
+                // Native registration may succeed before managed ownership is
+                // allocated. Drain it before releasing the callback GCHandle.
+                remove(_binding.Context, registration);
+            }
             handle.Free();
             throw;
         }
@@ -163,6 +260,7 @@ internal sealed unsafe class NativeChannel : IMessageChannel, IEventChannel
     private static int Invoke(nint context, byte* data, uint length,
         delegate* unmanaged[Cdecl]<nint, byte*, uint, int> receive, nint receiver)
     {
+        _callbackDepth++;
         try
         {
             if (data is null || length > MaximumMessageBytes || receive is null)
@@ -174,9 +272,15 @@ internal sealed unsafe class NativeChannel : IMessageChannel, IEventChannel
             byte[] response;
             try
             {
+                using var invocation = callback.Lifetime?.Enter();
+                using var ownership = callback.ModId is null ? null : DiagnosticTrace.Bind(callback.ModId, callback.Lifetime);
                 var payload = new ReadOnlySpan<byte>(data, (int)length).ToArray();
                 response = DiagnosticTrace.Run(callback.ModId, callback.Subscribe ? "event.handle" : "message.handle",
                     callback.Name, callback.Record, () => callback.Handler(payload));
+            }
+            catch (ObjectDisposedException) when (callback.Subscribe && callback.Lifetime?.Token.IsCancellationRequested == true)
+            {
+                response = callback.Serializer.Serialize(new ProtocolResponse<object?>(true));
             }
             catch (Exception exception)
             {
@@ -197,29 +301,51 @@ internal sealed unsafe class NativeChannel : IMessageChannel, IEventChannel
             // Serializer failures also stay on the managed side of this boundary.
             return 1;
         }
+        finally
+        {
+            _callbackDepth--;
+        }
     }
 
     private sealed record Callback(IDataSerializer Serializer, Func<byte[], byte[]> Handler,
-        string? ModId, string Name, bool Subscribe, Action<DiagnosticRecord> Record);
+        string? ModId, F4Forge.Net.Mods.ModLifetime? Lifetime, string Name, bool Subscribe, Action<DiagnosticRecord> Record);
 
     private sealed class ResponseBuffer
     {
         public byte[]? Bytes { get; set; }
     }
 
-    private sealed class Registration(nint context, delegate* unmanaged[Cdecl]<nint, ulong, void> remove,
+    private sealed class Registration(NativeChannel owner, nint context, delegate* unmanaged[Cdecl]<nint, ulong, void> remove,
         ulong identifier, GCHandle handler) : IDisposable
     {
         private int _freed;
 
         public void Dispose()
         {
+            IDisposable transport;
+            try
+            {
+                transport = owner.EnterTransport(removing: true);
+            }
+            catch (ObjectDisposedException)
+            {
+                // DetachTransport already removed every registration. In
+                // particular, a late async finally cannot call a stale pointer.
+                return;
+            }
             // Every disposer joins native quiescence, including concurrent disposers.
             // A callback disposing itself is already rooted by Invoke's local state.
-            remove(context, identifier);
-            if (Interlocked.Exchange(ref _freed, 1) == 0)
+            using (transport)
             {
-                handler.Free();
+                remove(context, identifier);
+                if (Interlocked.Exchange(ref _freed, 1) == 0)
+                {
+                    handler.Free();
+                    lock (owner._transportGate)
+                    {
+                        owner._registrations.Remove(this);
+                    }
+                }
             }
         }
     }

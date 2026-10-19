@@ -42,6 +42,13 @@ cross the channel. Requests, results and errors use the channel's
 is sent only to an existing handler; unknown input remains available to the game.
 The .NET service rejects parse errors before calling mod code.
 
+`context.Interceptors.OnConsoleCommandExecuting` runs before routing, including
+for built-in commands. It can replace `Command` or set `Skip` to cancel the entire
+action. Interceptors execute synchronously in registration order; a failed or
+invalid decision preserves earlier changes. The original input is retained in
+`OriginalCommand`. See [async lifecycle](../../../docs/async-lifecycle.md) for
+notification overloads, cancellation, and game-thread scheduling.
+
 ## Engine integration and lifetime
 
 `module.cpp` resolves CommonLib's `Console::ExecuteCommand` function through

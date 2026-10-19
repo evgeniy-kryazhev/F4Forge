@@ -1,9 +1,10 @@
 using F4Forge.Net.Events;
 using F4Forge.Net.Messaging;
+using F4Forge.Net.Mods;
 
 namespace F4Forge.Net.Diagnostics;
 
-internal sealed class OwnedChannels(string modId, IMessageChannel messages, IEventChannel events) : IMessageChannel, IEventChannel
+internal sealed class OwnedChannels(string modId, IMessageChannel messages, IEventChannel events, ModLifetime lifetime) : IMessageChannel, IEventChannel
 {
     public TResult Call<TResult>(string method, object? arguments)
     {
@@ -16,7 +17,7 @@ internal sealed class OwnedChannels(string modId, IMessageChannel messages, IEve
 
     public IDisposable Register<TArguments, TResult>(string method, Func<TArguments, TResult> handler)
     {
-        using var ownership = DiagnosticTrace.Bind(modId);
+        using var ownership = DiagnosticTrace.Bind(modId, lifetime);
         return messages.Register(method, handler);
     }
 
@@ -31,7 +32,19 @@ internal sealed class OwnedChannels(string modId, IMessageChannel messages, IEve
 
     public IDisposable Subscribe<T>(string name, Action<T> handler)
     {
-        using var ownership = DiagnosticTrace.Bind(modId);
+        using var ownership = DiagnosticTrace.Bind(modId, lifetime);
+        return events.Subscribe(name, handler);
+    }
+
+    public IDisposable Subscribe<T>(string name, Func<T, Task> handler)
+    {
+        using var ownership = DiagnosticTrace.Bind(modId, lifetime);
+        return events.Subscribe(name, handler);
+    }
+
+    public IDisposable Subscribe<T>(string name, Func<T, CancellationToken, Task> handler)
+    {
+        using var ownership = DiagnosticTrace.Bind(modId, lifetime);
         return events.Subscribe(name, handler);
     }
 }

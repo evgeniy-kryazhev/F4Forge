@@ -50,7 +50,7 @@ public sealed partial class EventTests : IDisposable
     [Fact]
     public void FailedSubscriberIsLoggedAndDoesNotStopDelivery()
     {
-        using var broken = _channel.Subscribe<int>("test.event", _ => throw new InvalidOperationException("Broken Ω"));
+        using var broken = _channel.Subscribe<int>("test.event", (Action<int>)(_ => throw new InvalidOperationException("Broken Ω")));
         var received = 0;
         using var healthy = _channel.Subscribe<int>("test.event", value => received = value);
         _channel.Publish("test.event", 42);

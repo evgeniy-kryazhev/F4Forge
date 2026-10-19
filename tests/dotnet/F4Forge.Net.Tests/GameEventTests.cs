@@ -115,7 +115,7 @@ public sealed partial class GameEventTests : IDisposable
     public void SubscriberFailureDoesNotBlockLaterGameSubscribers()
     {
         var count = 0;
-        using var failing = _channel.OnPlayerLocationChanged(_ => throw new InvalidOperationException("Mod failed"));
+        using var failing = _channel.OnPlayerLocationChanged((Action<PlayerLocationChanged>)(_ => throw new InvalidOperationException("Mod failed")));
         using var healthy = _channel.OnPlayerLocationChanged(_ => count++);
         _channel.Publish("game.player.location.changed", new PlayerLocationChanged(0, 42));
         Assert.Equal(1, count);
@@ -134,7 +134,7 @@ public sealed partial class GameEventTests : IDisposable
     public void TypedSubscriptionsValidateChannelAndHandler()
     {
         Assert.Throws<ArgumentNullException>(() => SaveEventExtensions.OnSaveLoaded(null!, _ => { }));
-        Assert.Throws<ArgumentNullException>(() => _channel.OnSaveLoaded(null!));
+        Assert.Throws<ArgumentNullException>(() => _channel.OnSaveLoaded((Action<SaveLoaded>)null!));
     }
 
     private void Verify<T>(string name, object nativePayload, T expected,

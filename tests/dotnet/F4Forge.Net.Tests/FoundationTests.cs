@@ -74,7 +74,7 @@ public sealed partial class FoundationTests : IDisposable
         Assert.False(Assert.Single(records).Success);
 
         var delivered = 0;
-        Track(context.Events.Subscribe<int>("example", _ => throw new InvalidOperationException("Event failed")));
+        Track(context.Events.Subscribe<int>("example", (Action<int>)(_ => throw new InvalidOperationException("Event failed"))));
         Track(context.Events.Subscribe<int>("example", _ => delivered++));
         context.Events.Publish("example", 1);
         Assert.Equal(1, delivered);
@@ -200,7 +200,7 @@ public sealed partial class FoundationTests : IDisposable
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void LifecycleDiagnosticsCaptureStartupRollbackAndEveryCleanupStage(bool fail)
+    public async Task LifecycleDiagnosticsCaptureStartupRollbackAndEveryCleanupStage(bool fail)
     {
         var channel = Open();
         var records = Capture(channel);
@@ -217,7 +217,8 @@ public sealed partial class FoundationTests : IDisposable
                 File.WriteAllText(Path.Combine(directory, "fail-start"), string.Empty);
             }
             var errors = new List<string>();
-            using (var loader = new ModLoader(channel, channel, channel.Serializer, errors.Add))
+            var cleanupLog = new System.Collections.Concurrent.ConcurrentQueue<string>();
+            await using (var loader = new ModLoader(channel, channel, channel.Serializer, errors.Add, cleanupLog.Enqueue))
             {
                 loader.LoadDirectory(directory);
                 Assert.Equal(fail ? 0 : 1, loader.Count);
@@ -227,7 +228,8 @@ public sealed partial class FoundationTests : IDisposable
             Assert.Equal(!fail, Assert.Single(ownRecords, entry => entry.Kind == "mod.start").Success);
             Assert.Equal(!fail, Assert.Single(ownRecords, entry => entry.Kind == "mod.load").Success);
             Assert.Equal(["events", "messages", "instance", "assembly"],
-                ownRecords.Where(entry => entry.Kind == "mod.stop").Select(entry => entry.Name).ToArray());
+                cleanupLog.Where(line => line.Contains(modId, StringComparison.Ordinal))
+                    .Select(line => line.Split("mod.stop/", StringSplitOptions.None)[1].Split(':')[0]).ToArray());
             Assert.Throws<MessageException>(() => channel.Call<string>("fixture.directory", null));
             Assert.Equal(fail ? 1 : 0, errors.Count);
             Assert.Null(DiagnosticTrace.CurrentOwner);

@@ -1,8 +1,11 @@
 #include "channel.h"
+#include "../modules/interception/registry.h"
+#include "../modules/console/interception.h"
 #include <memory>
 
 namespace {
 std::unique_ptr<f4forge::Channel> channel;
+std::unique_ptr<f4forge::interception::Registry> interceptors;
 std::vector<std::string> errors;
 
 // A deliberately non-JSON wire encoding used only to detect bypasses of IDataSerializer.
@@ -32,6 +35,7 @@ private:
 
 f4forge::ChannelBinding Create(std::shared_ptr<const f4forge::IDataSerializer> serializer)
 {
+    interceptors.reset();
     channel = std::make_unique<f4forge::Channel>(std::move(serializer));
     errors.clear();
     channel->Events().SetErrorSink([](std::string_view message) {
@@ -39,6 +43,12 @@ f4forge::ChannelBinding Create(std::shared_ptr<const f4forge::IDataSerializer> s
     });
     channel->Add("native.echo", [](const auto& arguments) {
         return arguments;
+    });
+    interceptors = std::make_unique<f4forge::interception::Registry>(*channel, [](std::string_view message) {
+        errors.emplace_back(message);
+    });
+    channel->Add("test.intercept", [](const f4forge::DataValue& input) {
+        return interceptors->Apply("console.command.executing", input, f4forge::console::ValidateConsoleDecision);
     });
     return channel->Binding();
 }
@@ -66,5 +76,6 @@ extern "C" __declspec(dllexport) void TestPublish()
 
 extern "C" __declspec(dllexport) void TestDestroy()
 {
+    interceptors.reset();
     channel.reset();
 }

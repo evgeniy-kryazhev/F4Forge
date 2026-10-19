@@ -52,24 +52,31 @@ Data/
 ```
 
 Зависимости кладите рядом с DLL мода. `context.Directory` указывает на папку этой DLL.
-Загрузка идёт в порядке путей; порядок не заменяет механизм зависимостей между модами.
+Обнаружение идёт в порядке путей. `StartAsync` модов выполняются независимо;
+порядок готовности не заменяет механизм зависимостей между модами.
 
 ```csharp
 public sealed class MyMod : IMod
 {
-    public void Start(ModContext context)
+    public Task StartAsync(ModContext context, CancellationToken cancellationToken)
     {
         context.Messages.Register<object?, string>("mymod.title", _ => "My mod");
+        return Task.CompletedTask;
     }
 
-    public void Dispose()
+    public ValueTask DisposeAsync()
     {
         // Stop background work and release resources owned by the mod.
+        return ValueTask.CompletedTask;
     }
 }
 ```
 
 SDK автоматически снимает регистрации при остановке или ошибке запуска мода.
+Остановка отменяет запуск и асинхронные уведомления, дожидается их завершения,
+вызывает `DisposeAsync` и освобождает контекст сборки. Игровой поток этого не ждёт.
+Уведомления, перехватчики и возврат на игровой поток описаны в
+[async-lifecycle.md](docs/async-lifecycle.md).
 Моды изолированы через `AssemblyLoadContext`; ошибки отдельных модов записываются в
 `F4Forge/Net.log`. Автоматическая перезагрузка модов пока не реализована.
 

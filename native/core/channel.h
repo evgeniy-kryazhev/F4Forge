@@ -38,6 +38,8 @@ public:
     void Remove(std::uint64_t registration);
     std::string Call(std::string_view request);
     std::string Publish(std::string_view request);
+    // Native adapters share the same recursive lane as serialized SDK callbacks.
+    DataValue Dispatch(const Handler& action);
     EventChannel& Events() noexcept;
     const IDataSerializer& Serializer() const noexcept;
     ChannelBinding Binding() noexcept;

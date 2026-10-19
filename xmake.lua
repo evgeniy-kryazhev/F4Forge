@@ -51,6 +51,7 @@ target("F4Forge.TestTransport")
     set_targetdir("build/tests")
     add_rules("f4forge.native")
     add_files("native/core/**.cpp", "native/tests/test_transport.cpp")
+    add_files("native/modules/interception/registry.cpp")
 
 target("F4Forge.Events.Tests")
     set_kind("binary")
