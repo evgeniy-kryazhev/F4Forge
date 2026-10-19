@@ -35,13 +35,14 @@ foreach ($commandName in @('xmake', 'dotnet')) {
 
 Push-Location -LiteralPath $repositoryDirectory
 try {
-    & xmake f -m releasedbg -a x64 -y
+    # Pass the project directory explicitly so xmake does not rely on directory discovery.
+    & xmake f -P $repositoryDirectory -m releasedbg -a x64 -y
     if ($LASTEXITCODE -ne 0) {
         throw "xmake configuration failed with exit code $LASTEXITCODE."
     }
 
     # Building Core also builds the SDK through its declared dependency.
-    & xmake build -j $Jobs F4Forge.Core
+    & xmake build -P $repositoryDirectory -j $Jobs F4Forge.Core
     if ($LASTEXITCODE -ne 0) {
         throw "Framework build failed with exit code $LASTEXITCODE."
     }

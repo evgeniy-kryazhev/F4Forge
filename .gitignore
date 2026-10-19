@@ -18,3 +18,5 @@ build/
 **/.vs/
 *.user
 compile_commands.json
+__pycache__/
+*.pyc
