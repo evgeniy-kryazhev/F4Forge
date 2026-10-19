@@ -12,22 +12,24 @@ belong to their game subsystems. All payloads use the channel's `IDataSerializer
 | Player movement | `native/modules/player/events/` | `F4Forge.Net.Player.Events` / `Player/Events/` |
 | Menus and UI | `native/modules/ui/events/` | `F4Forge.Net.UI.Events` / `UI/Events/` |
 
-The SDK paths above are relative to `sdk/dotnet/F4Forge.Net/`. Each subsystem has
-its own extension class; the call style remains `context.Events.On...`.
+The SDK paths above are relative to `sdk/dotnet/F4Forge.Net/`. Each notification
+implements `IGameEvent` and declares its stable `EventName`. All subsystems use
+the same three `context.Events.Subscribe<TEvent>(handler)` overloads.
 
 ```csharp
 using F4Forge.Net.Actors.Events;
+using F4Forge.Net.Events;
 using F4Forge.Net.Player.Events;
 using F4Forge.Net.Saves.Events;
 using F4Forge.Net.Logging;
 
-// Inside IMod.Start(ModContext context):
-context.Events.OnSaveLoaded(notification =>
+// Inside IMod.StartAsync(ModContext context, CancellationToken cancellationToken):
+context.Events.Subscribe<SaveLoaded>(notification =>
 {
     context.LogInfo($"Save loaded: {notification.Success}");
 });
 
-context.Events.OnActorDied(notification =>
+context.Events.Subscribe<ActorDied>(notification =>
 {
     if (notification.IsPlayer)
     {
@@ -35,30 +37,30 @@ context.Events.OnActorDied(notification =>
     }
 });
 
-context.Events.OnPlayerLocationChanged(notification =>
+context.Events.Subscribe<PlayerLocationChanged>(notification =>
 {
     context.LogInfo($"Location: {notification.NewLocationFormId:X8}");
 });
 ```
 
-All `On...` methods return `IDisposable`. Subscriptions made through `context.Events`
+All subscription overloads return `IDisposable`. Subscriptions made through `context.Events`
 are removed when the mod stops. Disposing a subscription early is also supported.
 
 ## Available notifications
 
-| Channel name | SDK subscription / record | Payload |
+| Channel name | SDK record | Payload |
 | --- | --- | --- |
-| `game.runtime.loaded` | `OnRuntimeLoaded` / `RuntimeLoaded` | Empty; F4SE's one-time startup notification |
-| `game.data.ready` | `OnGameDataReady` / `GameDataReady` | `Ready`: true or false, as reported by F4SE |
-| `game.new` | `OnNewGame` / `NewGame` | Empty; new game created, world may still be loading |
-| `game.save.loading` | `OnSaveLoading` / `SaveLoading` | `SaveName` |
-| `game.save.loaded` | `OnSaveLoaded` / `SaveLoaded` | `SaveName`, `Success` (including failed loads) |
-| `game.save.saving` | `OnSaveSaving` / `SaveSaving` | `SaveName` |
-| `game.save.saved` | `OnSaveSaved` / `SaveSaved` | `SaveName`; save routine returned, success is not guaranteed |
-| `game.actor.died` | `OnActorDied` / `ActorDied` | `ActorFormId`, `KillerFormId`, `IsPlayer` |
-| `game.player.cell.changed` | `OnPlayerCellChanged` / `PlayerCellChanged` | `PreviousCellFormId`, `NewCellFormId` |
-| `game.player.location.changed` | `OnPlayerLocationChanged` / `PlayerLocationChanged` | `PreviousLocationFormId`, `NewLocationFormId` |
-| `game.menu.changed` | `OnMenuChanged` / `MenuChanged` | `MenuName`, `Opening` |
+| `game.runtime.loaded` | `RuntimeLoaded` | Empty; F4SE's one-time startup notification |
+| `game.data.ready` | `GameDataReady` | `Ready`: true or false, as reported by F4SE |
+| `game.new` | `NewGame` | Empty; new game created, world may still be loading |
+| `game.save.loading` | `SaveLoading` | `SaveName` |
+| `game.save.loaded` | `SaveLoaded` | `SaveName`, `Success` (including failed loads) |
+| `game.save.saving` | `SaveSaving` | `SaveName` |
+| `game.save.saved` | `SaveSaved` | `SaveName`; save routine returned, success is not guaranteed |
+| `game.actor.died` | `ActorDied` | `ActorFormId`, `KillerFormId`, `IsPlayer` |
+| `game.player.cell.changed` | `PlayerCellChanged` | `PreviousCellFormId`, `NewCellFormId` |
+| `game.player.location.changed` | `PlayerLocationChanged` | `PreviousLocationFormId`, `NewLocationFormId` |
+| `game.menu.changed` | `MenuChanged` | `MenuName`, `Opening` |
 
 Wire properties use camelCase. IDs are unsigned 32-bit Form IDs; zero means absent or
 unknown. `SaveName` is nullable and preserves F4SE's name, rather than constructing
@@ -84,8 +86,9 @@ F4SE exposes no listener removal, so its permanent callback becomes inactive aft
 shutdown. Shutdown waits for active adapter leases before releasing the channel.
 Host shutdown must run outside event handlers, as for the rest of the SDK.
 
-Callbacks run synchronously in the engine publisher's thread, which may differ between
-sources. No history is replayed and no automatic game-thread scheduling is performed.
+Callbacks start in the engine publisher's thread, which may differ between sources.
+Async callbacks are tracked without making the publisher wait for their continuations.
+No history is replayed and no automatic game-thread scheduling is performed.
 Keep handlers short and never wait for another thread that needs the channel. A mod
 subscriber's exception is logged without preventing delivery to other subscribers.
 
@@ -109,7 +112,9 @@ Use `Runtime::Invoke` at native callback boundaries and publish copied values th
 `Runtime::Publish`. Never retain borrowed engine event pointers. Lifecycle publication
 has order 100 so the other adapters attach before mods receive readiness notifications.
 Save correlation resets run at order 50, before general lifecycle notifications.
-Add its record and `On...` extension under that subsystem's SDK `Events/` directory.
+Add its record implementing `IGameEvent` under that subsystem's SDK `Events/`
+directory, with `EventName` matching the native publication. No extra subscription
+methods or central event table are needed.
 Only infrastructure shared by subsystems belongs in `game_events`. No transport
 switch is needed.
 

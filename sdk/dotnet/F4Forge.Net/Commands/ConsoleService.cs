@@ -1,3 +1,4 @@
+using F4Forge.Net.Callbacks;
 using F4Forge.Net.Messaging;
 
 namespace F4Forge.Net.Commands;
@@ -22,16 +23,8 @@ internal sealed class ConsoleService(IMessageChannel messages) : IConsole
             {
                 throw new FormatException(invocation.ParseError);
             }
-            var context = new ConsoleCommandContext(invocation);
-            try
-            {
-                handler(context);
-                return context.GetResult();
-            }
-            finally
-            {
-                context.Complete();
-            }
+            return InvocationContext.Invoke(new ConsoleCommandContext(invocation), handler,
+                static context => context.GetResult());
         });
     }
 

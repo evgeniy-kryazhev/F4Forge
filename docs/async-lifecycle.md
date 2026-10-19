@@ -29,13 +29,32 @@ SDK отслеживает задачи запуска, асинхронных �
 
 ## Уведомления
 
-`context.Events.Subscribe` и все типизированные `On…` поддерживают:
+Типизированная подписка использует `context.Events.Subscribe<TEvent>(handler)`.
+Тип события реализует `IGameEvent` и задаёт статическое `EventName`; отдельные
+методы `OnSaveLoaded`, `OnActorDied` и другие `On…` больше не нужны.
+Три общие перегрузки поддерживают:
 
 ```csharp
 Action<T>
 Func<T, Task>
 Func<T, CancellationToken, Task>
 ```
+
+Чтобы добавить новое уведомление, достаточно одного определения:
+
+```csharp
+using F4Forge.Net.Events;
+
+public sealed record InventoryChanged(uint OwnerFormId) : IGameEvent
+{
+    public static string EventName => "mymod.inventory.changed";
+}
+```
+
+`context.Events.Publish(new InventoryChanged(ownerId))` использует то же имя.
+Свойство `EventName` не входит в сериализованные данные. Низкоуровневые
+`Subscribe<T>(name, handler)` и `Publish(name, data)` остаются доступны для
+динамических имён и контрактов, не реализующих `IGameEvent`.
 
 Синхронная часть запускается в потоке издателя. Публикация не ожидает
 незавершённые задачи. Порядок начала соответствует регистрации, порядок
@@ -55,9 +74,11 @@ Func<T, CancellationToken, Task>
 
 ```csharp
 using System.Text.Json;
+using F4Forge.Net.Events;
+using F4Forge.Net.Player.Queries;
 using F4Forge.Net.Saves.Events;
 
-context.Events.OnSaveLoaded(async (notification, cancellationToken) =>
+context.Events.Subscribe<SaveLoaded>(async (notification, cancellationToken) =>
 {
     if (!notification.Success)
     {
@@ -65,7 +86,7 @@ context.Events.OnSaveLoaded(async (notification, cancellationToken) =>
     }
 
     var position = await context.GameThread.RunAsync(
-        () => context.Objects.GetPlayer()?.GetSnapshot().Position,
+        () => context.Objects.Query(new GetPlayer())?.GetSnapshot().Position,
         cancellationToken);
 
     await File.WriteAllTextAsync(
@@ -124,7 +145,13 @@ context.Interceptors.OnConsoleCommandExecuting(command =>
 `interceptors.register` и `interceptors.remove` и вызывает зарегистрированные
 методы общего канала; проверка решения принадлежит игровому адаптеру.
 Новые типизированные контракты добавляются SDK-классами расширений поверх
-`InterceptorService.Register<TContext, TDecision>`, без изменения общего сервиса.
+`InterceptorService.Register<TInput, TContext, TDecision>`, без изменения общего
+сервиса. Расширение задаёт имя, создание контекста и копирование решения.
+`TContext` наследует `InvocationContext` и вызывает `EnsureActive` перед
+изменениями. Общий адаптер завершает контекст при успехе, исключении обработчика
+и ошибке преобразования решения. Команды консоли используют тот же механизм.
+Низкоуровневый `Register<TInput, TDecision>` доступен для контрактов без
+изменяемого контекста. Он самостоятельно контекстами не управляет.
 Игровой диспетчер использует `threading.is_game_thread`, `threading.enqueue` и
 уведомление `threading.execute` с непрозрачным идентификатором задачи.
 Все данные проходят через общий `IDataSerializer`; ABI и экспорты не расширены.

@@ -30,14 +30,14 @@ internal sealed class ModLifetime
         return lease;
     }
 
-    internal void Own(IDisposable resource)
+    internal IDisposable Own(IDisposable resource)
     {
         lock (_gate)
         {
             if (!_closed)
             {
                 _resources.Add(resource);
-                return;
+                return resource;
             }
         }
         resource.Dispose();

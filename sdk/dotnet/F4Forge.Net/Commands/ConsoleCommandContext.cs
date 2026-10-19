@@ -1,10 +1,11 @@
+using F4Forge.Net.Callbacks;
+
 namespace F4Forge.Net.Commands;
 
 /// <summary>One synchronous invocation in the game console's calling thread.</summary>
-public sealed class ConsoleCommandContext
+public sealed class ConsoleCommandContext : InvocationContext
 {
     private readonly List<string> _lines = [];
-    private bool _completed;
 
     internal ConsoleCommandContext(ConsoleInvocation invocation)
     {
@@ -34,20 +35,12 @@ public sealed class ConsoleCommandContext
     public void WriteLine(string text)
     {
         ArgumentNullException.ThrowIfNull(text);
-        if (_completed)
-        {
-            throw new InvalidOperationException("The console invocation has completed.");
-        }
+        EnsureActive();
         _lines.Add(text);
     }
 
     internal ConsoleResult GetResult()
     {
         return new ConsoleResult(_lines.ToArray());
-    }
-
-    internal void Complete()
-    {
-        _completed = true;
     }
 }

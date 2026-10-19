@@ -1,3 +1,4 @@
+using F4Forge.Net.Callbacks;
 using F4Forge.Net.Messaging;
 using F4Forge.Net.Mods;
 
@@ -50,6 +51,26 @@ public sealed class InterceptorService
             }
             throw;
         }
+    }
+
+    /// <summary>Adapts a synchronous mutable context and completes it on every exit path.</summary>
+    /// <typeparam name="TInput">Serialized input defined by the native adapter.</typeparam>
+    /// <typeparam name="TContext">Mutable context exposed to the mod.</typeparam>
+    /// <typeparam name="TDecision">Serialized result validated by the native adapter.</typeparam>
+    /// <param name="name">The interception point exposed by a native module.</param>
+    /// <param name="handler">Synchronous mod callback.</param>
+    /// <param name="createContext">Creates one fresh context from the input.</param>
+    /// <param name="createDecision">Copies the decision before the context is completed.</param>
+    /// <returns>A registration owned by the mod.</returns>
+    public IDisposable Register<TInput, TContext, TDecision>(string name, Action<TContext> handler,
+        Func<TInput, TContext> createContext, Func<TContext, TDecision> createDecision)
+        where TContext : InvocationContext
+    {
+        ArgumentNullException.ThrowIfNull(handler);
+        ArgumentNullException.ThrowIfNull(createContext);
+        ArgumentNullException.ThrowIfNull(createDecision);
+        return Register<TInput, TDecision>(name, input =>
+            InvocationContext.Invoke(createContext(input), handler, createDecision));
     }
 
     private sealed class Registration(IMessageChannel cleanup, ulong id, IDisposable callback) : IDisposable

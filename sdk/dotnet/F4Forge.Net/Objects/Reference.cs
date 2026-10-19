@@ -13,10 +13,10 @@ public class Reference : Form, IFormView<Reference>
     }
 
     /// <inheritdoc />
-    public static bool Matches(FormSnapshot snapshot) => snapshot.IsReference;
+    public new static bool Matches(FormSnapshot snapshot) => snapshot.IsReference;
 
     /// <inheritdoc />
-    public static Reference Create(Form form) => new(form);
+    public new static Reference Create(Form form) => new(form);
 
     /// <summary>Reads position, base definition, cell and location in one native call.</summary>
     public ReferenceSnapshot GetSnapshot()

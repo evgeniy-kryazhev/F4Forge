@@ -11,20 +11,9 @@ public static class ConsoleInterceptorExtensions
         Action<ConsoleCommandInterception> handler)
     {
         ArgumentNullException.ThrowIfNull(interceptors);
-        ArgumentNullException.ThrowIfNull(handler);
-        return interceptors.Register<Invocation, Decision>("console.command.executing", input =>
-        {
-            var context = new ConsoleCommandInterception(input.OriginalCommand, input.Command, input.SelectedReferenceFormId);
-            try
-            {
-                handler(context);
-                return new Decision(context.Command, context.Skip);
-            }
-            finally
-            {
-                context.Complete();
-            }
-        });
+        return interceptors.Register<Invocation, ConsoleCommandInterception, Decision>("console.command.executing", handler,
+            static input => new ConsoleCommandInterception(input.OriginalCommand, input.Command, input.SelectedReferenceFormId),
+            static context => new Decision(context.Command, context.Skip));
     }
 
     private sealed record Invocation(string OriginalCommand, string Command, uint SelectedReferenceFormId);

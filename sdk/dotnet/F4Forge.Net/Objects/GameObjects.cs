@@ -12,40 +12,19 @@ public sealed class GameObjects
         _messages = messages;
     }
 
-    /// <summary>Resolves any runtime form ID; zero and missing forms return null.</summary>
-    public Form? Get(uint formId)
+    /// <summary>Executes a typed lookup through the mod's shared message channel.</summary>
+    /// <typeparam name="TForm">The view inferred from the query contract.</typeparam>
+    /// <param name="query">Module-owned method name and wire arguments.</param>
+    /// <returns>A scoped typed view, or null if the requested form does not exist.</returns>
+    public TForm? Query<TForm>(IFormQuery<TForm> query) where TForm : Form, IFormView<TForm>
     {
-        return Wrap(_messages.Call<FormSnapshot?>("forms.describe", new { FormId = formId }));
-    }
+        ArgumentNullException.ThrowIfNull(query);
+        var snapshot = _messages.Call<FormSnapshot?>(query.MethodName, query.Arguments);
+        if (snapshot is null)
+        {
+            return null;
+        }
 
-    /// <summary>Resolves a form and checks its typed view.</summary>
-    public T? Get<T>(uint formId) where T : Form, IFormView<T>
-    {
-        return Get(formId)?.As<T>();
-    }
-
-    /// <summary>Resolves a plugin-local ID, including light plugins, independent of load-order index.</summary>
-    public Form? Resolve(string plugin, uint localId)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(plugin);
-        return Wrap(_messages.Call<FormSnapshot?>("forms.resolve", new { Plugin = plugin, LocalId = localId }));
-    }
-
-    /// <summary>Looks up an editor ID retained in the game's runtime index; unavailable IDs return null.</summary>
-    public Form? Find(string editorId)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(editorId);
-        return Wrap(_messages.Call<FormSnapshot?>("forms.resolve", new { EditorId = editorId }));
-    }
-
-    /// <summary>Resolves the player if present.</summary>
-    public Actor? GetPlayer()
-    {
-        return Wrap(_messages.Call<FormSnapshot?>("forms.player", null))?.As<Actor>();
-    }
-
-    private Form? Wrap(FormSnapshot? snapshot)
-    {
-        return snapshot is null ? null : new Form(_messages, snapshot);
+        return new Form(_messages, snapshot).As<TForm>();
     }
 }

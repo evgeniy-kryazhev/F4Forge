@@ -14,8 +14,18 @@ public interface IFormView<TSelf> where TSelf : Form
 }
 
 /// <summary>A scoped form identity. Every operation resolves it again in C++; it owns no native object.</summary>
-public class Form
+public class Form : IFormView<Form>
 {
+    /// <summary>Accepts every copied form description.</summary>
+    /// <param name="snapshot">Copied native form data.</param>
+    /// <returns>True because this view represents every form type.</returns>
+    public static bool Matches(FormSnapshot snapshot) => true;
+
+    /// <summary>Retains a generic form identity without allocating another view.</summary>
+    /// <param name="form">Resolved form in the current mod scope.</param>
+    /// <returns>The supplied form.</returns>
+    public static Form Create(Form form) => form;
+
     internal Form(IMessageChannel messages, FormSnapshot snapshot)
     {
         Messages = messages;

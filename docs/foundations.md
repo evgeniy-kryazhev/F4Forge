@@ -23,12 +23,15 @@ Console installation checks its Address Library target before MinHook relocates 
 
 ```csharp
 using F4Forge.Net.Actors.Events;
+using F4Forge.Net.Events;
 using F4Forge.Net.Logging;
 using F4Forge.Net.Objects;
+using F4Forge.Net.Objects.Queries;
+using F4Forge.Net.Player.Queries;
 
-context.Events.OnActorDied(notification =>
+context.Events.Subscribe<ActorDied>(notification =>
 {
-    var actor = context.Objects.Get<Actor>(notification.ActorFormId);
+    var actor = context.Objects.Query(new FormById<Actor>(notification.ActorFormId));
     if (actor is not null)
     {
         var snapshot = actor.GetSnapshot();
@@ -37,7 +40,17 @@ context.Events.OnActorDied(notification =>
 });
 ```
 
-`Get(id)`, `Resolve(pluginFilename, localId)` and `Find(editorId)` resolve arbitrary forms. Missing forms return `null`; editor IDs work only when retained by the game's runtime index. Plugin-local lookup supports regular and light plugins. `GetPlayer()` returns an `Actor` view.
+All lookups use `context.Objects.Query(query)`. The query declares its native method, wire arguments and expected view through `IFormQuery<TForm>`; the common executor handles transport, missing forms and type validation. Query metadata is never serialized with the arguments.
+
+```csharp
+Actor? player = context.Objects.Query(new GetPlayer());
+var weapon = context.Objects.Query(new FormByPlugin<Weapon>("Example.esp", 0x123));
+var form = context.Objects.Query(new FormByEditorId<Form>("ExampleWeapon"));
+```
+
+`GetPlayer` belongs to `Player/Queries`; generic lookups belong to `Objects/Queries`. `FormById<TForm>`, `FormByPlugin<TForm>` and `FormByEditorId<TForm>` support built-in and external views. Missing forms return `null`; incompatible types throw `InvalidCastException`. Editor IDs work only when retained by the game's runtime index. Plugin-local lookup supports regular and light plugins. The previous `Get`, `Resolve`, `Find` and `GetPlayer` service methods are replaced by these query contracts.
+
+Add a module-specific lookup by implementing `IFormQuery<TForm>` in that module. Only `Arguments` crosses the channel, so it must contain exactly the native method's wire fields. For example, the player query supplies `forms.player` and null arguments with `Actor` as its result view. Unlike event names, query names are instance properties: `Query` infers its result type from `IFormQuery<TForm>` and supports parameterized query objects without reflection or a central method table.
 
 `Form` describes any form. `Reference` adds a copied position and base/cell/location IDs. `Actor` and `ActorValue` enable `actor.GetValue(value, kind)` and `actor.SetBaseValue(value, amount)` for any actor-value definition, including mod-defined values. Base writes preserve damage and temporary modifiers. `0` means an absent linked object.
 
@@ -52,12 +65,12 @@ public sealed class Weapon : Form, IFormView<Weapon>
 {
     private Weapon(Form source) : base(source) { }
 
-    public static bool Matches(FormSnapshot snapshot)
+    public new static bool Matches(FormSnapshot snapshot)
     {
         return snapshot.Type == "WEAP";
     }
 
-    public static Weapon Create(Form source)
+    public new static Weapon Create(Form source)
     {
         return new Weapon(source);
     }

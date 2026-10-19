@@ -1,3 +1,5 @@
+using F4Forge.Net.Objects.Queries;
+using F4Forge.Net.Player.Queries;
 using System.Runtime.InteropServices;
 using System.Text.Json;
 using F4Forge.Net.Diagnostics;
@@ -141,13 +143,13 @@ public sealed partial class FoundationTests : IDisposable
             Assert.Equal(7UL, arguments.GetProperty("session").GetUInt64());
             return new ReferenceSnapshot(10, 20, 0, new Position(1, 2, 3));
         }));
-        Assert.Null(context.Objects.Get(0));
-        Assert.IsType<Weapon>(context.Objects.Get<Weapon>(1));
-        Assert.IsType<Weapon>(context.Objects.Resolve("Example.esp", 1)!.As<Weapon>());
-        Assert.IsType<Weapon>(context.Objects.Find("ExampleWeapon")!.As<Weapon>());
-        Assert.Throws<InvalidCastException>(() => context.Objects.Get<Actor>(1));
-        Assert.True(context.Objects.Get(2)!.Is<Reference>());
-        var actor = context.Objects.GetPlayer()!;
+        Assert.Null(context.Objects.Query(new FormById<Form>(0)));
+        Assert.IsType<Weapon>(context.Objects.Query(new FormById<Weapon>(1)));
+        Assert.IsType<Weapon>(context.Objects.Query(new FormByPlugin<Weapon>("Example.esp", 1)));
+        Assert.IsType<Weapon>(context.Objects.Query(new FormByEditorId<Weapon>("ExampleWeapon")));
+        Assert.Throws<InvalidCastException>(() => context.Objects.Query(new FormById<Actor>(1)));
+        Assert.True(context.Objects.Query(new FormById<Form>(2))!.Is<Reference>());
+        var actor = context.Objects.Query(new GetPlayer())!;
         Assert.Equal(new Position(1, 2, 3), actor.GetSnapshot().Position);
         Assert.Equal(0U, actor.GetSnapshot().LocationFormId);
 
@@ -163,14 +165,64 @@ public sealed partial class FoundationTests : IDisposable
             Assert.Equal(90f, arguments.GetProperty("value").GetSingle());
             return true;
         }));
-        var value = context.Objects.Get<ActorValue>(3)!;
+        var value = context.Objects.Query(new FormById<ActorValue>(3))!;
         Assert.Equal(75.5f, actor.GetValue(value, ActorValueKind.Permanent));
         actor.SetBaseValue(value, 90);
         Assert.Throws<ArgumentOutOfRangeException>(() => actor.SetBaseValue(value, float.NaN));
         Assert.Throws<ArgumentOutOfRangeException>(() => actor.GetValue(value, (ActorValueKind)999));
-        Assert.Throws<ArgumentException>(() => actor.GetValue(Context(channel, "Other.dll").Objects.Get<ActorValue>(3)!));
+        Assert.Throws<ArgumentException>(() => actor.GetValue(Context(channel, "Other.dll").Objects.Query(new FormById<ActorValue>(3))!));
         var oldValue = new Form(context.Messages, Snapshot(3, "AVIF", value: true) with { Session = 6 }).As<ActorValue>();
         Assert.Throws<ArgumentException>(() => actor.GetValue(oldValue));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void FormQueriesValidateResultsAndAllowModuleOwnedLookups(bool binary)
+    {
+        var channel = Open(binary);
+        var context = Context(channel);
+        var playerCalls = 0;
+        Track(channel.Register<object?, FormSnapshot?>("forms.player", arguments =>
+        {
+            Assert.Null(arguments);
+            playerCalls++;
+            return playerCalls switch
+            {
+                1 => null,
+                2 => Snapshot(1, "WEAP"),
+                _ => Snapshot(2, "ACHR", actor: true)
+            };
+        }));
+        Assert.Null(context.Objects.Query(new GetPlayer()));
+        Assert.Throws<InvalidCastException>(() => context.Objects.Query(new GetPlayer()));
+        Actor? player = context.Objects.Query(new GetPlayer());
+        Assert.NotNull(player);
+        Assert.Same(context.Messages, player.Messages);
+        Assert.Equal(7UL, player.Session);
+
+        Track(channel.Register<JsonElement, FormSnapshot>("example.weapon", arguments =>
+        {
+            var property = Assert.Single(arguments.EnumerateObject());
+            Assert.Equal("editorId", property.Name);
+            Assert.Equal("Оружие Ω", property.Value.GetString());
+            return Snapshot(1, "WEAP");
+        }));
+        Weapon? weapon = context.Objects.Query(new WeaponQuery("Оружие Ω"));
+        Assert.NotNull(weapon);
+        Assert.Same(context.Messages, weapon.Messages);
+
+        Track(channel.Register<JsonElement, FormSnapshot>("forms.resolve", arguments =>
+        {
+            Assert.Equal("Мод Ω.esl", arguments.GetProperty("plugin").GetString());
+            Assert.Equal(0x123U, arguments.GetProperty("localId").GetUInt32());
+            Assert.Equal(2, arguments.EnumerateObject().Count());
+            return Snapshot(1, "WEAP");
+        }));
+        Assert.NotNull(context.Objects.Query(new FormByPlugin<Weapon>("Мод Ω.esl", 0x123)));
+        Assert.Throws<ArgumentException>(() => context.Objects.Query(new FormByPlugin<Form>(" ", 1)));
+        Assert.Throws<ArgumentException>(() => context.Objects.Query(new FormByEditorId<Form>(" ")));
+        Assert.Throws<ArgumentNullException>(() => context.Objects.Query<Actor>(null!));
     }
 
     [Fact]
@@ -182,7 +234,7 @@ public sealed partial class FoundationTests : IDisposable
         using var messages = new ScopedChannel(channel, lifetime);
         using var events = new ScopedEvents(channel, lifetime);
         var context = new ModContext(Path.GetTempPath(), messages, events, channel.Serializer);
-        var actor = context.Objects.GetPlayer()!;
+        var actor = context.Objects.Query(new GetPlayer())!;
         context.Messages.Register<int, int>("owned", value => value);
         context.Events.Subscribe<int>("owned.event", _ => throw new InvalidOperationException());
         events.Dispose();
@@ -276,11 +328,17 @@ public sealed partial class FoundationTests : IDisposable
         Destroy();
     }
 
+    private sealed record WeaponQuery(string EditorId) : IFormQuery<Weapon>
+    {
+        public string MethodName => "example.weapon";
+        public object Arguments => new { EditorId };
+    }
+
     private sealed class Weapon : Form, IFormView<Weapon>
     {
         private Weapon(Form source) : base(source) { }
-        public static bool Matches(FormSnapshot snapshot) => snapshot.Type == "WEAP";
-        public static Weapon Create(Form source) => new(source);
+        public new static bool Matches(FormSnapshot snapshot) => snapshot.Type == "WEAP";
+        public new static Weapon Create(Form source) => new(source);
     }
 
     private sealed class TaggedSerializer : IDataSerializer

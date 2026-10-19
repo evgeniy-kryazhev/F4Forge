@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using System.Runtime.InteropServices;
 using System.Text.Json;
 using F4Forge.Net.Diagnostics;
+using F4Forge.Net.Callbacks;
 using F4Forge.Net.Events;
 using F4Forge.Net.Hosting;
 using F4Forge.Net.Interception;
@@ -72,6 +73,67 @@ public sealed partial class AsyncLifecycleTests : IDisposable
         Assert.True(cleaned);
     }
 
+    [Fact]
+    public void ScopeStillRemovesNativeCallbacksWhenLifetimeCleanupFails()
+    {
+        _context.Messages.Register<int, int>("cleanup.safe", value => value);
+        _lifetime.Own(new CleanupAction(() => throw new InvalidOperationException("Owned cleanup failed")));
+        Assert.Throws<AggregateException>(_messages.Dispose);
+        Assert.Equal("method_not_found", Assert.Throws<MessageException>(() => _channel.Call<int>("cleanup.safe", 1)).Code);
+    }
+
+    [Fact]
+    public async Task RegistrationFinishingAfterScopeShutdownIsRemovedBeforeItCanEscape()
+    {
+        var entered = Signal();
+        var release = Signal();
+        var lifetime = new ModLifetime();
+        using var messages = new ScopedChannel(new DelayedRegistrationChannel(_channel, entered, release), lifetime);
+        var registering = Task.Run(() => messages.Register<int, int>("scope.race", value => value));
+        try
+        {
+            await entered.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            messages.Dispose();
+            Assert.False(lifetime.Completion.IsCompleted);
+            release.SetResult();
+            await Assert.ThrowsAsync<ObjectDisposedException>(async () =>
+            {
+                using var unexpected = await registering;
+            });
+            Assert.Equal("method_not_found", Assert.Throws<MessageException>(() => _channel.Call<int>("scope.race", 1)).Code);
+            await lifetime.Completion.WaitAsync(TimeSpan.FromSeconds(5));
+        }
+        finally
+        {
+            release.TrySetResult();
+            try
+            {
+                (await registering).Dispose();
+            }
+            catch (ObjectDisposedException)
+            {
+            }
+        }
+    }
+
+    private sealed class DelayedRegistrationChannel(IMessageChannel channel, TaskCompletionSource entered,
+        TaskCompletionSource release) : IMessageChannel
+    {
+        public TResult Call<TResult>(string method, object? arguments)
+        {
+            return channel.Call<TResult>(method, arguments);
+        }
+
+        public IDisposable Register<TArguments, TResult>(string method, Func<TArguments, TResult> handler)
+        {
+            var registration = channel.Register(method, handler);
+            entered.TrySetResult();
+            // Pause after native registration but before the scope can own it.
+            release.Task.GetAwaiter().GetResult();
+            return registration;
+        }
+    }
+
     private sealed class CleanupAction(Action cleanup) : IDisposable
     {
         public void Dispose()
@@ -86,15 +148,15 @@ public sealed partial class AsyncLifecycleTests : IDisposable
         var release = Signal();
         var finished = Signal();
         var calls = new List<int>();
-        using var subscription = _context.Events.Subscribe<int>("async", async value =>
+        using var subscription = _context.Events.Subscribe<LifecycleNotification>(async notification =>
         {
-            calls.Add(value);
+            calls.Add(notification.Value);
             await release.Task;
             finished.TrySetResult();
             throw new InvalidOperationException("Failure after await");
         });
-        _channel.Publish("async", 1);
-        _channel.Publish("async", 2);
+        _channel.Publish(new LifecycleNotification(1));
+        _channel.Publish(new LifecycleNotification(2));
         Assert.Equal([1, 2], calls);
         Assert.False(finished.Task.IsCompleted);
         release.SetResult();
@@ -104,12 +166,17 @@ public sealed partial class AsyncLifecycleTests : IDisposable
         Assert.All(_records, record => Assert.EndsWith("AsyncExample.dll", record.ModId));
     }
 
+    private sealed record LifecycleNotification(int Value) : IGameEvent
+    {
+        public static string EventName => "async";
+    }
+
     [Fact]
     public async Task TypedAsyncSubscriptionCancelsWithoutWaitingForItsContinuation()
     {
         var release = Signal();
         CancellationToken observed = default;
-        var subscription = _context.Events.OnSaveLoaded(async (_, token) =>
+        var subscription = _context.Events.Subscribe<SaveLoaded>(async (_, token) =>
         {
             observed = token;
             await release.Task;
@@ -210,6 +277,37 @@ public sealed partial class AsyncLifecycleTests : IDisposable
         Assert.True(result.GetProperty("skip").GetBoolean());
         Assert.Throws<InvalidOperationException>(() => captured!.Command = "late");
         Assert.Throws<InvalidOperationException>(() => captured!.Skip = true);
+    }
+
+    [Fact]
+    public void SharedInterceptorAdapterCompletesCustomContextsWhenDecisionConversionFails()
+    {
+        CustomInterception? captured = null;
+        using var interceptor = _context.Interceptors.Register<CustomInput, CustomInterception, object>(
+            "console.command.executing", context => captured = context,
+            input => new CustomInterception(input.Command),
+            _ => throw new InvalidOperationException("Decision conversion failed"));
+        var result = _channel.Call<JsonElement>("test.intercept",
+            new { OriginalCommand = "help", Command = "help", SelectedReferenceFormId = 0x14, Skip = false });
+        Assert.Equal("help", result.GetProperty("command").GetString());
+        Assert.Throws<InvalidOperationException>(() => captured!.Command = "after return");
+    }
+
+    private sealed record CustomInput(string Command);
+
+    private sealed class CustomInterception(string command) : InvocationContext
+    {
+        private string _command = command;
+
+        internal string Command
+        {
+            get => _command;
+            set
+            {
+                EnsureActive();
+                _command = value;
+            }
+        }
     }
 
     [Fact]

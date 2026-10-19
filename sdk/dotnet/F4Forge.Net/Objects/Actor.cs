@@ -30,8 +30,8 @@ public sealed class ActorValue : Form, IFormView<ActorValue>
     }
 
     /// <inheritdoc />
-    public static bool Matches(FormSnapshot snapshot) => snapshot.IsActorValue;
+    public new static bool Matches(FormSnapshot snapshot) => snapshot.IsActorValue;
 
     /// <inheritdoc />
-    public static ActorValue Create(Form form) => new(form);
+    public new static ActorValue Create(Form form) => new(form);
 }

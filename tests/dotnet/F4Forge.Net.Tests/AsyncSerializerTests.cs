@@ -1,3 +1,5 @@
+using F4Forge.Net.Objects.Queries;
+using F4Forge.Net.Player.Queries;
 using System.Runtime.InteropServices;
 using System.Text.Json;
 using F4Forge.Net.Interop;
@@ -5,6 +7,7 @@ using F4Forge.Net.Interception;
 using F4Forge.Net.Mods;
 using F4Forge.Net.Objects;
 using F4Forge.Net.Serialization;
+using F4Forge.Net.Events;
 
 namespace F4Forge.Net.Tests;
 
@@ -55,14 +58,14 @@ public sealed partial class AsyncSerializerTests
                 OriginalCommand = "before", Command = "before", Skip = false, SelectedReferenceFormId = 0x14
             });
             Assert.Equal("help Игрок Ω", decision.GetProperty("command").GetString());
-            using var subscription = context.Events.Subscribe<int>("after.await", async (_, token) =>
+            using var subscription = context.Events.Subscribe<AfterAwait>(async (_, token) =>
             {
                 await scheduled.Task;
                 var position = await context.GameThread.RunAsync(
-                    () => context.Objects.GetPlayer()?.GetSnapshot().Position, token);
+                    () => context.Objects.Query(new GetPlayer())?.GetSnapshot().Position, token);
                 completed.SetResult(position);
             });
-            channel.Publish("after.await", 0);
+            channel.Publish(new AfterAwait());
             scheduled.SetResult();
             var id = await queued.Task.WaitAsync(TimeSpan.FromSeconds(5));
             // A notification on an arbitrary thread must not execute a game task.
@@ -86,6 +89,11 @@ public sealed partial class AsyncSerializerTests
             channel.DetachTransport();
             Destroy();
         }
+    }
+
+    private sealed record AfterAwait : IGameEvent
+    {
+        public static string EventName => "after.await";
     }
 
     private sealed class TaggedSerializer : IDataSerializer

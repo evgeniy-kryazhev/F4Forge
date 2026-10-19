@@ -1,11 +1,12 @@
+using F4Forge.Net.Callbacks;
+
 namespace F4Forge.Net.Interception;
 
 /// <summary>A synchronous decision before console routing or engine execution.</summary>
-public sealed class ConsoleCommandInterception
+public sealed class ConsoleCommandInterception : InvocationContext
 {
     private string _command;
     private bool _skip;
-    private bool _completed;
 
     internal ConsoleCommandInterception(string originalCommand, string command, uint selectedReferenceFormId)
     {
@@ -23,7 +24,7 @@ public sealed class ConsoleCommandInterception
         get => _command;
         set
         {
-            ThrowIfCompleted();
+            EnsureActive();
             ArgumentNullException.ThrowIfNull(value);
             if (value.Contains('\0'))
             {
@@ -42,18 +43,8 @@ public sealed class ConsoleCommandInterception
         get => _skip;
         set
         {
-            ThrowIfCompleted();
+            EnsureActive();
             _skip = value;
-        }
-    }
-
-    internal void Complete() => _completed = true;
-
-    private void ThrowIfCompleted()
-    {
-        if (_completed)
-        {
-            throw new InvalidOperationException("The interceptor invocation has completed.");
         }
     }
 }
