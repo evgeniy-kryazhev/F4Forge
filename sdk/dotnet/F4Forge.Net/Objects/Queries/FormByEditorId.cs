@@ -1,3 +1,5 @@
+using F4Forge.Net.Messaging;
+
 namespace F4Forge.Net.Objects.Queries;
 
 /// <summary>Resolves an editor ID retained in the game's runtime index.</summary>
@@ -10,12 +12,11 @@ public sealed record FormByEditorId<TForm>(string EditorId) : IFormQuery<TForm>
     public string MethodName => "forms.resolve";
 
     /// <inheritdoc />
-    public object Arguments
+    public object Arguments => new { EditorId };
+
+    /// <inheritdoc />
+    public void Validate(IMessageChannel messages)
     {
-        get
-        {
-            ArgumentException.ThrowIfNullOrWhiteSpace(EditorId);
-            return new { EditorId };
-        }
+        ArgumentException.ThrowIfNullOrWhiteSpace(EditorId);
     }
 }

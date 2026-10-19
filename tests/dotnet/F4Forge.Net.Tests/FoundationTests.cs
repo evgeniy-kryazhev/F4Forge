@@ -1,13 +1,16 @@
-using F4Forge.Net.Objects.Queries;
-using F4Forge.Net.Player.Queries;
 using System.Runtime.InteropServices;
 using System.Text.Json;
+using F4Forge.Net.Actors.Commands;
+using F4Forge.Net.Actors.Queries;
 using F4Forge.Net.Diagnostics;
 using F4Forge.Net.Hosting;
 using F4Forge.Net.Interop;
 using F4Forge.Net.Messaging;
 using F4Forge.Net.Mods;
 using F4Forge.Net.Objects;
+using F4Forge.Net.Objects.Queries;
+using F4Forge.Net.Operations;
+using F4Forge.Net.Player.Queries;
 using F4Forge.Net.Serialization;
 
 namespace F4Forge.Net.Tests;
@@ -150,8 +153,8 @@ public sealed partial class FoundationTests : IDisposable
         Assert.Throws<InvalidCastException>(() => context.Objects.Query(new FormById<Actor>(1)));
         Assert.True(context.Objects.Query(new FormById<Form>(2))!.Is<Reference>());
         var actor = context.Objects.Query(new GetPlayer())!;
-        Assert.Equal(new Position(1, 2, 3), actor.GetSnapshot().Position);
-        Assert.Equal(0U, actor.GetSnapshot().LocationFormId);
+        Assert.Equal(new Position(1, 2, 3), context.Messages.Query(new GetReferenceSnapshot(actor)).Position);
+        Assert.Equal(0U, context.Messages.Query(new GetReferenceSnapshot(actor)).LocationFormId);
 
         Track(channel.Register<JsonElement, float>("forms.actor_value", arguments =>
         {
@@ -166,13 +169,14 @@ public sealed partial class FoundationTests : IDisposable
             return true;
         }));
         var value = context.Objects.Query(new FormById<ActorValue>(3))!;
-        Assert.Equal(75.5f, actor.GetValue(value, ActorValueKind.Permanent));
-        actor.SetBaseValue(value, 90);
-        Assert.Throws<ArgumentOutOfRangeException>(() => actor.SetBaseValue(value, float.NaN));
-        Assert.Throws<ArgumentOutOfRangeException>(() => actor.GetValue(value, (ActorValueKind)999));
-        Assert.Throws<ArgumentException>(() => actor.GetValue(Context(channel, "Other.dll").Objects.Query(new FormById<ActorValue>(3))!));
+        Assert.Equal(75.5f, context.Messages.Query(new GetActorValue(actor, value, ActorValueKind.Permanent)));
+        context.Messages.Execute(new SetActorBaseValue(actor, value, 90));
+        Assert.Throws<ArgumentOutOfRangeException>(() => context.Messages.Execute(new SetActorBaseValue(actor, value, float.NaN)));
+        Assert.Throws<ArgumentOutOfRangeException>(() => context.Messages.Query(new GetActorValue(actor, value, (ActorValueKind)999)));
+        var foreignValue = Context(channel, "Other.dll").Objects.Query(new FormById<ActorValue>(3))!;
+        Assert.Throws<ArgumentException>(() => context.Messages.Query(new GetActorValue(actor, foreignValue)));
         var oldValue = new Form(context.Messages, Snapshot(3, "AVIF", value: true) with { Session = 6 }).As<ActorValue>();
-        Assert.Throws<ArgumentException>(() => actor.GetValue(oldValue));
+        Assert.Throws<ArgumentException>(() => context.Messages.Query(new GetActorValue(actor, oldValue)));
     }
 
     [Theory]
@@ -225,6 +229,86 @@ public sealed partial class FoundationTests : IDisposable
         Assert.Throws<ArgumentNullException>(() => context.Objects.Query<Actor>(null!));
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void TypedOperationsPreserveWireDataResultsAndErrorBoundaries(bool binary)
+    {
+        var channel = Open(binary);
+        var context = Context(channel);
+        var commandCalls = 0;
+        Track(channel.Register<JsonElement, string[]>("example.names", arguments =>
+        {
+            var property = Assert.Single(arguments.EnumerateObject());
+            Assert.Equal("prefix", property.Name);
+            Assert.Equal("Игрок Ω", property.Value.GetString());
+            return ["Первый", "Второй 🌍"];
+        }));
+        Track(channel.Register<JsonElement, bool>("example.mode", arguments =>
+        {
+            commandCalls++;
+            var property = Assert.Single(arguments.EnumerateObject());
+            Assert.Equal("enabled", property.Name);
+            return property.Value.GetBoolean();
+        }));
+        string[] names = context.Messages.Query(new GetNames("Игрок Ω"));
+        Assert.Equal(new[] { "Первый", "Второй 🌍" }, names);
+        Assert.False(context.Messages.Execute(new SetMode(false)));
+        Assert.True(context.Messages.Execute(new SetMode(true)));
+        Assert.Equal(2, commandCalls);
+
+        Track(channel.Register<object?, string?>("example.optional", arguments =>
+        {
+            Assert.Null(arguments);
+            return null;
+        }));
+        Assert.Null(context.Messages.Query(new GetOptionalName()));
+        Track(channel.Register<JsonElement, bool>("example.failure", _ =>
+            throw new InvalidOperationException("Ошибка изменения Ω")));
+        var error = Assert.Throws<MessageException>(() => context.Messages.Execute(new FailingCommand()));
+        Assert.Equal("Ошибка изменения Ω", error.Message);
+        Assert.Throws<ArgumentException>(() => context.Messages.Query(new GetNames(" ")));
+        Assert.Throws<ArgumentNullException>(() => context.Messages.Query<string[]>(null!));
+        Assert.Throws<ArgumentNullException>(() => context.Messages.Execute<bool>(null!));
+        Assert.Throws<ArgumentNullException>(() => OperationExtensions.Query(null!, new GetOptionalName()));
+        Assert.Throws<ArgumentNullException>(() => OperationExtensions.Execute(null!, new SetMode(true)));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void FormOperationsRejectForeignScopesAndForwardSessionIdentity(bool binary)
+    {
+        var channel = Open(binary);
+        var context = Context(channel);
+        var foreignContext = Context(channel, "Foreign.dll");
+        var actor = new Form(context.Messages, Snapshot(2, "ACHR", actor: true)).As<Actor>();
+        var value = new Form(context.Messages, Snapshot(3, "AVIF", value: true)).As<ActorValue>();
+        var foreignActor = new Form(foreignContext.Messages, actor.Snapshot).As<Actor>();
+        var nativeCalls = 0;
+        Track(channel.Register<JsonElement, FormSnapshot?>("forms.describe", arguments =>
+        {
+            nativeCalls++;
+            Assert.Equal(2U, arguments.GetProperty("formId").GetUInt32());
+            Assert.Equal(7UL, arguments.GetProperty("session").GetUInt64());
+            Assert.Equal(2, arguments.EnumerateObject().Count());
+            return null;
+        }));
+        Assert.Throws<ArgumentException>(() => foreignContext.Messages.Query(new DescribeForm(actor)));
+        Assert.Throws<ArgumentException>(() => foreignContext.Messages.Query(new GetReferenceSnapshot(actor)));
+        Assert.Throws<ArgumentException>(() => foreignContext.Messages.Query(new GetActorValue(actor, value)));
+        Assert.Throws<ArgumentException>(() => foreignContext.Messages.Execute(new SetActorBaseValue(actor, value, 1)));
+        Assert.Throws<ArgumentException>(() => context.Messages.Query(
+            new GetReferenceSnapshot(actor) with { Reference = foreignActor }));
+        Assert.Throws<ArgumentException>(() => context.Messages.Query(
+            new GetActorValue(actor, value) with { Actor = foreignActor }));
+        Assert.Throws<ArgumentNullException>(() => context.Messages.Query(new DescribeForm(null!)));
+        Assert.Throws<ArgumentNullException>(() => context.Messages.Execute(new SetActorBaseValue(actor, null!, 1)));
+        Assert.Equal(0, nativeCalls);
+        Assert.Null(context.Messages.Query(new DescribeForm(actor)));
+        Assert.Equal(1, nativeCalls);
+    }
+
     [Fact]
     public void ClosingModScopeRevokesRetainedObjectsAndCallbacks()
     {
@@ -239,7 +323,9 @@ public sealed partial class FoundationTests : IDisposable
         context.Events.Subscribe<int>("owned.event", _ => throw new InvalidOperationException());
         events.Dispose();
         messages.Dispose();
-        Assert.Throws<ObjectDisposedException>(() => actor.Describe());
+        Assert.Throws<ObjectDisposedException>(() => context.Messages.Query(new DescribeForm(actor)));
+        var value = new Form(context.Messages, Snapshot(3, "AVIF", value: true)).As<ActorValue>();
+        Assert.Throws<ObjectDisposedException>(() => context.Messages.Execute(new SetActorBaseValue(actor, value, 1)));
         Assert.Throws<MessageException>(() => channel.Call<int>("owned", 1));
         channel.Publish("owned.event", 1);
     }
@@ -326,6 +412,35 @@ public sealed partial class FoundationTests : IDisposable
             registration.Dispose();
         }
         Destroy();
+    }
+
+    private sealed record GetNames(string Prefix) : IQuery<string[]>
+    {
+        public string MethodName => "example.names";
+        public object Arguments => new { Prefix };
+
+        public void Validate(IMessageChannel messages)
+        {
+            ArgumentException.ThrowIfNullOrWhiteSpace(Prefix);
+        }
+    }
+
+    private sealed record GetOptionalName : IQuery<string?>
+    {
+        public string MethodName => "example.optional";
+        public object? Arguments => null;
+    }
+
+    private sealed record SetMode(bool Enabled) : ICommand<bool>
+    {
+        public string MethodName => "example.mode";
+        public object Arguments => new { Enabled };
+    }
+
+    private sealed record FailingCommand : ICommand<bool>
+    {
+        public string MethodName => "example.failure";
+        public object Arguments => new { };
     }
 
     private sealed record WeaponQuery(string EditorId) : IFormQuery<Weapon>

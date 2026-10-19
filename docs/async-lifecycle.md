@@ -75,6 +75,9 @@ public sealed record InventoryChanged(uint OwnerFormId) : IGameEvent
 ```csharp
 using System.Text.Json;
 using F4Forge.Net.Events;
+using F4Forge.Net.Objects;
+using F4Forge.Net.Objects.Queries;
+using F4Forge.Net.Operations;
 using F4Forge.Net.Player.Queries;
 using F4Forge.Net.Saves.Events;
 
@@ -86,7 +89,16 @@ context.Events.Subscribe<SaveLoaded>(async (notification, cancellationToken) =>
     }
 
     var position = await context.GameThread.RunAsync(
-        () => context.Objects.Query(new GetPlayer())?.GetSnapshot().Position,
+        () =>
+        {
+            var player = context.Objects.Query(new GetPlayer());
+            if (player is null)
+            {
+                return (Position?)null;
+            }
+
+            return context.Messages.Query(new GetReferenceSnapshot(player)).Position;
+        },
         cancellationToken);
 
     await File.WriteAllTextAsync(

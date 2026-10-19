@@ -1,5 +1,6 @@
 using System.Text.Json;
 using F4Forge.Net.Mods;
+using F4Forge.Net.Operations;
 using F4Forge.Tests.FixtureDependency;
 
 namespace F4Forge.Tests.Fixture;
@@ -26,13 +27,23 @@ public sealed class FixtureMod : IMod
             }
             return;
         }
-        context.Messages.Register<JsonElement, JsonElement>("fixture.echo", arguments => FixtureValues.Identity(context.Messages.Call<JsonElement>("native.echo", arguments)));
+        context.Messages.Register<JsonElement, JsonElement>("fixture.echo", arguments =>
+        {
+            var response = context.Messages.Query(new Echo(arguments));
+            return FixtureValues.Identity(response);
+        });
         context.Messages.Register<object?, string>("fixture.directory", _ => context.Directory);
         context.Events.Subscribe<JsonElement>("fixture.input", data => context.Events.Publish("fixture.output", data));
         if (File.Exists(Path.Combine(context.Directory, "fail-start")))
         {
             throw new InvalidOperationException("Fixture startup failed after registration.");
         }
+    }
+
+    private sealed record Echo(JsonElement Data) : IQuery<JsonElement>
+    {
+        public string MethodName => "native.echo";
+        public object Arguments => Data;
     }
 
     public async ValueTask DisposeAsync()

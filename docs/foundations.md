@@ -27,6 +27,7 @@ using F4Forge.Net.Events;
 using F4Forge.Net.Logging;
 using F4Forge.Net.Objects;
 using F4Forge.Net.Objects.Queries;
+using F4Forge.Net.Operations;
 using F4Forge.Net.Player.Queries;
 
 context.Events.Subscribe<ActorDied>(notification =>
@@ -34,7 +35,7 @@ context.Events.Subscribe<ActorDied>(notification =>
     var actor = context.Objects.Query(new FormById<Actor>(notification.ActorFormId));
     if (actor is not null)
     {
-        var snapshot = actor.GetSnapshot();
+        var snapshot = context.Messages.Query(new GetReferenceSnapshot(actor));
         context.LogInfo($"Actor {actor.FormId:X8}, cell {snapshot.CellFormId:X8}");
     }
 });
@@ -52,7 +53,7 @@ var form = context.Objects.Query(new FormByEditorId<Form>("ExampleWeapon"));
 
 Add a module-specific lookup by implementing `IFormQuery<TForm>` in that module. Only `Arguments` crosses the channel, so it must contain exactly the native method's wire fields. For example, the player query supplies `forms.player` and null arguments with `Actor` as its result view. Unlike event names, query names are instance properties: `Query` infers its result type from `IFormQuery<TForm>` and supports parameterized query objects without reflection or a central method table.
 
-`Form` describes any form. `Reference` adds a copied position and base/cell/location IDs. `Actor` and `ActorValue` enable `actor.GetValue(value, kind)` and `actor.SetBaseValue(value, amount)` for any actor-value definition, including mod-defined values. Base writes preserve damage and temporary modifiers. `0` means an absent linked object.
+`Form` describes any form. Use `Messages.Query(new DescribeForm(form))` to refresh its copied description, or `Messages.Query(new GetReferenceSnapshot(reference))` for position and base/cell/location IDs. `GetActorValue(actor, value, kind)` and `SetActorBaseValue(actor, value, amount)` live in `Actors/Queries` and `Actors/Commands`; invoke them with `Messages.Query(...)` and `Messages.Execute(...)`. They support built-in and mod-defined actor values. Base writes preserve damage and temporary modifiers. `0` means an absent linked object. The old `Describe`, `GetSnapshot`, `GetValue` and `SetBaseValue` methods are replaced by these contracts; see [typed operations](operations.md).
 
 Operations are synchronous and allowed only on the engine's main thread, identified by `RE::Main::threadID`. Load notifications update readiness and session identity without changing thread ownership; they may arrive on a loader thread. Console handlers on the main thread can resolve the player and read snapshots through nested channel calls. Calls during loading, from other threads, after mod disposal or with a previous session's identity fail explicitly. Calls do not queue work or wait on another thread while holding the shared dispatch lane. Resolve wrappers again after loading/new game. Form IDs are not persistent handles; missing objects are checked again in C++. No native pointer is retained by a managed wrapper.
 

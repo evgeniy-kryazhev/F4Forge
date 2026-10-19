@@ -1,13 +1,15 @@
-using F4Forge.Net.Objects.Queries;
-using F4Forge.Net.Player.Queries;
 using System.Runtime.InteropServices;
 using System.Text.Json;
+using F4Forge.Net.Actors.Commands;
+using F4Forge.Net.Events;
 using F4Forge.Net.Interop;
 using F4Forge.Net.Interception;
 using F4Forge.Net.Mods;
 using F4Forge.Net.Objects;
+using F4Forge.Net.Objects.Queries;
+using F4Forge.Net.Operations;
+using F4Forge.Net.Player.Queries;
 using F4Forge.Net.Serialization;
-using F4Forge.Net.Events;
 
 namespace F4Forge.Net.Tests;
 
@@ -25,7 +27,7 @@ public sealed partial class AsyncSerializerTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task NotificationsInterceptorsAndPlayerAccessAfterAwaitUseSharedSerializer(bool binary)
+    public async Task NotificationsInterceptorsQueriesAndCommandsAfterAwaitUseSharedSerializer(bool binary)
     {
         var channel = binary ? new NativeChannel(CreateBinary(), new TaggedSerializer()) : new NativeChannel(Create());
         var lifetime = new ModLifetime();
@@ -50,6 +52,18 @@ public sealed partial class AsyncSerializerTests
         });
         using var snapshot = channel.Register<JsonElement, ReferenceSnapshot>("forms.reference", _ =>
             new ReferenceSnapshot(7, 9, 11, new Position(10, 20, 30)));
+        var writes = 0;
+        using var setBaseValue = channel.Register<JsonElement, bool>("forms.set_base_value", arguments =>
+        {
+            Assert.Equal(Volatile.Read(ref gameThread), Environment.CurrentManagedThreadId);
+            Assert.Equal(0x14U, arguments.GetProperty("formId").GetUInt32());
+            Assert.Equal(1UL, arguments.GetProperty("session").GetUInt64());
+            Assert.Equal(0x2D4U, arguments.GetProperty("actorValueFormId").GetUInt32());
+            Assert.Equal(1UL, arguments.GetProperty("actorValueSession").GetUInt64());
+            Assert.Equal(90f, arguments.GetProperty("value").GetSingle());
+            writes++;
+            return true;
+        });
         try
         {
             using var interceptor = context.Interceptors.OnConsoleCommandExecuting(input => input.Command = "help Игрок Ω");
@@ -62,7 +76,19 @@ public sealed partial class AsyncSerializerTests
             {
                 await scheduled.Task;
                 var position = await context.GameThread.RunAsync(
-                    () => context.Objects.Query(new GetPlayer())?.GetSnapshot().Position, token);
+                    () =>
+                    {
+                        var player = context.Objects.Query(new GetPlayer());
+                        if (player is null)
+                        {
+                            return (Position?)null;
+                        }
+
+                        var value = new Form(context.Messages,
+                            new FormSnapshot(0x2D4, 1, "AVIF", "Здоровье", "Health", false, false, true)).As<ActorValue>();
+                        Assert.True(context.Messages.Execute(new SetActorBaseValue(player, value, 90)));
+                        return context.Messages.Query(new GetReferenceSnapshot(player)).Position;
+                    }, token);
                 completed.SetResult(position);
             });
             channel.Publish(new AfterAwait());
@@ -74,6 +100,7 @@ public sealed partial class AsyncSerializerTests
             Volatile.Write(ref gameThread, Environment.CurrentManagedThreadId);
             channel.Publish("threading.execute", new { TaskId = id });
             Assert.Equal(new Position(10, 20, 30), await completed.Task.WaitAsync(TimeSpan.FromSeconds(5)));
+            Assert.Equal(1, writes);
             lifetime.Close();
             await lifetime.Completion.WaitAsync(TimeSpan.FromSeconds(5));
         }
@@ -86,6 +113,7 @@ public sealed partial class AsyncSerializerTests
             enqueue.Dispose();
             player.Dispose();
             snapshot.Dispose();
+            setBaseValue.Dispose();
             channel.DetachTransport();
             Destroy();
         }

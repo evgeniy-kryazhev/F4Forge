@@ -1,3 +1,5 @@
+using F4Forge.Net.Messaging;
+
 namespace F4Forge.Net.Objects.Queries;
 
 /// <summary>Resolves a plugin-local ID, including light plugins, independently of load order.</summary>
@@ -11,12 +13,11 @@ public sealed record FormByPlugin<TForm>(string Plugin, uint LocalId) : IFormQue
     public string MethodName => "forms.resolve";
 
     /// <inheritdoc />
-    public object Arguments
+    public object Arguments => new { Plugin, LocalId };
+
+    /// <inheritdoc />
+    public void Validate(IMessageChannel messages)
     {
-        get
-        {
-            ArgumentException.ThrowIfNullOrWhiteSpace(Plugin);
-            return new { Plugin, LocalId };
-        }
+        ArgumentException.ThrowIfNullOrWhiteSpace(Plugin);
     }
 }

@@ -1,4 +1,5 @@
 using F4Forge.Net.Messaging;
+using F4Forge.Net.Operations;
 
 namespace F4Forge.Net.Objects;
 
@@ -18,8 +19,7 @@ public sealed class GameObjects
     /// <returns>A scoped typed view, or null if the requested form does not exist.</returns>
     public TForm? Query<TForm>(IFormQuery<TForm> query) where TForm : Form, IFormView<TForm>
     {
-        ArgumentNullException.ThrowIfNull(query);
-        var snapshot = _messages.Call<FormSnapshot?>(query.MethodName, query.Arguments);
+        var snapshot = _messages.Query(query);
         if (snapshot is null)
         {
             return null;

@@ -79,6 +79,9 @@ SDK автоматически снимает регистрации при ос
 [async-lifecycle.md](docs/async-lifecycle.md).
 Типизированные уведомления используют `context.Events.Subscribe<TEvent>(handler)`;
 имя канала задаётся один раз в типе события через `IGameEvent.EventName`.
+Запросы данных используют `Messages.Query(IQuery<TResult>)`, изменения состояния —
+`Messages.Execute(ICommand<TResult>)`; контракты и примеры описаны в
+[operations.md](docs/operations.md).
 Моды изолированы через `AssemblyLoadContext`; ошибки отдельных модов записываются в
 `F4Forge/Net.log`. Автоматическая перезагрузка модов пока не реализована.
 

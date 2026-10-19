@@ -1,4 +1,6 @@
+using F4Forge.Net.Diagnostics.Queries;
 using F4Forge.Net.Messaging;
+using F4Forge.Net.Operations;
 
 namespace F4Forge.Net.Diagnostics;
 
@@ -19,16 +21,12 @@ public sealed class ModDiagnostics
     /// <summary>Returns this mod's newest operations first; history is bounded to 256 operations across the host.</summary>
     public IReadOnlyList<DiagnosticRecord> GetOperations(int maximum = 64)
     {
-        if (maximum is < 1 or > 256)
-        {
-            throw new ArgumentOutOfRangeException(nameof(maximum));
-        }
-        return _messages.Call<DiagnosticRecord[]>("diagnostics.operations", new { ModId, Maximum = maximum });
+        return _messages.Query(new GetDiagnosticOperations(ModId, maximum));
     }
 
     /// <summary>Returns statuses for hooks that register with the native diagnostics service.</summary>
     public IReadOnlyList<HookStatus> GetHooks()
     {
-        return _messages.Call<HookStatus[]>("diagnostics.hooks", null);
+        return _messages.Query(new GetHookStatuses());
     }
 }

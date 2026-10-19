@@ -17,10 +17,4 @@ public class Reference : Form, IFormView<Reference>
 
     /// <inheritdoc />
     public new static Reference Create(Form form) => new(form);
-
-    /// <summary>Reads position, base definition, cell and location in one native call.</summary>
-    public ReferenceSnapshot GetSnapshot()
-    {
-        return Messages.Call<ReferenceSnapshot>("forms.reference", new { FormId, Session });
-    }
 }

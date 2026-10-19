@@ -1,4 +1,6 @@
+using F4Forge.Net.Logging.Commands;
 using F4Forge.Net.Mods;
+using F4Forge.Net.Operations;
 
 namespace F4Forge.Net.Logging;
 
@@ -28,9 +30,6 @@ public static class LoggingExtensions
         ArgumentNullException.ThrowIfNull(context);
         ArgumentNullException.ThrowIfNull(message);
         var source = Path.GetFileName(Path.TrimEndingDirectorySeparator(context.Directory));
-        var request = new LogRequest(level, source, message);
-        context.Messages.Call<bool>("logging.write", request);
+        context.Messages.Execute(new WriteLog(level, source, message));
     }
-
-    private sealed record LogRequest(string Level, string Source, string Message);
 }

@@ -40,7 +40,7 @@ public class Form : IFormView<Form>
     /// <summary>The mod's scoped message channel for additive feature extensions.</summary>
     public IMessageChannel Messages { get; }
 
-    /// <summary>The copied description at resolution time; use Describe for current data.</summary>
+    /// <summary>The copied description at resolution time; query DescribeForm for current data.</summary>
     public FormSnapshot Snapshot { get; }
 
     /// <summary>Runtime form ID; it is not a persistent cross-session identifier.</summary>
@@ -48,12 +48,6 @@ public class Form : IFormView<Form>
 
     /// <summary>Session generation that native operations must validate.</summary>
     public ulong Session => Snapshot.Session;
-
-    /// <summary>Fetches a fresh description; returns null if the form no longer exists.</summary>
-    public FormSnapshot? Describe()
-    {
-        return Messages.Call<FormSnapshot?>("forms.describe", new { FormId, Session });
-    }
 
     /// <summary>Tests a typed view using the copied description, without accessing game memory.</summary>
     public bool Is<T>() where T : Form, IFormView<T>
