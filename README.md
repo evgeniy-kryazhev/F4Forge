@@ -82,6 +82,8 @@ SDK автоматически снимает регистрации при ос
 Запросы данных используют `Messages.Query(IQuery<TResult>)`, изменения состояния —
 `Messages.Execute(ICommand<TResult>)`; контракты и примеры описаны в
 [operations.md](docs/operations.md).
+Динамические вызовы функций и свойств чужих Papyrus-скриптов доступны через
+`context.Papyrus`; примеры PrismaUI и F4SE UI — в [papyrus.md](docs/papyrus.md).
 Моды изолированы через `AssemblyLoadContext`; ошибки отдельных модов записываются в
 `F4Forge/Net.log`. Автоматическая перезагрузка модов пока не реализована.
 

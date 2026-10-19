@@ -6,6 +6,7 @@ using F4Forge.Net.Diagnostics;
 using F4Forge.Net.Objects;
 using F4Forge.Net.Threading;
 using F4Forge.Net.Interception;
+using F4Forge.Net.Papyrus;
 
 namespace F4Forge.Net.Mods;
 
@@ -27,6 +28,7 @@ public sealed class ModContext
         Objects = new GameObjects(Messages);
         GameThread = new GameThreadService(Messages, Events, modLifetime);
         Interceptors = new InterceptorService(Messages, (messages as ScopedChannel)?.Transport ?? messages, modLifetime);
+        Papyrus = new PapyrusClient(Messages, (messages as ScopedChannel)?.Transport ?? messages, Events, modLifetime);
     }
 
     /// <summary>Absolute path to the mod directory.</summary>
@@ -55,4 +57,7 @@ public sealed class ModContext
 
     /// <summary>Synchronous decisions applied before the engine executes an action.</summary>
     public InterceptorService Interceptors { get; }
+
+    /// <summary>Dynamic calls and properties through the game's Papyrus VM.</summary>
+    public PapyrusClient Papyrus { get; }
 }
