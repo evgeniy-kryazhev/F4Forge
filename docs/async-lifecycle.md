@@ -1,38 +1,38 @@
-# Уведомления, перехватчики и async/await
+# Notifications, Interceptors, and async/await
 
-`IMod` реализует `Task StartAsync(ModContext, CancellationToken)` и
-`ValueTask DisposeAsync()`. Старые `Start` и `IDisposable` не поддерживаются:
-моды нужно пересобрать. Новый контракт доступен начиная с версии 0.3.0.
+`IMod` implements `Task StartAsync(ModContext, CancellationToken)` and
+`ValueTask DisposeAsync()`. The old `Start` and `IDisposable` contracts are not supported:
+mods must be rebuilt. The new contract is available starting with version 0.3.0.
 
-## Запуск и остановка
+## Startup and Shutdown
 
-Загрузчик обнаруживает DLL в порядке путей и запускает каждый мод до первого
-незавершённого `await`, затем продолжает запуск остальных. Регистрации доступны
-сразу. События до регистрации не воспроизводятся. Исключение запуска снимает
-регистрации и запускает очистку только этого мода.
+The loader discovers DLLs in path order and starts each mod until its first
+incomplete `await`, then continues starting the others. Registrations are available
+immediately. Events published before registration are not replayed. A startup exception removes
+registrations and starts cleanup for that mod only.
 
-SDK отслеживает задачи запуска, асинхронных уведомлений и игрового диспетчера.
-Отдельные фоновые задачи, которые мод создаёт самостоятельно, мод должен завершить
-в `DisposeAsync`. Не используйте `async void` и не оставляйте задачи без наблюдения.
+The SDK tracks startup, asynchronous notification, and game dispatcher tasks.
+Mods must finish any background tasks they create themselves
+in `DisposeAsync`. Do not use `async void` or leave tasks unobserved.
 
-При остановке SDK запрещает новые операции, снимает нативные регистрации и
-запрашивает отмену. `Bootstrap.Stop` после этого возвращается без ожидания
-асинхронного завершения. SDK дожидается учтённых задач, вызывает `DisposeAsync`
-вне игрового потока и освобождает `AssemblyLoadContext`. Сервисы контекста уже
-недоступны внутри `DisposeAsync`; используйте его для завершения собственных
-задач и освобождения собственных ресурсов.
+During shutdown, the SDK rejects new operations, removes native registrations, and
+requests cancellation. `Bootstrap.Stop` then returns without waiting for
+asynchronous completion. The SDK waits for tracked tasks, calls `DisposeAsync`
+outside the game thread, and unloads the `AssemblyLoadContext`. Context services are already
+unavailable inside `DisposeAsync`; use it to finish your own
+tasks and release your own resources.
 
-Если мод игнорирует отмену, через пять секунд появляется предупреждение.
-Экземпляр и сборка удерживаются до фактического завершения; принудительной
-выгрузки нет. Поздние записи диагностики попадают в управляемый журнал.
-Повторный запуск SDK до окончания очистки отклоняется.
+If a mod ignores cancellation, a warning appears after five seconds.
+The instance and assembly are retained until completion; there is no forced
+unload. Late diagnostic entries go to the managed log.
+Restarting the SDK before cleanup completes is rejected.
 
-## Уведомления
+## Notifications
 
-Типизированная подписка использует `context.Events.Subscribe<TEvent>(handler)`.
-Тип события реализует `IGameEvent` и задаёт статическое `EventName`; отдельные
-методы `OnSaveLoaded`, `OnActorDied` и другие `On…` больше не нужны.
-Три общие перегрузки поддерживают:
+Typed subscriptions use `context.Events.Subscribe<TEvent>(handler)`.
+The event type implements `IGameEvent` and defines a static `EventName`; separate
+`OnSaveLoaded`, `OnActorDied`, and other `On…` methods are no longer needed.
+Three shared overloads support:
 
 ```csharp
 Action<T>
@@ -40,7 +40,7 @@ Func<T, Task>
 Func<T, CancellationToken, Task>
 ```
 
-Чтобы добавить новое уведомление, достаточно одного определения:
+Adding a new notification requires only one definition:
 
 ```csharp
 using F4Forge.Net.Events;
@@ -51,26 +51,26 @@ public sealed record InventoryChanged(uint OwnerFormId) : IGameEvent
 }
 ```
 
-`context.Events.Publish(new InventoryChanged(ownerId))` использует то же имя.
-Свойство `EventName` не входит в сериализованные данные. Низкоуровневые
-`Subscribe<T>(name, handler)` и `Publish(name, data)` остаются доступны для
-динамических имён и контрактов, не реализующих `IGameEvent`.
+`context.Events.Publish(new InventoryChanged(ownerId))` uses the same name.
+The `EventName` property is not included in serialized data. The low-level
+`Subscribe<T>(name, handler)` and `Publish(name, data)` methods remain available for
+dynamic names and contracts that do not implement `IGameEvent`.
 
-Синхронная часть запускается в потоке издателя. Публикация не ожидает
-незавершённые задачи. Порядок начала соответствует регистрации, порядок
-завершения не гарантируется. Повторные уведомления могут пересекаться.
-Ошибки после `await` наблюдаются SDK и записываются с владельцем и длительностью
-всей операции. Отмена токеном подписки считается штатным завершением.
+The synchronous portion runs on the publisher's thread. Publication does not wait for
+incomplete tasks. Invocation starts in registration order, but completion
+order is not guaranteed. Repeated notifications may overlap.
+The SDK observes errors after `await` and logs them with the owner and duration
+of the entire operation. Cancellation through the subscription token is treated as normal completion.
 
-`Dispose` подписки прекращает новые вызовы и отменяет её токен, но не ждёт
-продолжения обработчика. Остановка мода дождётся его завершения.
-Для лямбды, состоящей только из `throw`, задавайте `Action<T>` явно, если нужен
-именно синхронный контракт; без явного типа компилятор может выбрать `Func<T, Task>`.
+Calling `Dispose` on a subscription prevents new invocations and cancels its token, but does not wait for
+the handler's continuation. Mod shutdown waits for it to complete.
+For a lambda consisting only of `throw`, specify `Action<T>` explicitly if you need
+a synchronous contract; without an explicit type, the compiler may choose `Func<T, Task>`.
 
-## Игровые объекты после await
+## Game Objects After await
 
-Обычный `await` не гарантирует возвращение в игровой поток. Используйте
-`context.GameThread.RunAsync` с синхронным блоком:
+A regular `await` does not guarantee a return to the game thread. Use
+`context.GameThread.RunAsync` with a synchronous block:
 
 ```csharp
 using System.Text.Json;
@@ -108,19 +108,19 @@ context.Events.Subscribe<SaveLoaded>(async (notification, cancellationToken) =>
 });
 ```
 
-На игровом потоке блок выполняется сразу, в остальных случаях — через F4SE
-`AddTask`. Результат и исключение возвращаются через `Task`; продолжения не
-выполняются внутри нативного callback завершения. Отмена до начала предотвращает
-выполнение, начатый блок не прерывается. Передаваемый блок должен быть синхронным:
-не передавайте в `RunAsync` асинхронную лямбду.
+On the game thread, the block runs immediately; otherwise, it runs through F4SE's
+`AddTask`. The result or exception is returned through `Task`; continuations do not
+run inside the native completion callback. Cancellation before the block starts prevents
+execution; a block that has already started is not interrupted. The supplied block must be synchronous:
+do not pass an asynchronous lambda to `RunAsync`.
 
-Готовность мира и поколение объекта проверяются во время фактического обращения.
-После загрузки сохранения разрешайте объекты заново. Не вызывайте `.Wait()`,
-`.Result` или `.GetAwaiter().GetResult()` внутри обработчика канала.
+World readiness and the object's generation are checked when the object is actually accessed.
+Resolve objects again after loading a save. Do not call `.Wait()`,
+`.Result`, or `.GetAwaiter().GetResult()` inside a channel handler.
 
-## Перехватчики
+## Interceptors
 
-Уведомление сообщает о факте, перехватчик возвращает решение до действия:
+A notification reports something that has happened; an interceptor returns a decision before an action:
 
 ```csharp
 using F4Forge.Net.Interception;
@@ -138,32 +138,32 @@ context.Interceptors.OnConsoleCommandExecuting(command =>
 });
 ```
 
-Контекст содержит `OriginalCommand`, изменяемые `Command` и `Skip`, а также
-неизменяемый `SelectedReferenceFormId`. Он действителен для изменений только
-внутри вызова. Обработчики синхронные, идут в порядке фактической регистрации
-модов. Каждый получает предыдущее принятое решение. `Skip` завершает цепочку и
-отменяет как команду мода, так и оригинальную команду игры.
+The context contains `OriginalCommand`, mutable `Command` and `Skip`, and
+immutable `SelectedReferenceFormId`. It can be modified only
+during the invocation. Handlers are synchronous and run in the mods' actual registration
+order. Each receives the previous accepted decision. `Skip` ends the chain and
+cancels both the mod command and the original game command.
 
-При исключении или некорректном ответе изменения ошибочного обработчика
-откатываются, предыдущие сохраняются. Команда не может содержать NUL;
-пустая строка допустима. Действует общий предел транспортного сообщения 1 MiB,
-включая сериализованный конверт.
+If a handler throws or returns an invalid response, that handler's changes
+are rolled back while earlier changes are preserved. Commands cannot contain NUL;
+an empty string is allowed. The shared transport message limit of 1 MiB applies,
+including the serialized envelope.
 
-Порядок выполнения: перехватчики → маршрутизатор команд модов → оригинальная
-функция игры. Оригинал вызывается не более одного раза. При остановке хоста
-и ошибке инфраструктуры до получения решения сохраняется исходный ввод.
+Execution order: interceptors → mod command router → original
+game function. The original is called at most once. During host shutdown
+or an infrastructure failure before a decision is obtained, the original input is preserved.
 
-Нативный общий реестр находится в `native/modules/interception/`. Он использует
-`interceptors.register` и `interceptors.remove` и вызывает зарегистрированные
-методы общего канала; проверка решения принадлежит игровому адаптеру.
-Новые типизированные контракты добавляются SDK-классами расширений поверх
-`InterceptorService.Register<TInput, TContext, TDecision>`, без изменения общего
-сервиса. Расширение задаёт имя, создание контекста и копирование решения.
-`TContext` наследует `InvocationContext` и вызывает `EnsureActive` перед
-изменениями. Общий адаптер завершает контекст при успехе, исключении обработчика
-и ошибке преобразования решения. Команды консоли используют тот же механизм.
-Низкоуровневый `Register<TInput, TDecision>` доступен для контрактов без
-изменяемого контекста. Он самостоятельно контекстами не управляет.
-Игровой диспетчер использует `threading.is_game_thread`, `threading.enqueue` и
-уведомление `threading.execute` с непрозрачным идентификатором задачи.
-Все данные проходят через общий `IDataSerializer`; ABI и экспорты не расширены.
+The shared native registry is in `native/modules/interception/`. It uses
+`interceptors.register` and `interceptors.remove` and invokes registered
+methods through the shared channel; the game adapter is responsible for validating the decision.
+New typed contracts are added through SDK extension classes on top of
+`InterceptorService.Register<TInput, TContext, TDecision>`, without changing the shared
+service. The extension defines the name, context creation, and decision copying.
+`TContext` inherits from `InvocationContext` and calls `EnsureActive` before
+changes. The shared adapter deactivates the context on success, handler exceptions,
+and decision conversion failures. Console commands use the same mechanism.
+The low-level `Register<TInput, TDecision>` is available for contracts without
+a mutable context. It does not manage contexts itself.
+The game dispatcher uses `threading.is_game_thread`, `threading.enqueue`, and
+the `threading.execute` notification with an opaque task identifier.
+All data passes through the shared `IDataSerializer`; the ABI and exports are unchanged.

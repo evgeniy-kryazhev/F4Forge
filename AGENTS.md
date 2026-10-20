@@ -1,5 +1,10 @@
 # Repository Guidelines
 
+## Project Language
+
+Use English throughout the project, including documentation, code identifiers,
+comments, log and error messages, commit messages, and pull request descriptions.
+
 ## Structure and Architecture
 
 F4Forge targets Windows x64, C++23, .NET 10, and F4SE. `native/core/` contains the shared

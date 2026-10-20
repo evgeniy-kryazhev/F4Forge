@@ -30,11 +30,11 @@ public sealed partial class PapyrusTests
             Assert.Equal("static", request.GetProperty("operation").GetString());
             Assert.Equal("PrismaUI", request.GetProperty("scriptName").GetString());
             Assert.Equal("Show", request.GetProperty("name").GetString());
-            Assert.Equal("Интерфейс Ω", request.GetProperty("arguments")[0].GetProperty("text").GetString());
+            Assert.Equal("Interface Ω", request.GetProperty("arguments")[0].GetProperty("text").GetString());
             fixture.Complete(request, new PapyrusValue { Kind = "bool", Boolean = true });
             return true;
         });
-        var result = await context.Papyrus.CallStaticAsync("PrismaUI", "Show", ["Интерфейс Ω"]);
+        var result = await context.Papyrus.CallStaticAsync("PrismaUI", "Show", ["Interface Ω"]);
         Assert.True(result.Boolean);
         Assert.Equal(1, fixture.Forgotten);
     }
@@ -45,7 +45,7 @@ public sealed partial class PapyrusTests
     public async Task ArgumentsSupportVariantsArraysStructsAndScopedForms(bool binary)
     {
         await using var fixture = new Fixture(binary);
-        var form = new Form(fixture.Context.Messages, new(0x14, 7, "ACHR", "Игрок", "Player", true, true, false));
+        var form = new Form(fixture.Context.Messages, new(0x14, 7, "ACHR", "Player Ω", "Player", true, true, false));
         using var begin = fixture.Channel.Register<JsonElement, bool>("papyrus.begin", request =>
         {
             var args = request.GetProperty("arguments");
@@ -59,13 +59,13 @@ public sealed partial class PapyrusTests
             Assert.Equal(2, args[5].GetProperty("items").GetArrayLength());
             Assert.Equal("UI#MenuData", args[6].GetProperty("typeName").GetString());
             Assert.Equal(4, args[6].GetProperty("fields").GetProperty("depth").GetProperty("integer").GetInt32());
-            fixture.Complete(request, new PapyrusValue { Kind = "string", Text = "готово 🌍" });
+            fixture.Complete(request, new PapyrusValue { Kind = "string", Text = "done 🌍" });
             return true;
         });
         var result = await fixture.Context.Papyrus.CallStaticAsync("Probe", "Values",
             [null, true, -5, 1.5, form, new object?[] { 1, "two" },
                 new PapyrusStruct("UI#MenuData", new Dictionary<string, object?> { ["depth"] = 4 })]);
-        Assert.Equal("готово 🌍", result.Text);
+        Assert.Equal("done 🌍", result.Text);
         await Assert.ThrowsAsync<ArgumentException>(() => fixture.Context.Papyrus.CallStaticAsync("Probe", "Values", [float.NaN]));
         var foreign = new Form(new ModContext(Path.GetTempPath(), fixture.Channel, fixture.Channel, fixture.Channel.Serializer).Messages, form.Snapshot);
         await Assert.ThrowsAsync<ArgumentException>(() => fixture.Context.Papyrus.CallStaticAsync("Probe", "Values", [foreign]));
@@ -145,12 +145,12 @@ public sealed partial class PapyrusTests
             fixture.Channel.Publish("papyrus.completed", new
             {
                 RequestId = request.GetProperty("requestId").GetString(), Success = false,
-                Value = (PapyrusValue?)null, Error = "Нет функции Ω"
+                Value = (PapyrusValue?)null, Error = "Function not found Ω"
             });
             return true;
         });
         var error = await Assert.ThrowsAsync<MessageException>(() => fixture.Context.Papyrus.CallStaticAsync("Probe", "Unknown"));
-        Assert.Equal("Нет функции Ω", error.Message);
+        Assert.Equal("Function not found Ω", error.Message);
         using var cancellation = new CancellationTokenSource();
         cancellation.Cancel();
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>

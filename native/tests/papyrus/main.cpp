@@ -85,9 +85,9 @@ void Check(bool binary)
         Require(!Call(channel, "papyrus.begin", Request("A", "one")).at("success"), "Duplicate accepted");
         Require(pending[0](), "Request not active");
         auto worker =
-            std::async(std::launch::async, [&] { complete[0]({{"kind", "string"}, {"text", "Результат 🌍"}}, ""); });
+            std::async(std::launch::async, [&] { complete[0]({{"kind", "string"}, {"text", "Result 🌍"}}, ""); });
         worker.get();
-        Require(published.size() == 1 && published[0].at("value").at("text") == "Результат 🌍", "Unicode result lost");
+        Require(published.size() == 1 && published[0].at("value").at("text") == "Result 🌍", "Unicode result lost");
         complete[0](nullptr, "duplicate");
         Require(published.size() == 1 && !pending[0](), "Duplicate completion delivered");
 

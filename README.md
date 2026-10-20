@@ -1,16 +1,16 @@
 # F4Forge
 
-Минимальный модульный хост SDK для Fallout 4 / F4SE, Windows x64.
+A minimal modular SDK host for Fallout 4 / F4SE on Windows x64.
 
-- `F4Forge.Core.dll` — нативное ядро, канал сообщений, F4SE и нативные загрузчики SDK.
-- `F4Forge.Net.dll` — C# API, загрузка .NET-модов и управляемая сторона канала.
-- `sdk/<language>/` — независимый SDK; он сам определяет правила загрузки своих модов.
+- `F4Forge.Core.dll` — native core, message channel, F4SE integration, and native SDK loaders.
+- `F4Forge.Net.dll` — C# API, .NET mod loading, and the managed side of the channel.
+- `sdk/<language>/` — an independent SDK that defines its own mod-loading rules.
 
-Игровых функций пока нет. Версионная совместимость старого API не поддерживается.
+Game features are not available yet. Backward compatibility with older API versions is not supported.
 
-## Сборка и проверка
+## Build and Test
 
-Нужны MSVC с C++23, .NET SDK 10 x64, xmake 3.1+ и зависимости подмодуля:
+Requires MSVC with C++23 support, .NET SDK 10 x64, xmake 3.1+, and the submodule dependencies:
 
 ```powershell
 git submodule update --init --recursive
@@ -23,20 +23,20 @@ xmake run F4Forge.Hosting.Tests
 dotnet test tests/dotnet/F4Forge.Net.Tests/F4Forge.Net.Tests.csproj -c Release
 ```
 
-Две DLL для установки находятся в `build/bin/`. PDB, LIB и EXP нужны только для разработки.
-Положите `F4Forge.Core.dll` в `Data/F4SE/Plugins/`, а `F4Forge.Net.dll` — в
-`Data/F4SE/Plugins/F4Forge/`. В корне `Plugins` должны быть только нативные плагины:
-управляемая DLL SDK прерывает сканирование F4SE. При обновлении удалите старую
-`Data/F4SE/Plugins/F4Forge.Net.dll`; в MO2 устанавливайте архив с полной заменой мода.
-На машине игрока нужны F4SE и .NET Runtime 10 x64. Дополнительный `nethost.dll` не нужен:
-его код включён в Core. Конфигурация запуска CLR создаётся во временном файле и удаляется.
+The two DLLs required for installation are in `build/bin/`. PDB, LIB, and EXP files are only needed for development.
+Place `F4Forge.Core.dll` in `Data/F4SE/Plugins/` and `F4Forge.Net.dll` in
+`Data/F4SE/Plugins/F4Forge/`. Only native plugins should be placed directly in
+`Plugins`: the managed SDK DLL interrupts F4SE's plugin scan. When upgrading, remove the old
+`Data/F4SE/Plugins/F4Forge.Net.dll`; in MO2, install the archive by fully replacing the mod.
+Players need F4SE and .NET Runtime 10 x64. No separate `nethost.dll` is required:
+its code is included in Core. The CLR startup configuration is created in a temporary file and then deleted.
 
-## .NET-моды
+## .NET Mods
 
-DLL модов размещаются в `Data/F4ForgeNet/`; поддерживаются подпапки любой глубины.
-Загрузчик рекурсивно ищет DLL без манифестов. Библиотеки без реализации `IMod`,
-копии SDK и нативные DLL пропускаются. DLL мода ссылается на `F4Forge.Net.dll`
-и содержит ровно один публичный класс `IMod` с конструктором без параметров:
+Place mod DLLs in `Data/F4ForgeNet/`; subfolders of any depth are supported.
+The loader searches for DLLs recursively without manifests. Libraries that do not implement `IMod`,
+SDK copies, and native DLLs are skipped. Each mod DLL references `F4Forge.Net.dll`
+and contains exactly one public class implementing `IMod` with a parameterless constructor:
 
 ```text
 Data/
@@ -51,9 +51,9 @@ Data/
       Dependency.dll
 ```
 
-Зависимости кладите рядом с DLL мода. `context.Directory` указывает на папку этой DLL.
-Обнаружение идёт в порядке путей. `StartAsync` модов выполняются независимо;
-порядок готовности не заменяет механизм зависимостей между модами.
+Place dependencies next to the mod DLL. `context.Directory` points to that DLL's folder.
+Mods are discovered in path order. Each mod's `StartAsync` runs independently;
+completion order does not provide a dependency mechanism between mods.
 
 ```csharp
 public sealed class MyMod : IMod
@@ -72,75 +72,75 @@ public sealed class MyMod : IMod
 }
 ```
 
-SDK автоматически снимает регистрации при остановке или ошибке запуска мода.
-Остановка отменяет запуск и асинхронные уведомления, дожидается их завершения,
-вызывает `DisposeAsync` и освобождает контекст сборки. Игровой поток этого не ждёт.
-Уведомления, перехватчики и возврат на игровой поток описаны в
+The SDK automatically removes registrations when a mod stops or fails to start.
+Shutdown cancels startup and asynchronous notifications, waits for them to complete,
+calls `DisposeAsync`, and unloads the assembly context. The game thread does not wait for this process.
+Notifications, interceptors, and returning to the game thread are described in
 [async-lifecycle.md](docs/async-lifecycle.md).
-Типизированные уведомления используют `context.Events.Subscribe<TEvent>(handler)`;
-имя канала задаётся один раз в типе события через `IGameEvent.EventName`.
-Запросы данных используют `Messages.Query(IQuery<TResult>)`, изменения состояния —
-`Messages.Execute(ICommand<TResult>)`; контракты и примеры описаны в
+Typed notifications use `context.Events.Subscribe<TEvent>(handler)`;
+the channel name is defined once in the event type through `IGameEvent.EventName`.
+Data requests use `Messages.Query(IQuery<TResult>)`, and state changes use
+`Messages.Execute(ICommand<TResult>)`; contracts and examples are described in
 [operations.md](docs/operations.md).
-Динамические вызовы функций и свойств чужих Papyrus-скриптов доступны через
-`context.Papyrus`; примеры PrismaUI и F4SE UI — в [papyrus.md](docs/papyrus.md).
-Моды изолированы через `AssemblyLoadContext`; ошибки отдельных модов записываются в
-`F4Forge/Net.log`. Автоматическая перезагрузка модов пока не реализована.
+Dynamic calls to functions and properties in other Papyrus scripts are available through
+`context.Papyrus`; PrismaUI and F4SE UI examples are in [papyrus.md](docs/papyrus.md).
+Mods are isolated through `AssemblyLoadContext`; individual mod errors are logged to
+`F4Forge/Net.log`. Automatic mod reloading is not implemented yet.
 
-## Общий канал и расширение
+## Shared Channel and Extensions
 
-SDK использует существующие каналы и типизированные контракты:
+The SDK uses the existing channels and typed contracts:
 
-| Назначение | API | Пространство имён |
+| Purpose | API | Namespace |
 | --- | --- | --- |
-| Вызовы и ответы | `context.Messages`, `IMessageChannel` | `F4Forge.Net.Messaging` |
-| Типизированные запросы и изменения | `Query`, `Execute`, `IQuery<T>`, `ICommand<T>` | `F4Forge.Net.Operations` |
-| Уведомления | `context.Events`, `IEventChannel`, `IGameEvent` | `F4Forge.Net.Events` |
-| Разрешение и типы игровых объектов | `context.Objects`, `Form`, `IFormQuery<T>`, `IFormType<T>` | `F4Forge.Net.Objects` |
-| Консольные обработчики | `context.Console`, `IConsole` | `F4Forge.Net.Console` |
-| Синхронные решения перед действием | `context.Interceptors` | `F4Forge.Net.Interception` |
-| Вызовы скриптов | `context.Papyrus` | `F4Forge.Net.Papyrus` |
+| Calls and responses | `context.Messages`, `IMessageChannel` | `F4Forge.Net.Messaging` |
+| Typed queries and state changes | `Query`, `Execute`, `IQuery<T>`, `ICommand<T>` | `F4Forge.Net.Operations` |
+| Notifications | `context.Events`, `IEventChannel`, `IGameEvent` | `F4Forge.Net.Events` |
+| Game object resolution and types | `context.Objects`, `Form`, `IFormQuery<T>`, `IFormType<T>` | `F4Forge.Net.Objects` |
+| Console handlers | `context.Console`, `IConsole` | `F4Forge.Net.Console` |
+| Synchronous decisions before an action | `context.Interceptors` | `F4Forge.Net.Interception` |
+| Script calls | `context.Papyrus` | `F4Forge.Net.Papyrus` |
 
-`Query` и `Execute` вызывают тот же `IMessageChannel`; отдельного транспорта у них нет.
-`Objects.Query` дополнительно создаёт объект нужного C# типа из ответа канала.
-`IFormType<T>` задаёт проверку типа и создание обёртки с теми же `FormId`, `Session`
-и каналом мода. Пользовательские типы добавляются без центрального реестра;
-пример приведён в [foundations.md](docs/foundations.md).
+`Query` and `Execute` call the same `IMessageChannel`; they have no separate transport.
+`Objects.Query` also creates an object of the required C# type from the channel response.
+`IFormType<T>` defines type checking and wrapper creation with the same `FormId`, `Session`,
+and mod channel. Custom types can be added without a central registry;
+see [foundations.md](docs/foundations.md) for an example.
 
-Конкретные события, запросы и команды лежат в модулях по назначению:
-`Player`, `Actors`, `Objects`, `Game`, `Saves` и `UI`.
-Консольные обработчики сгруппированы в `Console`; команды изменения состояния —
-в подпапках `Commands` соответствующих модулей.
+Specific events, queries, and commands are organized into modules by purpose:
+`Player`, `Actors`, `Objects`, `Game`, `Saves`, and `UI`.
+Console handlers are grouped under `Console`; state-changing commands are placed
+in the `Commands` subfolders of their respective modules.
 
-Запрос: `{"method":"mymod.title","arguments":null}`.
-Ответ: `{"success":true,"value":"My mod"}` или
+Request: `{"method":"mymod.title","arguments":null}`.
+Response: `{"success":true,"value":"My mod"}` or
 `{"success":false,"error":{"code":"method_not_found","message":"..."}}`.
 
 C#: `context.Messages.Call<string>("mymod.title", null)`.
-C++: зарегистрируйте обработчик через `Channel::Add`, вызовите через `Channel::Call`.
-Канал синхронный, сериализует обработчики и допускает вложенные вызовы в том же потоке.
-Не ждите внутри обработчика другой поток, который обращается к каналу. Передаваемые JSON
-буферы копируются во время вызова; указатели и игровые объекты через канал не передаются.
-Лимит сообщения — 1 MiB. Канал не переносит вызовы на игровой поток автоматически.
+C++: register a handler through `Channel::Add` and call it through `Channel::Call`.
+The channel is synchronous, serializes handler execution, and allows nested calls on the same thread.
+Do not wait inside a handler for another thread that accesses the channel. JSON
+buffers are copied during the call; pointers and game objects are not passed through the channel.
+The message size limit is 1 MiB. The channel does not automatically dispatch calls to the game thread.
 
-Нативные модули запускаются раньше компонентов с фазой `ComponentPhase::Sdk`.
-Новая функция добавляет файл в `native/modules/` с `ComponentRegistration` и отдельный
-C# extension-класс в SDK. Центральный маршрутизатор и таблица interop не меняются.
-Новый SDK добавляет `sdk/<language>/xmake.lua` с правилом `f4forge.sdk.<language>` и
-`native/*.cpp` с регистрацией компонента. Повторите `xmake f` после добавления файлов.
-Все нативные адаптеры попадут в Core; новые языковые DLL получают собственное имя `F4Forge.<Language>`.
+Native modules start before components in the `ComponentPhase::Sdk` phase.
+To add a feature, add a file in `native/modules/` with `ComponentRegistration` and a separate
+C# extension class in the SDK. The central router and interop table remain unchanged.
+To add an SDK, add `sdk/<language>/xmake.lua` with the `f4forge.sdk.<language>` rule and
+`native/*.cpp` files with component registration. Run `xmake f` again after adding files.
+All native adapters are included in Core; new language DLLs use their own `F4Forge.<Language>` name.
 
-## Инструменты разработки
+## Development Tools
 
-Навыки: `.agents/skills/cpp-pro` из `Jeffallan/claude-skills` и
-`.agents/skills/dotnet-pinvoke` из официального `dotnet/skills`.
-Проектные MCP в `.codex/config.toml`: Microsoft Learn (MSVC/C++/.NET) и Context7
-(документация библиотек). После установки перезапустите MCP-соединения; навыки доступны
-со следующего хода. MCP нужны только помощнику разработчика, не сборке и не игре.
+Skills: `.agents/skills/cpp-pro` from `Jeffallan/claude-skills` and
+`.agents/skills/dotnet-pinvoke` from the official `dotnet/skills` repository.
+Project MCPs in `.codex/config.toml`: Microsoft Learn (MSVC/C++/.NET) and Context7
+(library documentation). After installation, restart the MCP connections; skills become available
+on the next turn. MCPs are only needed by the development assistant, not by the build or the game.
 
-## События
+## Events
 
-Канал событий доступен через `channel.Events()` в C++ и `context.Events` в C#:
+The event channel is available through `channel.Events()` in C++ and `context.Events` in C#:
 
 ```cpp
 channel.Events().Publish("game.loaded", {{"saveName", saveName}});
@@ -157,23 +157,23 @@ subscription.Dispose();
 public sealed record GameLoaded(string SaveName);
 ```
 
-Это пример публикации из игрового модуля: сам канал не устанавливает игровые перехватчики.
-Подписки принадлежат моду и снимаются при остановке или ошибке запуска. Подписчики
-вызываются последовательно, в порядке регистрации, в потоке публикации. Истории и
-повторной доставки нет. Ошибка подписчика записывается в лог и не прерывает остальных.
-Новые подписки не получают уже начавшуюся публикацию; снятые до своей очереди пропускаются.
+This example shows publication from a game module: the channel itself does not install game hooks.
+Subscriptions belong to the mod and are removed on shutdown or startup failure. Subscribers
+are called sequentially, in registration order, on the publishing thread. There is no history or
+redelivery. Subscriber errors are logged without interrupting other subscribers.
+New subscriptions do not receive a publication that has already started; subscriptions removed before their turn are skipped.
 
-Сообщения и события используют общую последовательную область исполнения, допускающую
-вложенные вызовы в том же потоке. Блокировка реестра во время обработчиков не удерживается.
-Отписка запрещает дальнейшие вызовы и ждёт активный обработчик; отписка из самого
-обработчика возвращается сразу. Сам обработчик после этого завершает текущий вызов.
-Остановку всего SDK выполняет хост вне обработчиков; перезагрузка из обработчика не поддерживается.
+Messages and events share a serial execution lane that allows
+nested calls on the same thread. The registry lock is not held while handlers run.
+Unsubscribing prevents further calls and waits for an active handler; unsubscribing from within
+the handler itself returns immediately. The handler then finishes its current call.
+The host shuts down the entire SDK outside handlers; reloading from a handler is not supported.
 
-## Единая сериализация
+## Shared Serialization
 
-`IDataSerializer` в C++ и C# используется для запросов, аргументов, результатов, ошибок
-и событий. Оба канала на каждой стороне используют один экземпляр сериализатора.
-В C# он также доступен через `context.Serializer`; обработчики методов типизированы:
+`IDataSerializer` in C++ and C# is used for requests, arguments, results, errors,
+and events. Both channels on each side use the same serializer instance.
+In C#, it is also available through `context.Serializer`; method handlers are typed:
 
 ```csharp
 context.Messages.Register<RenameRequest, bool>("mymod.rename", request =>
@@ -182,18 +182,18 @@ context.Messages.Register<RenameRequest, bool>("mymod.rename", request =>
 });
 ```
 
-Транспорт передаёт байты с длиной, включая нулевые байты. UTF-8 JSON — текущая реализация
-по умолчанию, а не требование транспорта. Конвертация JSON находится в `json_serializer.cpp`
-и `JsonDataSerializer.cs`. Нативные обработчики используют `DataValue` — дерево значений
-на основе nlohmann; альтернативное кодирование должно поддерживать те же значения.
-Названия методов/событий и идентификатор формата остаются UTF-8 строками.
+The transport passes bytes with an explicit length, including null bytes. UTF-8 JSON is the current
+default implementation, not a transport requirement. JSON conversion is contained in `json_serializer.cpp`
+and `JsonDataSerializer.cs`. Native handlers use `DataValue`, a value tree
+based on nlohmann; alternative encodings must support the same values.
+Method and event names and the format identifier remain UTF-8 strings.
 
-Новый формат добавляется двумя реализациями `IDataSerializer`: C++ с `SerializerRegistration`
-и C# с публичным конструктором без аргументов в сборке SDK. Они должны одинаково кодировать
-поля протокола `method`, `arguments`, `event`, `data`, `success`, `value`, `error`, `code`,
-`message`. Выбор — переменная окружения `F4FORGE_DATA_FORMAT` перед запуском игры
-(по умолчанию `json`). SDK автоматически находит соответствующую реализацию;
-неизвестный или несовпадающий формат отклоняется до загрузки модов.
+A new format requires two `IDataSerializer` implementations: C++ with `SerializerRegistration`
+and C# with a public parameterless constructor in the SDK assembly. They must encode
+the protocol fields `method`, `arguments`, `event`, `data`, `success`, `value`, `error`, `code`,
+and `message` identically. Select the format through the `F4FORGE_DATA_FORMAT` environment variable before starting the game
+(default: `json`). The SDK automatically discovers the matching implementation;
+unknown or mismatched formats are rejected before mods are loaded.
 
-Сериализаторы должны быть потокобезопасными, не удерживать входные буферы и сигнализировать
-ошибку разбора исключением. Формат фиксируется при создании хоста.
+Serializers must be thread-safe, must not retain input buffers, and must signal
+parsing errors by throwing an exception. The format is fixed when the host is created.

@@ -1,23 +1,23 @@
-# Типизированные запросы и команды
+# Typed Queries and Commands
 
-SDK разделяет чтение данных и изменение состояния:
+The SDK separates reading data from changing state:
 
-- `IQuery<TResult>` выполняется через `context.Messages.Query(query)`.
-- `ICommand<TResult>` выполняется через `context.Messages.Execute(command)`.
-- `IFormQuery<TForm>` расширяет запрос `FormSnapshot?`; `context.Objects.Query(query)` дополнительно создаёт типизированное представление объекта.
+- `IQuery<TResult>` runs through `context.Messages.Query(query)`.
+- `ICommand<TResult>` runs through `context.Messages.Execute(command)`.
+- `IFormQuery<TForm>` extends a `FormSnapshot?` query; `context.Objects.Query(query)` also creates a typed object representation.
 
-`IMessageChannel` остаётся общим механизмом вызовов и ответов. Query/Command описывают
-его вызовы типизированными контрактами, а `IEventChannel` доставляет уведомления.
-Консольный API находится в `F4Forge.Net.Console`; консольные обработчики не являются
-командами `ICommand<TResult>` и сохраняют синхронный контракт `AddHandler`.
+`IMessageChannel` remains the shared mechanism for calls and responses. Queries and commands describe
+its calls through typed contracts, while `IEventChannel` delivers notifications.
+The console API is in `F4Forge.Net.Console`; console handlers are not
+`ICommand<TResult>` commands and retain the synchronous `AddHandler` contract.
 
-Типы `Form`, `Reference` и `Actor` хранят идентичность объекта в области мода.
-`IFormType<T>` задаёт проверку сохранённого описания через `Matches` и создание
-типизированной обёртки через `Create`. Общий исполнитель `Objects.Query` использует
-этот контракт без таблицы типов. `Is<T>()` и `As<T>()` проверяют сохранённое описание;
-текущее состояние игры проверяет нативная операция при фактическом обращении.
+The `Form`, `Reference`, and `Actor` types store object identity within the mod's scope.
+`IFormType<T>` defines validation of the stored description through `Matches` and creation
+of a typed wrapper through `Create`. The shared `Objects.Query` executor uses
+this contract without a type table. `Is<T>()` and `As<T>()` check the stored description;
+the native operation checks the current game state when the object is actually accessed.
 
-Общий `IOperation` задаёт `MethodName`, `Arguments` и необязательный метод `Validate(IMessageChannel)`. Исполнитель проверяет аргументы и область мода, затем вызывает существующий канал. Сериализуются только `Arguments`. Тип результата выводится компилятором из контракта; нет рефлексии, таблицы методов или новых interop-экспортов.
+The shared `IOperation` defines `MethodName`, `Arguments`, and an optional `Validate(IMessageChannel)` method. The executor validates arguments and the mod scope, then calls the existing channel. Only `Arguments` are serialized. The compiler infers the result type from the contract; there is no reflection, method table, or additional interop export.
 
 ```csharp
 using F4Forge.Net.Actors.Commands;
@@ -37,11 +37,11 @@ if (player is not null && health is not null)
 }
 ```
 
-`Execute` возвращает ответ нативного обработчика. Значение `false` не теряется и не превращается автоматически в исключение. Для операции с другим ответом укажите соответствующий `TResult`, например собственную запись с результатом изменения. Исключения проверки аргументов возникают до входа в транспорт. Ошибки нативного ответа передаются через `MessageException`; локальные ошибки сериализатора сохраняют свой исходный тип. Общий исполнитель не перехватывает и не заменяет эти исключения.
+`Execute` returns the native handler's response. A `false` value is preserved and does not automatically become an exception. For an operation with a different response, specify the appropriate `TResult`, such as a custom record describing the outcome of a change. Argument validation exceptions occur before entering the transport. Native response errors are reported through `MessageException`; local serializer errors retain their original type. The shared executor does not catch or replace these exceptions.
 
-## Добавление функции
+## Adding a Feature
 
-Для произвольных данных достаточно записи в модуле функции:
+For arbitrary data, a record in the feature's module is sufficient:
 
 ```csharp
 using F4Forge.Net.Operations;
@@ -59,13 +59,13 @@ public sealed record SetInventoryLimit(int Limit) : ICommand<bool>
 }
 ```
 
-Вызовы: `context.Messages.Query(new GetInventoryCount(ownerId))` и `context.Messages.Execute(new SetInventoryLimit(100))`. Обработчики этих методов нужно отдельно реализовать и зарегистрировать в соответствующем модуле. Контракты SDK описывают вызов, но не создают игровую функцию.
+Calls: `context.Messages.Query(new GetInventoryCount(ownerId))` and `context.Messages.Execute(new SetInventoryLimit(100))`. Handlers for these methods must be implemented and registered separately in the appropriate module. SDK contracts describe the call but do not implement the game feature.
 
-Операции с существующим объектом наследуют `Objects.Operations.FormOperation`: он проверяет принадлежность объекта каналу мода. Операции со значениями актёра используют `Actors.Operations.ActorValueOperation`, который также проверяет общую сессию актёра и определения значения. Нативный обработчик повторно разрешает ID, проверяет поколение сессии, фактический тип и готовность мира. Не сериализуйте `Form`, канал или весь объект операции: передавайте только необходимые ID, сессию и параметры через `Arguments`.
+Operations on an existing object inherit from `Objects.Operations.FormOperation`, which checks that the object belongs to the mod's channel. Actor value operations use `Actors.Operations.ActorValueOperation`, which also verifies that the actor and actor value definition share a session. The native handler resolves the ID again and checks the session generation, actual type, and world readiness. Do not serialize `Form`, the channel, or the entire operation object: pass only the required IDs, session, and parameters through `Arguments`.
 
-Существующие операции размещены по назначению:
+Existing operations are organized by purpose:
 
-| Модуль | Запросы | Команды |
+| Module | Queries | Commands |
 | --- | --- | --- |
 | `Player/Queries` | `GetPlayer` | — |
 | `Objects/Queries` | `FormById`, `FormByPlugin`, `FormByEditorId`, `DescribeForm`, `GetReferenceSnapshot` | — |
@@ -73,11 +73,11 @@ public sealed record SetInventoryLimit(int Limit) : ICommand<bool>
 | `Diagnostics/Queries` | `GetDiagnosticOperations`, `GetHookStatuses` | — |
 | `Logging/Commands` | — | `WriteLog` |
 
-Удобные методы `context.Diagnostics.GetOperations`, `GetHooks` и `LogInfo`/`LogWarning`/`LogError` используют эти же контракты. Низкоуровневый `Messages.Call<TResult>(name, arguments)` остаётся доступен для динамических методов и служебных протоколов регистрации, диспетчеризации и диагностики самого транспорта.
+The convenience methods `context.Diagnostics.GetOperations`, `GetHooks`, and `LogInfo`/`LogWarning`/`LogError` use these same contracts. The low-level `Messages.Call<TResult>(name, arguments)` remains available for dynamic methods and the transport's internal registration, dispatch, and diagnostic protocols.
 
-## Игровой поток и время жизни
+## Game Thread and Lifetime
 
-Оба вызова синхронные и выполняются в потоке вызывающего кода. Они не ставят работу в очередь, не ожидают другие потоки и не добавляют асинхронные консольные команды. После `await` используйте существующий диспетчер:
+Both calls are synchronous and run on the caller's thread. They do not enqueue work, wait for other threads, or add asynchronous console commands. After `await`, use the existing dispatcher:
 
 ```csharp
 bool applied = await context.GameThread.RunAsync(() =>
@@ -93,4 +93,4 @@ bool applied = await context.GameThread.RunAsync(() =>
 }, cancellationToken);
 ```
 
-Отмена до начала блока предотвращает его выполнение; начатая синхронная операция принудительно не прерывается. Канал мода запрещает вызовы после остановки. Контракт может хранить безопасное управляемое представление объекта, но не нативный указатель. После загрузки сохранения разрешайте объекты заново.
+Cancellation before the block starts prevents execution; a synchronous operation that has already started is not forcibly interrupted. The mod's channel rejects calls after shutdown. A contract may hold a safe managed object representation, but not a native pointer. Resolve objects again after loading a save.

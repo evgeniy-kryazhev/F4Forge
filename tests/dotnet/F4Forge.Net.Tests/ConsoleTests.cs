@@ -42,23 +42,23 @@ public sealed partial class ConsoleTests : IDisposable
         using var registration = console.AddHandler("Hello", command =>
         {
             Assert.Equal("hello", command.Alias);
-            Assert.Equal(["Мир", ""], command.Arguments);
-            Assert.Equal("hello \"Мир\" \"\"", command.RawCommand);
-            Assert.Equal("\"Мир\" \"\"", command.RawArguments);
+            Assert.Equal(["World Ω", ""], command.Arguments);
+            Assert.Equal("hello \"World Ω\" \"\"", command.RawCommand);
+            Assert.Equal("\"World Ω\" \"\"", command.RawArguments);
             Assert.Equal(0x14u, command.SelectedReferenceFormId);
-            command.WriteLine("Привет {name} %s!");
+            command.WriteLine("Hello Ω {name} %s!");
         });
 
         var result = Invoke("hello");
 
-        Assert.Equal(["Привет {name} %s!"], result.Lines);
+        Assert.Equal(["Hello Ω {name} %s!"], result.Lines);
     }
 
     [Theory]
     [InlineData("")]
     [InlineData("1hello")]
     [InlineData("hello world")]
-    [InlineData("привет")]
+    [InlineData("helloΩ")]
     [InlineData("hello;quit")]
     public void InvalidAliasesAreRejected(string alias)
     {
@@ -151,9 +151,9 @@ public sealed partial class ConsoleTests : IDisposable
         var serializer = new TaggedSerializer();
         var channel = new NativeChannel(CreateBinary(), serializer);
         using var validation = channel.Register<AliasRequest, bool>("console.validate_alias", _ => true);
-        using var registration = new ConsoleService(channel).AddHandler("hello", command => command.WriteLine("Мир"));
+        using var registration = new ConsoleService(channel).AddHandler("hello", command => command.WriteLine("World Ω"));
         var result = channel.Call<ConsoleResult>("console.command.hello", Invocation());
-        Assert.Equal(["Мир"], result.Lines);
+        Assert.Equal(["World Ω"], result.Lines);
         Assert.True(serializer.Reads >= 4);
         Assert.True(serializer.Writes >= 4);
     }
@@ -165,7 +165,7 @@ public sealed partial class ConsoleTests : IDisposable
 
     private static ConsoleInvocation Invocation()
     {
-        return new ConsoleInvocation("hello", ["Мир", ""], "hello \"Мир\" \"\"", "\"Мир\" \"\"", 0x14, "");
+        return new ConsoleInvocation("hello", ["World Ω", ""], "hello \"World Ω\" \"\"", "\"World Ω\" \"\"", 0x14, "");
     }
 
     public void Dispose()

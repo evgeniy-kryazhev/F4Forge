@@ -1,8 +1,8 @@
-# Динамический Papyrus-мост
+# Dynamic Papyrus Bridge
 
-`context.Papyrus` вызывает функции и свойства по именам. Их типы берутся из метаданных VM: отдельный класс или ABI-привязка для каждого метода чужого мода не нужны. Используется существующий канал и его `IDataSerializer`; interop-экспорты и центральная таблица методов не меняются.
+`context.Papyrus` calls functions and accesses properties by name. Their types come from VM metadata: no separate class or ABI binding is needed for each method in another mod. The existing channel and its `IDataSerializer` are used; interop exports and the central method table remain unchanged.
 
-## Глобальные функции и UI
+## Global Functions and UI
 
 ```csharp
 var result = await context.Papyrus.CallStaticAsync(
@@ -14,9 +14,9 @@ if (result.Kind == "bool" && result.Boolean)
 }
 ```
 
-Это опубликованные функции Papyrus API PrismaUI; сам мод должен быть установлен и зарегистрировать свои native functions. F4Forge не включает PrismaUI и его рендерер.
+These are published functions in PrismaUI's Papyrus API; the mod itself must be installed and must register its native functions. F4Forge does not include PrismaUI or its renderer.
 
-Тот же механизм вызывает функции UI, зарегистрированные F4SE:
+The same mechanism calls UI functions registered by F4SE:
 
 ```csharp
 var isOpen = await context.Papyrus.CallStaticAsync(
@@ -26,9 +26,9 @@ var result = await context.Papyrus.CallStaticAsync(
     "UI", "Invoke", ["HUDMenu", "root.myFunction", new object?[] { 42, "text" }], cancellationToken);
 ```
 
-`root.myFunction` — пример пути: реальная функция должна существовать в открытом меню. Это путь C# → Papyrus VM → native function F4SE → Scaleform. Мост не угадывает внутренние функции FallUI и не делает чистый C++ API произвольной DLL доступным по именам.
+`root.myFunction` is an example path: the actual function must exist in the open menu. The call path is C# → Papyrus VM → F4SE native function → Scaleform. The bridge does not infer FallUI's internal functions or expose an arbitrary DLL's C++ API by name.
 
-## Методы и свойства
+## Methods and Properties
 
 ```csharp
 using F4Forge.Net.Objects;
@@ -44,13 +44,13 @@ if (quest is not null)
 }
 ```
 
-Получение формы через `Objects.Query` требует игрового потока; после `await` используйте `GameThread.RunAsync` для этого шага. Сам Papyrus-клиент ставит отправку и преобразование результатов в очередь F4SE и может вызываться из любого управляемого потока. Пользовательские скрипты должны уже быть привязаны к форме; мост не прикрепляет их автоматически. Нативное представление формы, например `Actor` или `Quest`, может быть создано стандартным механизмом VM.
+Retrieving a form through `Objects.Query` requires the game thread; after `await`, use `GameThread.RunAsync` for this step. The Papyrus client itself queues dispatch and result conversion through F4SE and can be called from any managed thread. Custom scripts must already be attached to the form; the bridge does not attach them automatically. A native form representation, such as `Actor` or `Quest`, can be created through the standard VM mechanism.
 
-Свойства читаются и изменяются через VM с сохранением getter/setter. Прямая запись внутренних переменных и наблюдение чужих custom events в эту поставку не входят. Для America Rising 2 имена файлов, форм, скриптов и функций нужно взять из ресурсов конкретной установленной версии; специальных имён AR2 в ядре нет.
+Properties are read and modified through the VM, preserving getter/setter behavior. Direct writes to internal variables and subscriptions to other mods' custom events are not included in this release. For America Rising 2, obtain file, form, script, and function names from the resources of the specific installed version; the core contains no special AR2 names.
 
-## Значения
+## Values
 
-Аргументы принимают `null`, `bool`, `int`, конечные `float`/`double`, `string`, формы текущего мода, `PapyrusObject`, массивы и `PapyrusStruct`. Вложенные значения ограничены глубиной 32. Типы массивов выводятся из сигнатуры функции; внутри `Var` новый массив без явной сигнатуры передаётся как `Var[]`. Возвращённый `PapyrusValue` сохраняет тип элементов массива в `TypeName`, включая пустые массивы.
+Arguments accept `null`, `bool`, `int`, finite `float`/`double`, `string`, forms belonging to the current mod, `PapyrusObject`, arrays, and `PapyrusStruct`. Nested values are limited to a depth of 32. Array types are inferred from the function signature; inside `Var`, a new array without an explicit signature is passed as `Var[]`. The returned `PapyrusValue` preserves the array element type in `TypeName`, including for empty arrays.
 
 ```csharp
 using F4Forge.Net.Papyrus;
@@ -61,23 +61,23 @@ var data = new PapyrusStruct("UI#MenuData", new Dictionary<string, object?>
 });
 ```
 
-Используйте VM-имя структуры с `#`, поля проверяются по метаданным. Пропущенные поля остаются со значениями, созданными VM. Пропущенные аргументы функции передаются механизму вызова VM; отсутствие обязательного аргумента должно привести к отказу VM, а не к автоматической подстановке F4Forge.
+Use the VM struct name with `#`; fields are validated against metadata. Omitted fields retain the values created by the VM. Omitted function arguments are left to the VM's invocation mechanism; a missing required argument should cause the VM to reject the call rather than F4Forge supplying a value automatically.
 
-Результат — `PapyrusValue`: поле `Kind` определяет заполненное поле `Boolean`, `Integer`, `Number`, `Text`, `Reference`, `Items` или `Fields`. `none` также представляет результат функции без возвращаемого значения. Возвращённый `Reference` можно передать в последующие вызовы клиента; это непрозрачный токен, а не адрес памяти. Токены принадлежат одному клиенту и сессии, освобождаются при остановке мода или смене сохранения. В одном клиенте хранится не более 4096 возвращённых ссылок.
+The result is a `PapyrusValue`: `Kind` identifies the populated field among `Boolean`, `Integer`, `Number`, `Text`, `Reference`, `Items`, and `Fields`. `none` also represents the result of a function with no return value. A returned `Reference` can be passed to subsequent client calls; it is an opaque token, not a memory address. Tokens belong to one client and session and are released when the mod stops or the save changes. Each client stores at most 4096 returned references.
 
-## Время жизни и ошибки
+## Lifetime and Errors
 
-Ожидание каждого вызова ограничено 30 секундами. `CancellationToken` отменяет ожидание и ещё не запущенную работу. Уже исполняющийся Papyrus-стек не прерывается; его поздний результат отбрасывается. Клиент не блокирует игровой поток, его продолжения выполняются асинхронно.
+Each call has a 30-second timeout. `CancellationToken` cancels the wait and work that has not yet started. A Papyrus stack that is already running is not interrupted; its late result is discarded. The client does not block the game thread, and its continuations run asynchronously.
 
-Вызовы ожидают готовых игровых данных и завершённой загрузки сохранения. При неизвестном скрипте, функции, свойстве, несовместимом аргументе, отказе VM или устаревшей ссылке задача завершается с ошибкой. Некоторые ошибки исполнения скрипта VM сообщает только в своём журнале и не вызывает callback: тогда действует тайм-аут. Ошибки VM-моста передаются как `MessageException` с кодом `papyrus_failed`; отклонение запроса самим каналом сохраняет код канала.
+Calls require game data to be ready and save loading to be complete. An unknown script, function, or property, an incompatible argument, VM rejection, or a stale reference causes the task to fail. The VM reports some script execution errors only in its own log without invoking the callback; the timeout applies in those cases. VM bridge errors are reported as `MessageException` with the `papyrus_failed` code; requests rejected by the channel itself retain the channel's error code.
 
-Остановка мода синхронно закрывает его нативную область. Управляемые задачи остаются под наблюдением существующего времени жизни до завершения. У нативной очереди и callback VM нет указателей на управляемый мод. Буферы копируются до возврата callback; используются тот же сериализатор и общий предел транспортного сообщения.
+Stopping a mod synchronously closes its native scope. Managed tasks remain tracked by the existing lifetime mechanism until completion. The native queue and VM callbacks hold no pointers to the managed mod. Buffers are copied before the callback returns; the same serializer and shared transport message size limit apply.
 
-## Необязательная C#-обёртка
+## Optional C# Wrapper
 
-Обёртка — обычная библиотека мода, вызывающая этот же API. Например, метод `ShowAsync(name)` может делегировать `CallStaticAsync("PrismaUI", "Show", [name])`. Новых методов, типов запросов или зависимостей в F4Forge для этого не требуется. Низкоуровневый путь остаётся доступен без обёртки.
+A wrapper is an ordinary mod library that calls this same API. For example, a `ShowAsync(name)` method can delegate to `CallStaticAsync("PrismaUI", "Show", [name])`. This requires no new methods, query types, or dependencies in F4Forge. The low-level API remains available without a wrapper.
 
-## Проверки
+## Verification
 
 ```powershell
 xmake -P native/tests/papyrus -j 2
@@ -85,6 +85,6 @@ xmake run -P native/tests/papyrus F4Forge.Papyrus.Tests
 dotnet test tests/dotnet/F4Forge.Net.Tests/F4Forge.Net.Tests.csproj -c Release
 ```
 
-Изолированные тесты проверяют транспорт, корреляцию, ошибки, отмену, закрытие, смену сессии, повторные callback и альтернативную сериализацию. Модуль компилируется с реальными интерфейсами CommonLib, но изолированные тесты не запускают VM Fallout 4.
+Isolated tests cover transport, correlation, errors, cancellation, closure, session changes, repeated callbacks, and alternative serialization. The module compiles against the real CommonLib interfaces, but isolated tests do not run the Fallout 4 VM.
 
-**Интеграция с работающей VM пока не проверена в игре.** Для ручной проверки скомпилируйте `tests/papyrus/F4ForgeBridgeProbe.psc` штатным компилятором Creation Kit в отдельный тестовый мод. Статические функции доступны без привязки к объекту. Для проверки свойств и методов привяжите скрипт к тестовому квесту. Проверьте `Add`, `Echo`, массивы, структуры, latent-вызов `WaitAndReturn`, свойства и отказ после загрузки сохранения. Скрипт не зависит от API F4Forge и не требует изменения чужих модов.
+**Integration with a running VM has not yet been verified in the game.** For manual verification, compile `tests/papyrus/F4ForgeBridgeProbe.psc` with the standard Creation Kit compiler into a separate test mod. Static functions are available without attachment to an object. Attach the script to a test quest to check properties and methods. Check `Add`, `Echo`, arrays, structs, the latent `WaitAndReturn` call, properties, and rejection after loading a save. The script does not depend on the F4Forge API and requires no changes to other mods.

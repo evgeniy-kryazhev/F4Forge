@@ -28,7 +28,7 @@ public sealed partial class LoggingTests : IDisposable
             return true;
         });
         var context = new ModContext(@"C:\mods\HelloMod\", _channel, _channel, _channel.Serializer);
-        const string message = "Привет 🌍 {value}";
+        const string message = "Hello 🌍 {value}";
         switch (level)
         {
             case "info":

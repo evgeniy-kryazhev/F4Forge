@@ -60,7 +60,7 @@ DataValue Record(std::string owner, std::string name, bool success = true)
 {
     return {{"modId", owner}, {"name", name}, {"id", "operation"}, {"parentId", "parent"},
         {"kind", "message.call"}, {"elapsedMilliseconds", 1.5}, {"success", success},
-        {"exceptionType", "ExampleError"}, {"message", "Ошибка 🌍"}, {"stackTrace", "Example stack"}};
+        {"exceptionType", "ExampleError"}, {"message", "Error 🌍"}, {"stackTrace", "Example stack"}};
 }
 
 void Diagnostics(std::shared_ptr<const f4forge::IDataSerializer> serializer)

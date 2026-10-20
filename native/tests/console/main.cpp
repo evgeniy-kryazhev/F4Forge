@@ -40,11 +40,11 @@ private:
 void Parsing()
 {
     using f4forge::console::ParseCommand;
-    const auto command = ParseCommand("  HeLLo  \"Мир 🌍\" \"\" plain C:\\mods \"quoted \\\"word\\\"\" \"C:\\mods\"  ");
+    const auto command = ParseCommand("  HeLLo  \"World Ω 🌍\" \"\" plain C:\\mods \"quoted \\\"word\\\"\" \"C:\\mods\"  ");
     Require(command.alias == "hello", "Alias was not normalized");
-    Require(command.arguments == std::vector<std::string>{"Мир 🌍", "", "plain", "C:\\mods", "quoted \"word\"", "C:\\mods"}, "Quoted arguments were parsed incorrectly");
+    Require(command.arguments == std::vector<std::string>{"World Ω 🌍", "", "plain", "C:\\mods", "quoted \"word\"", "C:\\mods"}, "Quoted arguments were parsed incorrectly");
     Require(command.rawCommand.starts_with("  HeLLo  "), "Raw command was changed");
-    Require(command.rawArguments.starts_with("\"Мир 🌍\""), "Raw arguments were changed");
+    Require(command.rawArguments.starts_with("\"World Ω 🌍\""), "Raw arguments were changed");
     Require(ParseCommand("hello").arguments.empty(), "No-argument command gained arguments");
     Require(ParseCommand("hello a\tb\r\nc").arguments.size() == 3, "Whitespace parsing failed");
     Require(!ParseCommand("hello \"broken").parseError.empty(), "Unclosed quotes were accepted");
@@ -79,11 +79,11 @@ void Routing(const std::shared_ptr<const f4forge::IDataSerializer>& serializer)
             if (!arguments.at("parseError").get<std::string>().empty()) {
                 throw std::runtime_error(arguments.at("parseError").get<std::string>());
             }
-            Require(arguments.at("arguments") == DataValue::array({"Мир", ""}), "Arguments lost in transit");
-            return DataValue{{"lines", DataValue::array({"Привет {name} %s!", "second"})}};
+            Require(arguments.at("arguments") == DataValue::array({"World Ω", ""}), "Arguments lost in transit");
+            return DataValue{{"lines", DataValue::array({"Hello Ω {name} %s!", "second"})}};
         });
-        Require(router.Execute("HELLO \"Мир\" \"\"", 0x14), "Known command was not consumed");
-        Require(calls == 1 && output == std::vector<std::string>{"Привет {name} %s!", "second"}, "Output changed or callback repeated");
+        Require(router.Execute("HELLO \"World Ω\" \"\"", 0x14), "Known command was not consumed");
+        Require(calls == 1 && output == std::vector<std::string>{"Hello Ω {name} %s!", "second"}, "Output changed or callback repeated");
         Require(router.Execute("hello \"broken", 0x14), "Known malformed command was forwarded to engine");
         Require(output.back().find("Unclosed") != std::string::npos, "Parse error was not displayed");
         channel.Remove(registration);

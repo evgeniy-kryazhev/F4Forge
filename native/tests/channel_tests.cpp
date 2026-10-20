@@ -16,8 +16,8 @@ int main()
         const auto registration = channel.Add("test.echo", [](const auto& arguments) {
             return arguments;
         });
-        const auto response = f4forge::Json::parse(channel.Call(R"({"method":"test.echo","arguments":{"text":"Привет"}})"));
-        Require(response["value"]["text"] == "Привет", "UTF-8 round trip failed");
+        const auto response = f4forge::Json::parse(channel.Call(R"({"method":"test.echo","arguments":{"text":"Hello Ω"}})"));
+        Require(response["value"]["text"] == "Hello Ω", "UTF-8 round trip failed");
         Require(f4forge::Json::parse(channel.Call("{"))["error"]["code"] == "invalid_request", "Malformed request accepted");
         Require(f4forge::Json::parse(channel.Call("[]"))["error"]["code"] == "invalid_request", "Array request accepted");
         Require(f4forge::Json::parse(channel.Call(R"({"method":"missing","arguments":null})"))["error"]["code"] == "method_not_found", "Missing method accepted");

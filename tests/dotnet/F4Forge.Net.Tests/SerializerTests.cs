@@ -20,7 +20,7 @@ public sealed partial class SerializerTests : IDisposable
         var channel = new NativeChannel(CreateBinary(), serializer);
         Assert.Same(serializer, channel.Serializer);
         using var method = channel.Register<Payload, Payload>("managed.echo", arguments => arguments);
-        var payload = new Payload("Привет 🌍", [1, 2, 3]);
+        var payload = new Payload("Hello 🌍", [1, 2, 3]);
         Assert.Equal(payload.Text, channel.Call<Payload>("native.echo", payload).Text);
         Assert.Equal(payload.Numbers, channel.Call<Payload>("managed.echo", payload).Numbers);
         Payload? received = null;

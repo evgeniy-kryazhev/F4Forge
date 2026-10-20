@@ -64,7 +64,7 @@ void Forwarding()
     runtime.Start(channel, [&](std::string_view) {
         ++failures;
     });
-    std::vector<ButtonSnapshot> queue{{0, 30, "Действие Ω", 0.0F, true}, {1, 256, "", 2.5F, false}};
+    std::vector<ButtonSnapshot> queue{{0, 30, "Action Ω", 0.0F, true}, {1, 256, "", 2.5F, false}};
     std::vector<DataValue> received;
     const auto subscribe = [&](const char* name) {
         channel.Events().Subscribe(name, [&](const DataValue& payload) {
@@ -81,7 +81,7 @@ void Forwarding()
         queue[0].userEvent = "changed";
     });
     Require(originalCalls == 1 && received.size() == 2, "Incorrect dispatch count");
-    Require(received[0] == DataValue({{"device", 0}, {"keyCode", 30}, {"userEvent", "Действие Ω"}, {"heldSeconds", 0.0F}}),
+    Require(received[0] == DataValue({{"device", 0}, {"keyCode", 30}, {"userEvent", "Action Ω"}, {"heldSeconds", 0.0F}}),
         "Snapshot was borrowed or wire contract changed");
     Require(received[1].at("heldSeconds") == 2.5F && received[1].at("userEvent") == "", "Release payload changed");
     Require(queue.size() == 2 && queue[0].keyCode == 30 && queue[1].keyCode == 256, "Input queue changed");

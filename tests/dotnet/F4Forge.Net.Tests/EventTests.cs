@@ -26,7 +26,7 @@ public sealed partial class EventTests : IDisposable
         Notification? received = null;
         using var subscription = _channel.Subscribe<Notification>("native.event", value => received = value);
         PublishNative();
-        Assert.Equal("Привет 🌍", received?.Text);
+        Assert.Equal("Hello 🌍", received?.Text);
     }
 
     [Fact]

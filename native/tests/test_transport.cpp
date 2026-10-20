@@ -71,7 +71,7 @@ extern "C" __declspec(dllexport) int TestErrorCount()
 
 extern "C" __declspec(dllexport) void TestPublish()
 {
-    channel->Events().Publish("native.event", {{"text", "Привет 🌍"}});
+    channel->Events().Publish("native.event", {{"text", "Hello 🌍"}});
 }
 
 extern "C" __declspec(dllexport) void TestDestroy()

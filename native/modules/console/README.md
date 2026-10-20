@@ -9,12 +9,12 @@ itself; `ModContext.Console` exposes the mod's scoped command service.
 ```csharp
 context.Console.AddHandler("hello", command =>
 {
-    var name = command.Arguments.Count > 0 ? command.Arguments[0] : "Пустошь";
-    command.WriteLine($"Привет, {name}!");
+    var name = command.Arguments.Count > 0 ? command.Arguments[0] : "Wasteland";
+    command.WriteLine($"Hello, {name}!");
 });
 ```
 
-Input: `hello "Мир"`. Aliases are case insensitive and match
+Input: `hello "World"`. Aliases are case insensitive and match
 `[A-Za-z_][A-Za-z0-9_.-]*`, up to 64 characters. Duplicate aliases are rejected.
 The native adapter reserves built-in console and script commands, including
 their short names. The router forwards reserved and unknown commands unchanged.

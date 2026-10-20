@@ -48,7 +48,7 @@ public sealed partial class AsyncSerializerTests
         using var player = channel.Register<object?, FormSnapshot>("forms.player", _ =>
         {
             Assert.Equal(Volatile.Read(ref gameThread), Environment.CurrentManagedThreadId);
-            return new FormSnapshot(0x14, 1, "ACHR", "Игрок Ω", "Player", true, true, false);
+            return new FormSnapshot(0x14, 1, "ACHR", "Player Ω", "Player", true, true, false);
         });
         using var snapshot = channel.Register<JsonElement, ReferenceSnapshot>("forms.reference", _ =>
             new ReferenceSnapshot(7, 9, 11, new Position(10, 20, 30)));
@@ -66,12 +66,12 @@ public sealed partial class AsyncSerializerTests
         });
         try
         {
-            using var interceptor = context.Interceptors.OnConsoleCommandExecuting(input => input.Command = "help Игрок Ω");
+            using var interceptor = context.Interceptors.OnConsoleCommandExecuting(input => input.Command = "help Player Ω");
             var decision = channel.Call<JsonElement>("test.intercept", new
             {
                 OriginalCommand = "before", Command = "before", Skip = false, SelectedReferenceFormId = 0x14
             });
-            Assert.Equal("help Игрок Ω", decision.GetProperty("command").GetString());
+            Assert.Equal("help Player Ω", decision.GetProperty("command").GetString());
             using var subscription = context.Events.Subscribe<AfterAwait>(async (_, token) =>
             {
                 await scheduled.Task;
@@ -85,7 +85,7 @@ public sealed partial class AsyncSerializerTests
                         }
 
                         var value = new Form(context.Messages,
-                            new FormSnapshot(0x2D4, 1, "AVIF", "Здоровье", "Health", false, false, true)).As<ActorValue>();
+                            new FormSnapshot(0x2D4, 1, "AVIF", "Health Ω", "Health", false, false, true)).As<ActorValue>();
                         Assert.True(context.Messages.Execute(new SetActorBaseValue(player, value, 90)));
                         return context.Messages.Query(new GetReferenceSnapshot(player)).Position;
                     }, token);

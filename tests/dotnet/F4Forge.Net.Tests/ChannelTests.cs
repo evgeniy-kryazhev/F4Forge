@@ -22,8 +22,8 @@ public sealed partial class ChannelTests : IDisposable
     [Fact]
     public void NativeRoundTripPreservesUnicode()
     {
-        var response = _channel.Call<JsonElement>("native.echo", new { text = "Привет 🌍" });
-        Assert.Equal("Привет 🌍", response.GetProperty("text").GetString());
+        var response = _channel.Call<JsonElement>("native.echo", new { text = "Hello 🌍" });
+        Assert.Equal("Hello 🌍", response.GetProperty("text").GetString());
     }
 
     [Fact]

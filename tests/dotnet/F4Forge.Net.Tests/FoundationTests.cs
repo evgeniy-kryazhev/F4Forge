@@ -58,13 +58,13 @@ public sealed partial class FoundationTests : IDisposable
         });
         Assert.Null(DiagnosticTrace.CurrentOwner);
 
-        Track(first.Messages.Register<int, int>("broken", _ => throw new InvalidOperationException("Ошибка 🌍")));
+        Track(first.Messages.Register<int, int>("broken", _ => throw new InvalidOperationException("Error 🌍")));
         Assert.Throws<MessageException>(() => second.Messages.Call<int>("broken", 0));
         var error = Assert.Single(records, entry => entry.Name == "broken" && entry.Kind == "message.handle");
         Assert.False(error.Success);
         Assert.Equal(first.Diagnostics.ModId, error.ModId);
         Assert.Equal(typeof(InvalidOperationException).FullName, error.ExceptionType);
-        Assert.Contains("Ошибка 🌍", error.Message);
+        Assert.Contains("Error 🌍", error.Message);
         Assert.Contains(nameof(DiagnosticsKeepDllOwnershipNestedCallsAndFullErrors), error.StackTrace);
     }
 
@@ -209,21 +209,21 @@ public sealed partial class FoundationTests : IDisposable
         {
             var property = Assert.Single(arguments.EnumerateObject());
             Assert.Equal("editorId", property.Name);
-            Assert.Equal("Оружие Ω", property.Value.GetString());
+            Assert.Equal("Weapon Ω", property.Value.GetString());
             return Snapshot(1, "WEAP");
         }));
-        Weapon? weapon = context.Objects.Query(new WeaponQuery("Оружие Ω"));
+        Weapon? weapon = context.Objects.Query(new WeaponQuery("Weapon Ω"));
         Assert.NotNull(weapon);
         Assert.Same(context.Messages, weapon.Messages);
 
         Track(channel.Register<JsonElement, FormSnapshot>("forms.resolve", arguments =>
         {
-            Assert.Equal("Мод Ω.esl", arguments.GetProperty("plugin").GetString());
+            Assert.Equal("Mod Ω.esl", arguments.GetProperty("plugin").GetString());
             Assert.Equal(0x123U, arguments.GetProperty("localId").GetUInt32());
             Assert.Equal(2, arguments.EnumerateObject().Count());
             return Snapshot(1, "WEAP");
         }));
-        Assert.NotNull(context.Objects.Query(new FormByPlugin<Weapon>("Мод Ω.esl", 0x123)));
+        Assert.NotNull(context.Objects.Query(new FormByPlugin<Weapon>("Mod Ω.esl", 0x123)));
         Assert.Throws<ArgumentException>(() => context.Objects.Query(new FormByPlugin<Form>(" ", 1)));
         Assert.Throws<ArgumentException>(() => context.Objects.Query(new FormByEditorId<Form>(" ")));
         Assert.Throws<ArgumentNullException>(() => context.Objects.Query<Actor>(null!));
@@ -241,8 +241,8 @@ public sealed partial class FoundationTests : IDisposable
         {
             var property = Assert.Single(arguments.EnumerateObject());
             Assert.Equal("prefix", property.Name);
-            Assert.Equal("Игрок Ω", property.Value.GetString());
-            return ["Первый", "Второй 🌍"];
+            Assert.Equal("Player Ω", property.Value.GetString());
+            return ["First", "Second 🌍"];
         }));
         Track(channel.Register<JsonElement, bool>("example.mode", arguments =>
         {
@@ -251,8 +251,8 @@ public sealed partial class FoundationTests : IDisposable
             Assert.Equal("enabled", property.Name);
             return property.Value.GetBoolean();
         }));
-        string[] names = context.Messages.Query(new GetNames("Игрок Ω"));
-        Assert.Equal(new[] { "Первый", "Второй 🌍" }, names);
+        string[] names = context.Messages.Query(new GetNames("Player Ω"));
+        Assert.Equal(new[] { "First", "Second 🌍" }, names);
         Assert.False(context.Messages.Execute(new SetMode(false)));
         Assert.True(context.Messages.Execute(new SetMode(true)));
         Assert.Equal(2, commandCalls);
@@ -264,9 +264,9 @@ public sealed partial class FoundationTests : IDisposable
         }));
         Assert.Null(context.Messages.Query(new GetOptionalName()));
         Track(channel.Register<JsonElement, bool>("example.failure", _ =>
-            throw new InvalidOperationException("Ошибка изменения Ω")));
+            throw new InvalidOperationException("Update failed Ω")));
         var error = Assert.Throws<MessageException>(() => context.Messages.Execute(new FailingCommand()));
-        Assert.Equal("Ошибка изменения Ω", error.Message);
+        Assert.Equal("Update failed Ω", error.Message);
         Assert.Throws<ArgumentException>(() => context.Messages.Query(new GetNames(" ")));
         Assert.Throws<ArgumentNullException>(() => context.Messages.Query<string[]>(null!));
         Assert.Throws<ArgumentNullException>(() => context.Messages.Execute<bool>(null!));
@@ -397,7 +397,7 @@ public sealed partial class FoundationTests : IDisposable
 
     private static FormSnapshot Snapshot(uint id, string type, bool actor = false, bool value = false)
     {
-        return new FormSnapshot(id, 7, type, "Имя 🌍", "Example", actor, actor, value);
+        return new FormSnapshot(id, 7, type, "Name 🌍", "Example", actor, actor, value);
     }
 
     private void Track(IDisposable registration)

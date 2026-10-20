@@ -26,9 +26,9 @@ public sealed partial class InputEventTests : IDisposable
         {
             device = (int)device,
             keyCode,
-            userEvent = "Действие Ω",
+            userEvent = "Action Ω",
             heldSeconds = 0.0F
-        }, new ButtonPressed(device, expectedKey, "Действие Ω", 0.0F));
+        }, new ButtonPressed(device, expectedKey, "Action Ω", 0.0F));
     }
 
     [Theory]

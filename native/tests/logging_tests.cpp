@@ -27,7 +27,7 @@ int main()
                 {"method", "logging.write"}, {"arguments", arguments}})));
         };
         for (const auto* level : {"info", "warning", "error"}) {
-            const f4forge::DataValue arguments = {{"level", level}, {"source", "HelloMod"}, {"message", "Привет 🌍 {value}"}};
+            const f4forge::DataValue arguments = {{"level", level}, {"source", "HelloMod"}, {"message", "Hello 🌍 {value}"}};
             Require(call(arguments).at("value") == true, "Logging failed");
             Require(records.back() == arguments, "Logging changed the payload");
         }
