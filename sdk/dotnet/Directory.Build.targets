@@ -1,0 +1,31 @@
+<Project>
+    <PropertyGroup>
+        <SingletonRepositoryRoot>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)../..'))</SingletonRepositoryRoot>
+    </PropertyGroup>
+    <Target Name="PrepareSingletonGeneration" BeforeTargets="GenerateSingletonBindings"
+            Condition="'$(MSBuildProjectName)' == 'F4Forge.Net' and '$(DesignTimeBuild)' != 'true'">
+        <WriteLinesToFile File="$(IntermediateOutputPath)singletons.inputs"
+                          Lines="@(SingletonGeneratorInputs->'%(FullPath)');$(F4FORGE_SPDLOG_INCLUDE)"
+                          Overwrite="true" WriteOnlyWhenDifferent="true" />
+        <Delete Files="$(IntermediateOutputPath)singletons.stamp"
+                Condition="!Exists('$(MSBuildProjectDirectory)/Singletons/Generated/Singletons.g.cs') or !Exists('$(SingletonRepositoryRoot)/native/modules/singletons/generated.inc') or !Exists('$(MSBuildThisFileDirectory)tools/SingletonGenerator/bindings-report.json')" />
+    </Target>
+    <Target Name="GenerateSingletonBindings"
+            BeforeTargets="BeforeCompile"
+            Condition="'$(MSBuildProjectName)' == 'F4Forge.Net' and '$(DesignTimeBuild)' != 'true'"
+            Inputs="@(SingletonGeneratorInputs);$(IntermediateOutputPath)singletons.inputs"
+            Outputs="$(IntermediateOutputPath)singletons.stamp">
+        <Exec WorkingDirectory="$(SingletonRepositoryRoot)"
+              Command="dotnet run --project &quot;$(MSBuildThisFileDirectory)tools/SingletonGenerator/SingletonGenerator.csproj&quot; --configuration Release -- &quot;$(SingletonRepositoryRoot)&quot;" />
+        <Touch Files="$(IntermediateOutputPath)singletons.stamp" AlwaysCreate="true" />
+    </Target>
+    <ItemGroup Condition="'$(MSBuildProjectName)' == 'F4Forge.Net'">
+        <SingletonGeneratorInputs Include="$(MSBuildThisFileDirectory)tools/SingletonGenerator/*.cs;$(MSBuildThisFileDirectory)tools/SingletonGenerator/*.csproj;$(MSBuildThisFileFullPath);$(SingletonRepositoryRoot)/native/lib/commonlibf4/include/**/*.h;$(SingletonRepositoryRoot)/native/lib/commonlibf4/lib/commonlib-shared/include/**/*.h" />
+    </ItemGroup>
+    <Target Name="IncludeGeneratedSingletonBindings" BeforeTargets="CoreCompile"
+            DependsOnTargets="GenerateSingletonBindings" Condition="'$(MSBuildProjectName)' == 'F4Forge.Net'">
+        <ItemGroup>
+            <Compile Include="Singletons/Generated/Singletons.g.cs" Exclude="@(Compile)" Condition="Exists('$(MSBuildProjectDirectory)/Singletons/Generated/Singletons.g.cs')" />
+        </ItemGroup>
+    </Target>
+</Project>
