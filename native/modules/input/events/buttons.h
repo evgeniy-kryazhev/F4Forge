@@ -6,12 +6,31 @@
 
 namespace f4forge::input {
 
+enum class KeyPhase {
+    Down,
+    Press,
+    Up
+};
+
+inline const char* EventName(KeyPhase phase)
+{
+    switch (phase) {
+        case KeyPhase::Down:
+            return "game.input.key.down";
+        case KeyPhase::Press:
+            return "game.input.key.press";
+        case KeyPhase::Up:
+            return "game.input.key.up";
+    }
+    throw std::invalid_argument("Unknown input key phase.");
+}
+
 struct ButtonSnapshot {
     std::int32_t device;
     std::uint32_t keyCode;
     std::string userEvent;
     float heldSeconds;
-    bool pressed;
+    KeyPhase phase;
 };
 
 // Gamepad conversion is injected because F4SE consults the game's controller map.
@@ -33,66 +52,21 @@ std::optional<std::uint32_t> KeyCode(std::int32_t device, std::uint32_t code, Ga
     return std::nullopt;
 }
 
-template<class Button>
-std::optional<bool> ButtonPhase(const Button& button)
-{
-    if (button.QJustPressed()) {
-        return true;
-    }
-    if (button.QReleased()) {
-        return false;
-    }
-    return std::nullopt;
-}
-
-template<class Event, class Decode>
-std::vector<ButtonSnapshot> SnapshotButtons(const Event* queue, Decode&& decode)
-{
-    std::vector<ButtonSnapshot> notifications;
-    for (const auto* event = queue; event != nullptr; event = event->next) {
-        auto notification = decode(*event);
-        if (notification.has_value()) {
-            notifications.push_back(std::move(*notification));
-        }
-    }
-    return notifications;
-}
-
-// Snapshot failures must not prevent the game's original receiver from running.
-// Each publication has its own lease so a failed event cannot discard later buttons.
-template<class Capture, class Original>
-void ForwardButtons(game_events::Runtime& runtime, Capture&& capture, Original&& original) noexcept
-{
-    std::vector<ButtonSnapshot> notifications;
-    runtime.Invoke([&] {
-        notifications = capture();
-    });
-    try {
-        original();
-    } catch (const std::exception& exception) {
-        runtime.Report(exception.what());
-        return;
-    } catch (...) {
-        runtime.Report("Original input receiver failed.");
-        return;
-    }
-    for (const auto& notification : notifications) {
-        runtime.Invoke([&] {
-            runtime.Publish(notification.pressed ? "game.input.button.pressed" : "game.input.button.released", {
-                {"device", notification.device},
-                {"keyCode", notification.keyCode},
-                {"userEvent", notification.userEvent},
-                {"heldSeconds", notification.heldSeconds}});
-        });
-    }
-}
-
 class InputReadiness final {
 public:
     template<class Attach>
     void Observe(const game_events::Message& message, Attach&& attach)
     {
-        if (message.Is(game_events::MessageType::InputLoaded)) {
+        // F4SE declares InputLoaded, but its game-data hooks dispatch GameLoaded
+        // and GameDataReady. Do not make an optional message a permanent gate.
+        const bool gameDataReady = message.Is(game_events::MessageType::GameDataReady)
+            && message.data != nullptr;
+        const bool saveLoaded = message.Is(game_events::MessageType::PostLoadGame)
+            && message.data != nullptr;
+        if (message.Is(game_events::MessageType::InputLoaded)
+            || message.Is(game_events::MessageType::GameLoaded)
+            || message.Is(game_events::MessageType::NewGame)
+            || gameDataReady || saveLoaded) {
             loaded_ = true;
         }
         if (loaded_) {

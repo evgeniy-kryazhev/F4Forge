@@ -1,90 +1,75 @@
-# Input button events
+# Input key events
 
-The input adapter observes the engine's input queue through slot 0 of
-`RE::VTABLE::UI[0]` (`BSInputEventReceiver::PerformInputProcessing`). Address
-Library resolves the vtable; existing diagnostic checks validate the slot before
-installation. In-game verification of this receiver's queue coverage is required.
+## Source and attachment
 
-The adapter attaches after F4SE `InputLoaded`, retrying on later F4SE messages if
-the UI singleton is unavailable. It does not depend on game-data readiness, so
-menus, the console and Pip-Boy are included. Shutdown disables publication through
-the game-event runtime and restores the original slot only if this adapter still
-owns it. A later plugin's hook chain is preserved; Core must remain loaded while
-such a chain references its callback.
+The implementation follows real Fallout 4 receiver hooks:
 
-Button data is copied before the original receiver runs, and published afterwards
-in queue order. The original receiver runs exactly once even if snapshot capture
-fails or the host has stopped. Input pointers and handled flags are never changed.
-Presses match CommonLib `QJustPressed()`, releases match `QReleased()`; held
-buttons do not repeat. No synthetic releases are generated on focus loss,
-disconnect, loading or shutdown. Mouse wheel, text input, motion and sticks are
-excluded. Gamepad triggers count as buttons when the engine emits button events.
+- [F4SEMenuFramework InputQueueHook](https://github.com/DCCStudios/F4SEMenuFramework/blob/master/src/Hooks.cpp):
+  PlayerCamera owns keyboard events and PlayerControls owns mouse/gamepad events.
+- [UneducatedShooter InputEventReceiverOverride](https://github.com/clayne/UneducatedShooter/blob/main/src/main.cpp):
+  processes the linked ButtonEvent queue through PerformInputProcessing and forwards
+  to the previous implementation.
 
-## SDK
+F4Forge hooks slot 0 of each actual `BSInputEventReceiver` vtable. Typed base casts
+handle PlayerCamera's secondary base. Installation is idempotent and retries when
+singletons are missing. GameLoaded, successful GameDataReady/PostLoadGame, NewGame
+and InputLoaded can enable attachment; InputLoaded alone is not required.
+No executable address, instruction patch, Poll hook, or fabricated event dispatcher
+is used. CommonLib and its Address Library must support the installed game.
 
-Use `F4Forge.Net.Input.Events` and the existing typed event subscriptions:
+The two receivers have exclusive device ownership, even when the same queue is
+passed to both. No per-button state, inferred transitions, batch counters or
+additional duplicate suppression are maintained. Engine events from the selected
+receiver are classified directly through CommonLib's button predicates.
+
+## Contract
+
+| SDK event | Wire name | Transition |
+| --- | --- | --- |
+| KeyDown | game.input.key.down | QJustPressed() |
+| KeyPress | game.input.key.press | QHeldDown() |
+| KeyUp | game.input.key.up | QReleased() |
+
+A short tap can have no KeyPress. Analog triggers follow engine button values.
+Mouse wheel, motion, sticks, text and unsupported devices are excluded.
+`Device` is Keyboard=0, Mouse=1, Gamepad=2. `KeyCode` preserves keyboard codes
+(Windows VK on the tested 1.11.240 runtime, W=87), adds 256 for mouse buttons,
+and uses F4SE's active controller mapping for gamepad codes 266–281.
+The named keyboard enum is not a promise of the same codes on older game builds.
+`UserEvent` copies the engine action name when present. `HeldSeconds` is copied directly from the engine. A positive value with a zero
+hold timer is Down, a positive value with a positive timer is Press, and a zero
+value with a positive timer is Up. A zero value with a zero timer is ignored.
+Wire payloads use the existing serializer. No interop exports are added.
 
 ```csharp
-using F4Forge.Net.Events;
-using F4Forge.Net.Input.Events;
-
-context.Events.Subscribe<ButtonPressed>(notification =>
-{
-    if (notification.KeyCode == KeyCode.A)
-    {
-        context.LogInfo("A pressed");
-    }
-});
-
-context.Events.Subscribe<ButtonReleased>(notification =>
-{
-    context.LogInfo($"Released {notification.KeyCode} after {notification.HeldSeconds} seconds");
-});
+context.Events.Subscribe<KeyDown>(key => context.LogInfo($"Down {key.KeyCode}"));
+context.Events.Subscribe<KeyPress>(key => context.LogInfo($"Held {key.KeyCode}"));
+context.Events.Subscribe<KeyUp>(key => context.LogInfo($"Up {key.KeyCode}"));
 ```
 
-| Event name | SDK record | Fields |
-| --- | --- | --- |
-| `game.input.button.pressed` | `ButtonPressed` | `Device`, `KeyCode`, `UserEvent`, `HeldSeconds` |
-| `game.input.button.released` | `ButtonReleased` | Same |
+Import F4Forge.Net.Events and F4Forge.Net.Input.Events. Replace ButtonPressed and
+ButtonReleased subscriptions and rebuild against the matching SDK.
 
-`KeyCode` uses the `KeyCode : uint` enum, for example `KeyCode.A`,
-`KeyCode.F1`, `KeyCode.MouseLeft` and `KeyCode.GamepadA`. It remains numeric
-on the wire. Unnamed engine codes are preserved as enum values.
+## Non-interference and lifetime
 
-`Device` is numeric: Keyboard = 0, Mouse = 1, Gamepad = 2. Keyboard codes are
-DirectInput scan codes (0–255), not Windows virtual keys or characters. Mouse
-codes are 256–263. Gamepad codes are 266–281, converted by
-`F4SE::InputMap::GamepadMaskToKeycode`, including the active controller mapping.
-Unknown devices and invalid codes are ignored. `UserEvent` is the raw engine
-action name, or an empty string for an unassigned button. `HeldSeconds` is zero
-on press and the engine's hold duration on release. Wire fields use camelCase
-and the existing channel serializer; no new interop exports are added.
+Payloads are copied before original processing and published afterwards. Original
+receiver calls run exactly once even when capture fails or the host has stopped.
+No queue link, handled flag, device state or game-control setting is written.
+Callbacks run without an installation lock and exceptions are contained.
+Shutdown drains active callbacks before detaching. Slots are restored only while
+owned by F4Forge, preserving subsequent plugins' chains. Keep callbacks short and
+do not stop the host from an input callback.
 
-Callbacks run synchronously in the engine publisher's thread after the original
-UI receiver returns. Keep handlers short and do not stop the host from a handler.
-Subscriptions through `context.Events` are disposed when the mod stops. An event
-only notifies: it cannot consume the button or cancel its action in the game.
+## Validation and limits
 
-## Verification
+Native tests cover device ownership, code translation, copied payloads, failures,
+startup retries, shutdown drainage and hook chaining. Managed tests cover wire
+contracts, VK values and subscription lifetime.
 
-```powershell
-xmake f -P native/tests/input -m releasedbg -y
-xmake -P native/tests/input -j 2
-xmake run -P native/tests/input F4Forge.Input.Tests
-dotnet test tests/dotnet/F4Forge.Net.Tests/F4Forge.Net.Tests.csproj -c Release
-```
-
-The standalone native tests exercise translation, copied snapshots, forwarding,
-failure isolation, startup retries, shutdown drainage and hook chaining without
-calling engine addresses. Managed tests exercise both wire contracts through
-the native transport, subscription disposal and subscriber failures.
-
-In a running supported Fallout 4/F4SE instance, check keyboard, mouse and gamepad
-press/release, analog triggers, long holds and simultaneous buttons. Repeat in
-the main menu, pause menu, console and Pip-Boy, and across save loads. Confirm
-exactly one notification per engine transition, no held repeats, and unchanged
-game actions. Check diagnostic hook `input.buttons` is active. Automated tests
-do not validate the engine ABI or guarantee queue coverage in these contexts.
-
-References: [F4SE input handling](https://github.com/ianpatt/f4se/blob/master/f4se/Hooks_Input.cpp)
-and [F4SE input-ready message](https://github.com/ianpatt/f4se/blob/master/f4se/PluginAPI.h).
+In-game acceptance of this build is still required: keyboard/mouse/gamepad, taps,
+holds, simultaneous keys, triggers, aiming, menus, console, Pip-Boy, focus loss and
+controller disconnect. Receiver hooks observe events the game actually delivers;
+they cannot guarantee releases discarded upstream, or input while those receivers
+are not called. There is no synthetic input or timeout release. In particular,
+menu-only/focus-loss coverage must be checked rather than inferred from unit tests.
+The log distinguishes hook installation from the first captured button events.

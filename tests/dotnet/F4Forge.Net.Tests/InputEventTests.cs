@@ -17,48 +17,64 @@ public sealed partial class InputEventTests : IDisposable
     private static partial void Destroy();
 
     [Theory]
-    [InlineData(InputDevice.Keyboard, 30U, KeyCode.A)]
+    [InlineData(InputDevice.Keyboard, 65U, KeyCode.A)]
+    [InlineData(InputDevice.Keyboard, 87U, KeyCode.W)]
+    [InlineData(InputDevice.Keyboard, 27U, KeyCode.Escape)]
     [InlineData(InputDevice.Mouse, 256U, KeyCode.MouseLeft)]
     [InlineData(InputDevice.Gamepad, 276U, KeyCode.GamepadA)]
     public void PressedUsesNativeWireContract(InputDevice device, uint keyCode, KeyCode expectedKey)
     {
-        Verify("game.input.button.pressed", new
+        Verify("game.input.key.down", new
         {
             device = (int)device,
             keyCode,
-            userEvent = "Action Ω",
+            userEvent = "Action О©",
             heldSeconds = 0.0F
-        }, new ButtonPressed(device, expectedKey, "Action Ω", 0.0F));
+        }, new KeyDown(device, expectedKey, "Action О©", 0.0F));
     }
 
     [Theory]
-    [InlineData(InputDevice.Keyboard, 30U, KeyCode.A)]
+    [InlineData(InputDevice.Keyboard, 65U, KeyCode.A)]
+    [InlineData(InputDevice.Keyboard, 87U, KeyCode.W)]
+    [InlineData(InputDevice.Keyboard, 27U, KeyCode.Escape)]
     [InlineData(InputDevice.Mouse, 263U, KeyCode.MouseButton8)]
     [InlineData(InputDevice.Gamepad, 281U, KeyCode.GamepadRightTrigger)]
     public void ReleasedUsesNativeWireContract(InputDevice device, uint keyCode, KeyCode expectedKey)
     {
-        Verify("game.input.button.released", new
+        Verify("game.input.key.up", new
         {
             device = (int)device,
             keyCode,
             userEvent = "",
             heldSeconds = 2.5F
-        }, new ButtonReleased(device, expectedKey, "", 2.5F));
+        }, new KeyUp(device, expectedKey, "", 2.5F));
+    }
+
+    [Fact]
+    public void HoldUsesNativeWireContract()
+    {
+        Verify("game.input.key.press", new
+        {
+            device = (int)InputDevice.Keyboard,
+            keyCode = 65U,
+            userEvent = "Action О©",
+            heldSeconds = 1.5F
+        }, new KeyPress(InputDevice.Keyboard, KeyCode.A, "Action О©", 1.5F));
     }
 
     [Fact]
     public void SubscriberFailureDoesNotBlockOtherInputSubscribers()
     {
         var deliveries = 0;
-        using var failing = _channel.Subscribe<ButtonPressed>((Action<ButtonPressed>)(_ =>
+        using var failing = _channel.Subscribe<KeyDown>((Action<KeyDown>)(_ =>
         {
             throw new InvalidOperationException("Input handler failed");
         }));
-        using var healthy = _channel.Subscribe<ButtonPressed>(_ =>
+        using var healthy = _channel.Subscribe<KeyDown>(_ =>
         {
             deliveries++;
         });
-        _channel.Publish(new ButtonPressed(InputDevice.Keyboard, KeyCode.A, "", 0));
+        _channel.Publish(new KeyDown(InputDevice.Keyboard, KeyCode.A, "", 0));
         Assert.Equal(1, deliveries);
     }
 
@@ -68,23 +84,32 @@ public sealed partial class InputEventTests : IDisposable
         var lifetime = new ModLifetime();
         using var events = new ScopedEvents(_channel, lifetime);
         var presses = 0;
+        var holds = 0;
         var releases = 0;
-        events.Subscribe<ButtonPressed>(_ =>
+        events.Subscribe<KeyDown>(_ =>
         {
             presses++;
         });
-        events.Subscribe<ButtonReleased>(_ =>
+        events.Subscribe<KeyUp>(_ =>
         {
             releases++;
         });
-        var pressed = new ButtonPressed(InputDevice.Keyboard, KeyCode.A, "", 0);
-        var released = new ButtonReleased(InputDevice.Keyboard, KeyCode.A, "", 1);
+        events.Subscribe<KeyPress>(_ =>
+        {
+            holds++;
+        });
+        var pressed = new KeyDown(InputDevice.Keyboard, KeyCode.A, "", 0);
+        var released = new KeyUp(InputDevice.Keyboard, KeyCode.A, "", 1);
+        var held = new KeyPress(InputDevice.Keyboard, KeyCode.A, "", 0.5F);
         _channel.Publish(pressed);
+        _channel.Publish(held);
         _channel.Publish(released);
         events.Dispose();
         _channel.Publish(pressed);
+        _channel.Publish(held);
         _channel.Publish(released);
         Assert.Equal(1, presses);
+        Assert.Equal(1, holds);
         Assert.Equal(1, releases);
     }
 
@@ -92,11 +117,11 @@ public sealed partial class InputEventTests : IDisposable
     public void TypedPublicationUsesCamelCaseWithoutEventMetadata()
     {
         System.Text.Json.JsonElement received = default;
-        using var subscription = _channel.Subscribe<System.Text.Json.JsonElement>(ButtonPressed.EventName, value =>
+        using var subscription = _channel.Subscribe<System.Text.Json.JsonElement>(KeyDown.EventName, value =>
         {
             received = value;
         });
-        _channel.Publish(new ButtonPressed(InputDevice.Mouse, KeyCode.MouseLeft, "Fire", 0));
+        _channel.Publish(new KeyDown(InputDevice.Mouse, KeyCode.MouseLeft, "Fire", 0));
         Assert.Equal(1, received.GetProperty("device").GetInt32());
         Assert.Equal(256U, received.GetProperty("keyCode").GetUInt32());
         Assert.Equal("Fire", received.GetProperty("userEvent").GetString());
