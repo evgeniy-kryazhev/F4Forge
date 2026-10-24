@@ -6,7 +6,7 @@ using F4Forge.Net.Objects;
 namespace F4Forge.Net.Papyrus;
 
 /// <summary>Dynamic VM calls with no per-function SDK bindings. All engine submission is queued.</summary>
-public sealed class PapyrusClient : IDisposable
+public sealed partial class GamePapyrus : IDisposable
 {
     private readonly IMessageChannel _messages;
     private readonly IMessageChannel _cleanup;
@@ -17,7 +17,7 @@ public sealed class PapyrusClient : IDisposable
     private int _closed;
     private int _used;
 
-    internal PapyrusClient(IMessageChannel messages, IMessageChannel cleanup, IEventChannel events, ModLifetime lifetime)
+    internal GamePapyrus(IMessageChannel messages, IMessageChannel cleanup, IEventChannel events, ModLifetime lifetime)
     {
         _messages = messages;
         _cleanup = cleanup;
@@ -137,7 +137,7 @@ public sealed class PapyrusClient : IDisposable
         {
             if (Interlocked.CompareExchange(ref _used, 1, 0) == 2 || Volatile.Read(ref _closed) != 0)
             {
-                throw new ObjectDisposedException(nameof(PapyrusClient));
+                throw new ObjectDisposedException(nameof(GamePapyrus));
             }
             _messages.Call<bool>("papyrus.begin", new
             {

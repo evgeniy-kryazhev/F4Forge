@@ -4,7 +4,7 @@ using F4Forge.Net.Operations;
 namespace F4Forge.Net.Objects;
 
 /// <summary>Generic form resolution. Engine operations are synchronous and require the game thread.</summary>
-public sealed class GameObjects
+public sealed partial class GameObjects
 {
     private readonly IMessageChannel _messages;
 

@@ -5,13 +5,13 @@ using F4Forge.Net.Mods;
 namespace F4Forge.Net.Interception;
 
 /// <summary>Mod-owned synchronous interceptors, separate from notifications.</summary>
-public sealed class InterceptorService
+public sealed partial class GameInterception
 {
     private readonly IMessageChannel _messages;
     private readonly IMessageChannel _cleanup;
     private readonly ModLifetime _lifetime;
 
-    internal InterceptorService(IMessageChannel messages, IMessageChannel cleanup, ModLifetime lifetime)
+    internal GameInterception(IMessageChannel messages, IMessageChannel cleanup, ModLifetime lifetime)
     {
         _messages = messages;
         _cleanup = cleanup;

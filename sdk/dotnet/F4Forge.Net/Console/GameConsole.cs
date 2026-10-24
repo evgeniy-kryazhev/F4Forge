@@ -3,21 +3,33 @@ using F4Forge.Net.Messaging;
 
 namespace F4Forge.Net.Console;
 
-internal sealed class ConsoleService(IMessageChannel messages) : IConsole
+/// <summary>Mod-owned aliases entered directly into the Fallout 4 console.</summary>
+public sealed partial class GameConsole : IConsole
 {
+    private readonly IMessageChannel _messages;
+
+    /// <summary>Creates a console service using the supplied message channel.</summary>
+    /// <param name="messages">Channel that owns console command registrations.</param>
+    public GameConsole(IMessageChannel messages)
+    {
+        ArgumentNullException.ThrowIfNull(messages);
+        _messages = messages;
+    }
+
+    /// <inheritdoc />
     public IDisposable AddHandler(string alias, Action<ConsoleCommandContext> handler)
     {
         ArgumentNullException.ThrowIfNull(alias);
         ArgumentNullException.ThrowIfNull(handler);
         ValidateAlias(alias);
         var normalizedAlias = alias.ToLowerInvariant();
-        if (!messages.Call<bool>("console.validate_alias", new { Alias = normalizedAlias }))
+        if (!_messages.Call<bool>("console.validate_alias", new { Alias = normalizedAlias }))
         {
             throw new InvalidOperationException($"Command alias is unavailable: {alias}");
         }
         // Register through the mod's scoped channel so unload and startup rollback
         // use the same callback barrier as all other message handlers.
-        return messages.Register<ConsoleInvocation, ConsoleResult>("console.command." + normalizedAlias, invocation =>
+        return _messages.Register<ConsoleInvocation, ConsoleResult>("console.command." + normalizedAlias, invocation =>
         {
             if (!string.IsNullOrEmpty(invocation.ParseError))
             {

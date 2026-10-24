@@ -2,14 +2,16 @@ using System.Runtime.InteropServices;
 using System.Text.Json;
 using F4Forge.Net.Actors.Commands;
 using F4Forge.Net.Events;
-using F4Forge.Net.Interop;
 using F4Forge.Net.Interception;
+using F4Forge.Net.Interop;
 using F4Forge.Net.Mods;
-using F4Forge.Net.Objects;
 using F4Forge.Net.Objects.Queries;
+using F4Forge.Net.Objects;
 using F4Forge.Net.Operations;
 using F4Forge.Net.Player.Queries;
 using F4Forge.Net.Serialization;
+using F4Forge.Net.Singletons;
+using ActorValue = F4Forge.Net.Objects.ActorValue;
 
 namespace F4Forge.Net.Tests;
 
@@ -66,7 +68,7 @@ public sealed partial class AsyncSerializerTests
         });
         try
         {
-            using var interceptor = context.Interceptors.OnConsoleCommandExecuting(input => input.Command = "help Player Ω");
+            using var interceptor = context.GetSingleton<GameInterception>().OnConsoleCommandExecuting(input => input.Command = "help Player Ω");
             var decision = channel.Call<JsonElement>("test.intercept", new
             {
                 OriginalCommand = "before", Command = "before", Skip = false, SelectedReferenceFormId = 0x14
@@ -75,10 +77,10 @@ public sealed partial class AsyncSerializerTests
             using var subscription = context.Events.Subscribe<AfterAwait>(async (_, token) =>
             {
                 await scheduled.Task;
-                var position = await context.GameThread.RunAsync(
+                var position = await context.GetSingleton<GameThread>().RunAsync(
                     () =>
                     {
-                        var player = context.Objects.Query(new GetPlayer());
+                        var player = context.GetSingleton<GameObjects>().Query(new GetPlayer());
                         if (player is null)
                         {
                             return (Position?)null;

@@ -4,7 +4,7 @@ The SDK separates reading data from changing state:
 
 - `IQuery<TResult>` runs through `context.Messages.Query(query)`.
 - `ICommand<TResult>` runs through `context.Messages.Execute(command)`.
-- `IFormQuery<TForm>` extends a `FormSnapshot?` query; `context.Objects.Query(query)` also creates a typed object representation.
+- `IFormQuery<TForm>` extends a `FormSnapshot?` query; `context.GetSingleton<GameObjects>().Query(query)` also creates a typed object representation.
 
 `IMessageChannel` remains the shared mechanism for calls and responses. Queries and commands describe
 its calls through typed contracts, while `IEventChannel` delivers notifications.
@@ -22,13 +22,14 @@ The shared `IOperation` defines `MethodName`, `Arguments`, and an optional `Vali
 ```csharp
 using F4Forge.Net.Actors.Commands;
 using F4Forge.Net.Actors.Queries;
-using F4Forge.Net.Objects;
 using F4Forge.Net.Objects.Queries;
+using F4Forge.Net.Objects;
 using F4Forge.Net.Operations;
 using F4Forge.Net.Player.Queries;
+using static F4Forge.Net.Singletons.SingletonExtensions;
 
-var player = context.Objects.Query(new GetPlayer());
-var health = context.Objects.Query(new FormByEditorId<ActorValue>("Health"));
+var player = context.GetSingleton<GameObjects>().Query(new GetPlayer());
+var health = context.GetSingleton<GameObjects>().Query(new FormByEditorId<ActorValue>("Health"));
 if (player is not null && health is not null)
 {
     float current = context.Messages.Query(new GetActorValue(player, health));
@@ -73,17 +74,21 @@ Existing operations are organized by purpose:
 | `Diagnostics/Queries` | `GetDiagnosticOperations`, `GetHookStatuses` | — |
 | `Logging/Commands` | — | `WriteLog` |
 
-The convenience methods `context.Diagnostics.GetOperations`, `GetHooks`, and `LogInfo`/`LogWarning`/`LogError` use these same contracts. The low-level `Messages.Call<TResult>(name, arguments)` remains available for dynamic methods and the transport's internal registration, dispatch, and diagnostic protocols.
+The convenience methods `context.GetSingleton<GameDiagnostics>().GetOperations`, `GetHooks`, and `LogInfo`/`LogWarning`/`LogError` use these same contracts. The low-level `Messages.Call<TResult>(name, arguments)` remains available for dynamic methods and the transport's internal registration, dispatch, and diagnostic protocols.
 
 ## Game Thread and Lifetime
 
 Both calls are synchronous and run on the caller's thread. They do not enqueue work, wait for other threads, or add asynchronous console commands. After `await`, use the existing dispatcher:
 
 ```csharp
-bool applied = await context.GameThread.RunAsync(() =>
+using F4Forge.Net.Objects;
+using F4Forge.Net.Singletons;
+using ActorValue = F4Forge.Net.Objects.ActorValue;
+
+bool applied = await context.GetSingleton<GameThread>().RunAsync(() =>
 {
-    var player = context.Objects.Query(new GetPlayer());
-    var health = context.Objects.Query(new FormByEditorId<ActorValue>("Health"));
+    var player = context.GetSingleton<GameObjects>().Query(new GetPlayer());
+    var health = context.GetSingleton<GameObjects>().Query(new FormByEditorId<ActorValue>("Health"));
     if (player is null || health is null)
     {
         return false;

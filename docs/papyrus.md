@@ -1,15 +1,18 @@
 # Dynamic Papyrus Bridge
 
-`context.Papyrus` calls functions and accesses properties by name. Their types come from VM metadata: no separate class or ABI binding is needed for each method in another mod. The existing channel and its `IDataSerializer` are used; interop exports and the central method table remain unchanged.
+`context.GetSingleton<GamePapyrus>()` calls functions and accesses properties by name. Their types come from VM metadata: no separate class or ABI binding is needed for each method in another mod. The existing channel and its `IDataSerializer` are used; interop exports and the central method table remain unchanged.
 
 ## Global Functions and UI
 
 ```csharp
-var result = await context.Papyrus.CallStaticAsync(
+using F4Forge.Net.Papyrus;
+using static F4Forge.Net.Singletons.SingletonExtensions;
+
+var result = await context.GetSingleton<GamePapyrus>().CallStaticAsync(
     "PrismaUI", "CreateView", ["my-overlay", "my-mod/index.html"], cancellationToken);
 if (result.Kind == "bool" && result.Boolean)
 {
-    await context.Papyrus.CallStaticAsync(
+    await context.GetSingleton<GamePapyrus>().CallStaticAsync(
         "PrismaUI", "Show", ["my-overlay"], cancellationToken);
 }
 ```
@@ -19,10 +22,13 @@ These are published functions in PrismaUI's Papyrus API; the mod itself must be 
 The same mechanism calls UI functions registered by F4SE:
 
 ```csharp
-var isOpen = await context.Papyrus.CallStaticAsync(
+using F4Forge.Net.Papyrus;
+using static F4Forge.Net.Singletons.SingletonExtensions;
+
+var isOpen = await context.GetSingleton<GamePapyrus>().CallStaticAsync(
     "UI", "IsMenuOpen", ["HUDMenu"], cancellationToken);
 
-var result = await context.Papyrus.CallStaticAsync(
+var result = await context.GetSingleton<GamePapyrus>().CallStaticAsync(
     "UI", "Invoke", ["HUDMenu", "root.myFunction", new object?[] { 42, "text" }], cancellationToken);
 ```
 
@@ -31,20 +37,22 @@ var result = await context.Papyrus.CallStaticAsync(
 ## Methods and Properties
 
 ```csharp
-using F4Forge.Net.Objects;
 using F4Forge.Net.Objects.Queries;
+using F4Forge.Net.Objects;
+using F4Forge.Net.Papyrus;
+using static F4Forge.Net.Singletons.SingletonExtensions;
 
-var quest = context.Objects.Query(new FormByPlugin<Form>("Example.esp", 0x123));
+var quest = context.GetSingleton<GameObjects>().Query(new FormByPlugin<Form>("Example.esp", 0x123));
 if (quest is not null)
 {
-    var script = context.Papyrus.Object(quest, "ExampleQuestScript");
-    var count = await context.Papyrus.CallAsync(script, "GetCount", cancellationToken: cancellationToken);
-    var property = await context.Papyrus.GetPropertyAsync(script, "Counter", cancellationToken);
-    await context.Papyrus.SetPropertyAsync(script, "Counter", 10, cancellationToken);
+    var script = context.GetSingleton<GamePapyrus>().Object(quest, "ExampleQuestScript");
+    var count = await context.GetSingleton<GamePapyrus>().CallAsync(script, "GetCount", cancellationToken: cancellationToken);
+    var property = await context.GetSingleton<GamePapyrus>().GetPropertyAsync(script, "Counter", cancellationToken);
+    await context.GetSingleton<GamePapyrus>().SetPropertyAsync(script, "Counter", 10, cancellationToken);
 }
 ```
 
-Retrieving a form through `Objects.Query` requires the game thread; after `await`, use `GameThread.RunAsync` for this step. The Papyrus client itself queues dispatch and result conversion through F4SE and can be called from any managed thread. Custom scripts must already be attached to the form; the bridge does not attach them automatically. A native form representation, such as `Actor` or `Quest`, can be created through the standard VM mechanism.
+Retrieving a form through `context.GetSingleton<GameObjects>().Query` requires the game thread; after `await`, use `context.GetSingleton<GameThread>().RunAsync` for this step (import `F4Forge.Net.Singletons`). The Papyrus client itself queues dispatch and result conversion through F4SE and can be called from any managed thread. Custom scripts must already be attached to the form; the bridge does not attach them automatically. A native form representation, such as `Actor` or `Quest`, can be created through the standard VM mechanism.
 
 Properties are read and modified through the VM, preserving getter/setter behavior. Direct writes to internal variables and subscriptions to other mods' custom events are not included in this release. For America Rising 2, obtain file, form, script, and function names from the resources of the specific installed version; the core contains no special AR2 names.
 

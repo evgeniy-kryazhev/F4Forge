@@ -13,7 +13,9 @@ bool isOpen = context.IsPauseMenuOpen();
 From another thread, use the existing game-thread scheduler:
 
 ```csharp
-bool isOpen = await context.GameThread.RunAsync(() => context.IsPauseMenuOpen());
+using F4Forge.Net.Singletons;
+
+bool isOpen = await context.GetSingleton<GameThread>().RunAsync(() => context.IsPauseMenuOpen());
 ```
 
 Direct calls from other threads fail through the channel's standard error envelope.

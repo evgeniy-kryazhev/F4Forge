@@ -4,11 +4,14 @@ These modules use the existing message channel and its `IDataSerializer`. They a
 
 ## Mod diagnostics
 
-`context.Diagnostics.ModId` is the absolute mod DLL path. Calls, publications, managed handlers and loader stages record the owner, operation/parent IDs, UTC time, thread, duration and outcome. Failures include exception type, message and managed stack; native diagnostics forward failures to the framework log.
+`context.GetSingleton<GameDiagnostics>().ModId` is the absolute mod DLL path. Calls, publications, managed handlers and loader stages record the owner, operation/parent IDs, UTC time, thread, duration and outcome. Failures include exception type, message and managed stack; native diagnostics forward failures to the framework log.
 
 ```csharp
-var recent = context.Diagnostics.GetOperations(maximum: 32);
-var hooks = context.Diagnostics.GetHooks();
+using F4Forge.Net.Diagnostics;
+using static F4Forge.Net.Singletons.SingletonExtensions;
+
+var recent = context.GetSingleton<GameDiagnostics>().GetOperations(maximum: 32);
+var hooks = context.GetSingleton<GameDiagnostics>().GetHooks();
 ```
 
 The host retains the newest 256 operations across all mods. Queries filter by the current mod and may return fewer records to fit the transport limit. Exception text is truncated. Diagnostic failures cannot replace the original result or exception. Records retain values and strings; subscriptions remain owned by the mod. Startup failure triggers the usual rollback, with separate records for each cleanup stage. This is managed operation diagnostics, not an OS crash-dump facility.
@@ -25,14 +28,15 @@ Console installation checks its Address Library target before MinHook relocates 
 using F4Forge.Net.Actors.Events;
 using F4Forge.Net.Events;
 using F4Forge.Net.Logging;
-using F4Forge.Net.Objects;
 using F4Forge.Net.Objects.Queries;
+using F4Forge.Net.Objects;
 using F4Forge.Net.Operations;
 using F4Forge.Net.Player.Queries;
+using static F4Forge.Net.Singletons.SingletonExtensions;
 
 context.Events.Subscribe<ActorDied>(notification =>
 {
-    var actor = context.Objects.Query(new FormById<Actor>(notification.ActorFormId));
+    var actor = context.GetSingleton<GameObjects>().Query(new FormById<Actor>(notification.ActorFormId));
     if (actor is not null)
     {
         var snapshot = context.Messages.Query(new GetReferenceSnapshot(actor));
@@ -41,12 +45,15 @@ context.Events.Subscribe<ActorDied>(notification =>
 });
 ```
 
-All lookups use `context.Objects.Query(query)`. The query declares its native method, wire arguments and expected form type through `IFormQuery<TForm>`; the common executor handles transport, missing forms and type validation. Query metadata is never serialized with the arguments.
+All lookups use `context.GetSingleton<GameObjects>().Query(query)`. The query declares its native method, wire arguments and expected form type through `IFormQuery<TForm>`; the common executor handles transport, missing forms and type validation. Query metadata is never serialized with the arguments.
 
 ```csharp
-Actor? player = context.Objects.Query(new GetPlayer());
-var weapon = context.Objects.Query(new FormByPlugin<Weapon>("Example.esp", 0x123));
-var form = context.Objects.Query(new FormByEditorId<Form>("ExampleWeapon"));
+using F4Forge.Net.Objects;
+using static F4Forge.Net.Singletons.SingletonExtensions;
+
+Actor? player = context.GetSingleton<GameObjects>().Query(new GetPlayer());
+var weapon = context.GetSingleton<GameObjects>().Query(new FormByPlugin<Weapon>("Example.esp", 0x123));
+var form = context.GetSingleton<GameObjects>().Query(new FormByEditorId<Form>("ExampleWeapon"));
 ```
 
 `GetPlayer` belongs to `Player/Queries`; generic lookups belong to `Objects/Queries`. `FormById<TForm>`, `FormByPlugin<TForm>` and `FormByEditorId<TForm>` support built-in and external form types. Missing forms return `null`; incompatible types throw `InvalidCastException`. Editor IDs work only when retained by the game's runtime index. Plugin-local lookup supports regular and light plugins. The previous `Get`, `Resolve`, `Find` and `GetPlayer` service methods are replaced by these query contracts.

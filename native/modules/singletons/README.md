@@ -9,8 +9,9 @@ using GameUI = F4Forge.Net.Singletons.UI;
 var controls = context.GetSingleton<PlayerControls>();
 var camera = context.GetSingleton<PlayerCamera>();
 var ui = context.GetSingleton<GameUI>();
+var gameThread = context.GetSingleton<GameThread>();
 
-bool pauseMenuOpen = await context.GameThread.RunAsync(() =>
+bool pauseMenuOpen = await gameThread.RunAsync(() =>
 {
     if (!ui.IsAvailable)
     {
@@ -26,13 +27,54 @@ different proxies using their own channels. The generic constraint rejects unrel
 types at compile time. Generated factories use static interface dispatch, without
 reflection, a central type switch, or a global registry of mod instances.
 
-Each member invocation resolves `RE::Type::GetSingleton()` again. The game retains
+`GameThread` lazily creates the scheduler for its mod context. It uses the context's
+shared unload lifetime and preserves task cancellation and exception handling.
+Both `RunAsync` overloads can be called from any thread. Obtaining the singleton
+does not register native handlers or enqueue work.
+
+The remaining mod services use the same generic entry point. Their public types
+remain in their feature namespaces:
+
+| Service type | Namespace | Purpose |
+| --- | --- | --- |
+| `GameConsole` | `F4Forge.Net.Console` | Console aliases and handlers |
+| `GameDiagnostics` | `F4Forge.Net.Diagnostics` | Mod identity, operation history, and hook status |
+| `GameObjects` | `F4Forge.Net.Objects` | Typed form queries |
+| `GameInterception` | `F4Forge.Net.Interception` | Synchronous native decisions |
+| `GamePapyrus` | `F4Forge.Net.Papyrus` | Dynamic VM calls and script properties |
+
+```csharp
+using F4Forge.Net.Console;
+using F4Forge.Net.Diagnostics;
+using F4Forge.Net.Interception;
+using F4Forge.Net.Objects;
+using F4Forge.Net.Papyrus;
+using static F4Forge.Net.Singletons.SingletonExtensions;
+
+var console = context.GetSingleton<GameConsole>();
+var diagnostics = context.GetSingleton<GameDiagnostics>();
+var objects = context.GetSingleton<GameObjects>();
+var interceptors = context.GetSingleton<GameInterception>();
+var papyrus = context.GetSingleton<GamePapyrus>();
+```
+
+Services are constructed once per type and mod context, including concurrent first
+lookups. Registrations and pending work retain the mod's existing lifetime; native
+cleanup uses the original transport during shutdown. Unused services are not created.
+`ModContext` keeps `Directory`, `Messages`, `Events`, and `Serializer` as context data
+and transport infrastructure. Service properties are no longer exposed separately.
+
+Importing `SingletonExtensions` with `using static` enables extension-method lookup
+without importing all generated engine types, avoiding names shared with managed
+object wrappers such as `ActorValue`.
+
+Each engine proxy member invocation resolves `RE::Type::GetSingleton()` again. The game retains
 ownership; proxies contain no native pointers and must not dispose engine objects.
 `IsAvailable` returns `false` for a null native singleton; other members fail through
 the channel's standard error envelope. Availability can change between calls.
 
-All members, including `IsAvailable`, require the game thread. Use synchronous lambdas
-inside `context.GameThread.RunAsync`. This check is a baseline: engine methods can
+Engine proxy members, including `IsAvailable`, require the game thread. Use synchronous lambdas
+inside `context.GetSingleton<GameThread>().RunAsync`. This check is a baseline: engine methods can
 have additional state or subsystem requirements that declarations do not describe.
 The generator does not infer semantic safety from C++ types.
 

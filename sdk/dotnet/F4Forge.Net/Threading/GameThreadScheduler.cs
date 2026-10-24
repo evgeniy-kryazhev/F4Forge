@@ -5,13 +5,13 @@ using F4Forge.Net.Mods;
 namespace F4Forge.Net.Threading;
 
 /// <summary>Runs synchronous operations on the engine thread without blocking a publisher.</summary>
-public sealed class GameThreadService
+public sealed class GameThreadScheduler
 {
     private readonly IMessageChannel _messages;
     private readonly IEventChannel _events;
     private readonly ModLifetime _lifetime;
 
-    internal GameThreadService(IMessageChannel messages, IEventChannel events, ModLifetime lifetime)
+    internal GameThreadScheduler(IMessageChannel messages, IEventChannel events, ModLifetime lifetime)
     {
         _messages = messages;
         _events = events;

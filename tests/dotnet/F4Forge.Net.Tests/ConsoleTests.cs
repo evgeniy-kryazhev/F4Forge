@@ -4,6 +4,7 @@ using F4Forge.Net.Interop;
 using F4Forge.Net.Messaging;
 using F4Forge.Net.Mods;
 using F4Forge.Net.Serialization;
+using static F4Forge.Net.Singletons.SingletonExtensions;
 
 namespace F4Forge.Net.Tests;
 
@@ -28,17 +29,17 @@ public sealed partial class ConsoleTests : IDisposable
     private static partial void Destroy();
 
     [Fact]
-    public void ModContextExposesTheConsoleService()
+    public void ModContextExposesTheGameConsole()
     {
         var context = new ModContext(@"C:\mods\Hello", _channel, _channel, _channel.Serializer);
-        using var registration = context.Console.AddHandler("hello", command => command.WriteLine("connected"));
+        using var registration = context.GetSingleton<GameConsole>().AddHandler("hello", command => command.WriteLine("connected"));
         Assert.Equal(["connected"], Invoke("hello").Lines);
     }
 
     [Fact]
     public void HandlerReceivesInvocationAndReturnsLiteralOutput()
     {
-        var console = new ConsoleService(_channel);
+        var console = new GameConsole(_channel);
         using var registration = console.AddHandler("Hello", command =>
         {
             Assert.Equal("hello", command.Alias);
@@ -62,14 +63,14 @@ public sealed partial class ConsoleTests : IDisposable
     [InlineData("hello;quit")]
     public void InvalidAliasesAreRejected(string alias)
     {
-        var console = new ConsoleService(_channel);
+        var console = new GameConsole(_channel);
         Assert.Throws<ArgumentException>(() => console.AddHandler(alias, _ => { }));
     }
 
     [Fact]
     public void NullAndReservedAliasesAreRejected()
     {
-        var console = new ConsoleService(_channel);
+        var console = new GameConsole(_channel);
         Assert.Throws<ArgumentNullException>(() => console.AddHandler(null!, _ => { }));
         Assert.Throws<ArgumentNullException>(() => console.AddHandler("hello", null!));
         Assert.Throws<InvalidOperationException>(() => console.AddHandler("HELP", _ => { }));
@@ -78,7 +79,7 @@ public sealed partial class ConsoleTests : IDisposable
     [Fact]
     public void CaseInsensitiveDuplicatesPreserveOriginalAndDisposalAllowsReuse()
     {
-        var console = new ConsoleService(_channel);
+        var console = new GameConsole(_channel);
         var first = console.AddHandler("hello", command => command.WriteLine("first"));
         Assert.Throws<InvalidOperationException>(() => console.AddHandler("HELLO", _ => { }));
         Assert.Equal(["first"], Invoke("hello").Lines);
@@ -92,7 +93,7 @@ public sealed partial class ConsoleTests : IDisposable
     [Fact]
     public void ExceptionsAndParseErrorsDoNotEscapeTheChannel()
     {
-        var console = new ConsoleService(_channel);
+        var console = new GameConsole(_channel);
         var calls = 0;
         using var registration = console.AddHandler("hello", _ =>
         {
@@ -110,7 +111,7 @@ public sealed partial class ConsoleTests : IDisposable
     [Fact]
     public void ContextCannotWriteAfterSuccessOrFailure()
     {
-        var console = new ConsoleService(_channel);
+        var console = new GameConsole(_channel);
         ConsoleCommandContext? captured = null;
         using var success = console.AddHandler("hello", command =>
         {
@@ -132,13 +133,13 @@ public sealed partial class ConsoleTests : IDisposable
     public void ModShutdownRemovesCommandsAndAllowsAnotherModToReuseAlias()
     {
         using var scope = new ScopedChannel(_channel, new ModLifetime());
-        var console = new ConsoleService(scope);
+        var console = new GameConsole(scope);
         console.AddHandler("hello", command => command.WriteLine("running"));
         Assert.Equal(["running"], Invoke("hello").Lines);
         scope.Dispose();
         Assert.Equal("method_not_found", Assert.Throws<MessageException>(() => Invoke("hello")).Code);
         Assert.Throws<ObjectDisposedException>(() => console.AddHandler("hello", _ => { }));
-        using var replacement = new ConsoleService(_channel).AddHandler("hello", _ => { });
+        using var replacement = new GameConsole(_channel).AddHandler("hello", _ => { });
         Assert.Empty(Invoke("hello").Lines);
     }
 
@@ -151,7 +152,7 @@ public sealed partial class ConsoleTests : IDisposable
         var serializer = new TaggedSerializer();
         var channel = new NativeChannel(CreateBinary(), serializer);
         using var validation = channel.Register<AliasRequest, bool>("console.validate_alias", _ => true);
-        using var registration = new ConsoleService(channel).AddHandler("hello", command => command.WriteLine("World Ω"));
+        using var registration = new GameConsole(channel).AddHandler("hello", command => command.WriteLine("World Ω"));
         var result = channel.Call<ConsoleResult>("console.command.hello", Invocation());
         Assert.Equal(["World Ω"], result.Lines);
         Assert.True(serializer.Reads >= 4);

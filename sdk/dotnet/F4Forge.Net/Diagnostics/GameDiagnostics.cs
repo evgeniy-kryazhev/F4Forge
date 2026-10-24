@@ -5,11 +5,11 @@ using F4Forge.Net.Operations;
 namespace F4Forge.Net.Diagnostics;
 
 /// <summary>Bounded diagnostic history for one mod and the host's native hook statuses.</summary>
-public sealed class ModDiagnostics
+public sealed partial class GameDiagnostics
 {
     private readonly IMessageChannel _messages;
 
-    internal ModDiagnostics(string modId, IMessageChannel messages)
+    internal GameDiagnostics(string modId, IMessageChannel messages)
     {
         ModId = modId;
         _messages = messages;

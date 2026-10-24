@@ -83,7 +83,7 @@ Data requests use `Messages.Query(IQuery<TResult>)`, and state changes use
 `Messages.Execute(ICommand<TResult>)`; contracts and examples are described in
 [operations.md](docs/operations.md).
 Dynamic calls to functions and properties in other Papyrus scripts are available through
-`context.Papyrus`; PrismaUI and F4SE UI examples are in [papyrus.md](docs/papyrus.md).
+`context.GetSingleton<GamePapyrus>()`; PrismaUI and F4SE UI examples are in [papyrus.md](docs/papyrus.md).
 Mods are isolated through `AssemblyLoadContext`; individual mod errors are logged to
 `F4Forge/Net.log`. Automatic mod reloading is not implemented yet.
 
@@ -96,13 +96,19 @@ The SDK uses the existing channels and typed contracts:
 | Calls and responses | `context.Messages`, `IMessageChannel` | `F4Forge.Net.Messaging` |
 | Typed queries and state changes | `Query`, `Execute`, `IQuery<T>`, `ICommand<T>` | `F4Forge.Net.Operations` |
 | Notifications | `context.Events`, `IEventChannel`, `IGameEvent` | `F4Forge.Net.Events` |
-| Game object resolution and types | `context.Objects`, `Form`, `IFormQuery<T>`, `IFormType<T>` | `F4Forge.Net.Objects` |
-| Console handlers | `context.Console`, `IConsole` | `F4Forge.Net.Console` |
-| Synchronous decisions before an action | `context.Interceptors` | `F4Forge.Net.Interception` |
-| Script calls | `context.Papyrus` | `F4Forge.Net.Papyrus` |
+| Game object resolution and types | `context.GetSingleton<GameObjects>()`, `Form`, `IFormQuery<T>`, `IFormType<T>` | `F4Forge.Net.Objects` |
+| Console handlers | `context.GetSingleton<GameConsole>()`, `IConsole` | `F4Forge.Net.Console` |
+| Synchronous decisions before an action | `context.GetSingleton<GameInterception>()` | `F4Forge.Net.Interception` |
+| Script calls | `context.GetSingleton<GamePapyrus>()` | `F4Forge.Net.Papyrus` |
+| Mod diagnostics | `context.GetSingleton<GameDiagnostics>()` | `F4Forge.Net.Diagnostics` |
+| Game thread scheduling | `context.GetSingleton<GameThread>().RunAsync(...)` | `F4Forge.Net.Singletons` |
 
 `Query` and `Execute` call the same `IMessageChannel`; they have no separate transport.
-`Objects.Query` also creates an object of the required C# type from the channel response.
+`GetSingleton<T>()` is available through `F4Forge.Net.Singletons.SingletonExtensions`.
+Import it with `using static F4Forge.Net.Singletons.SingletonExtensions;` when importing
+all generated singleton types would cause a name collision with domain types.
+Facade names follow the [SDK naming standard](docs/naming.md).
+`GetSingleton<GameObjects>().Query` also creates an object of the required C# type from the channel response.
 `IFormType<T>` defines type checking and wrapper creation with the same `FormId`, `Session`,
 and mod channel. Custom types can be added without a central registry;
 see [foundations.md](docs/foundations.md) for an example.

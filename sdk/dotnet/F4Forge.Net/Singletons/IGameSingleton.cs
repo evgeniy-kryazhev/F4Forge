@@ -1,13 +1,13 @@
-using F4Forge.Net.Messaging;
+using F4Forge.Net.Mods;
 
 namespace F4Forge.Net.Singletons;
 
-/// <summary>A typed, borrowed proxy for a CommonLibF4 singleton.</summary>
-/// <typeparam name="TSelf">The generated proxy type.</typeparam>
+/// <summary>A typed engine singleton proxy or context-owned service.</summary>
+/// <typeparam name="TSelf">The singleton proxy or service type.</typeparam>
 public interface IGameSingleton<TSelf> where TSelf : class, IGameSingleton<TSelf>
 {
-    /// <summary>Creates a proxy using the owning mod's shared message channel.</summary>
-    /// <param name="messages">The owning mod's channel.</param>
-    /// <returns>A proxy that never owns or frees the engine object.</returns>
-    static abstract TSelf Create(IMessageChannel messages);
+    /// <summary>Creates a singleton proxy or service for the owning mod context.</summary>
+    /// <param name="context">The owning mod context.</param>
+    /// <returns>A proxy or service that does not own engine objects.</returns>
+    static abstract TSelf Create(ModContext context);
 }
