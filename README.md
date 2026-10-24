@@ -77,7 +77,7 @@ Shutdown cancels startup and asynchronous notifications, waits for them to compl
 calls `DisposeAsync`, and unloads the assembly context. The game thread does not wait for this process.
 Notifications, interceptors, and returning to the game thread are described in
 [async-lifecycle.md](docs/async-lifecycle.md).
-Typed notifications use `context.Events.Subscribe<TEvent>(handler)`;
+Typed notifications use `context.Subscribe<TEvent>(handler)`;
 the channel name is defined once in the event type through `IGameEvent.EventName`.
 Data requests use `Messages.Query(IQuery<TResult>)`, and state changes use
 `Messages.Execute(ICommand<TResult>)`; contracts and examples are described in
@@ -104,9 +104,8 @@ The SDK uses the existing channels and typed contracts:
 | Game thread scheduling | `context.GetSingleton<GameThread>().RunAsync(...)` | `F4Forge.Net.Singletons` |
 
 `Query` and `Execute` call the same `IMessageChannel`; they have no separate transport.
-`GetSingleton<T>()` is available through `F4Forge.Net.Singletons.SingletonExtensions`.
-Import it with `using static F4Forge.Net.Singletons.SingletonExtensions;` when importing
-all generated singleton types would cause a name collision with domain types.
+`GetSingleton<T>()` and `Subscribe<T>()` are instance methods on `ModContext`.
+Import the namespace of the required singleton type; no extension-method import is needed.
 Facade names follow the [SDK naming standard](docs/naming.md).
 `GetSingleton<GameObjects>().Query` also creates an object of the required C# type from the channel response.
 `IFormType<T>` defines type checking and wrapper creation with the same `FormId`, `Session`,
@@ -153,7 +152,7 @@ channel.Events().Publish("game.loaded", {{"saveName", saveName}});
 ```
 
 ```csharp
-var subscription = context.Events.Subscribe<GameLoaded>(
+var subscription = context.Subscribe<GameLoaded>(
     "game.loaded",
     notification => Console.WriteLine(notification.SaveName));
 

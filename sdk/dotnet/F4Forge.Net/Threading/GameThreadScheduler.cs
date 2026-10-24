@@ -61,7 +61,7 @@ public sealed class GameThreadScheduler
         var pending = new Pending<T>(action, cancellationToken, _lifetime.Token);
         try
         {
-            pending.Subscription = _events.Subscribe<Execution>(execution =>
+            pending.Subscription = _events.Subscribe<ExecutionEvent>(execution =>
             {
                 if (execution.TaskId == pending.Id && _messages.Call<bool>("threading.is_game_thread", null))
                 {
@@ -106,7 +106,7 @@ public sealed class GameThreadScheduler
         }
     }
 
-    private sealed record Execution(string TaskId) : IGameEvent
+    private sealed record ExecutionEvent(string TaskId) : IGameEvent
     {
         public static string EventName => "threading.execute";
     }

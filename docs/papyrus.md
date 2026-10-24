@@ -6,7 +6,6 @@
 
 ```csharp
 using F4Forge.Net.Papyrus;
-using static F4Forge.Net.Singletons.SingletonExtensions;
 
 var result = await context.GetSingleton<GamePapyrus>().CallStaticAsync(
     "PrismaUI", "CreateView", ["my-overlay", "my-mod/index.html"], cancellationToken);
@@ -23,7 +22,6 @@ The same mechanism calls UI functions registered by F4SE:
 
 ```csharp
 using F4Forge.Net.Papyrus;
-using static F4Forge.Net.Singletons.SingletonExtensions;
 
 var isOpen = await context.GetSingleton<GamePapyrus>().CallStaticAsync(
     "UI", "IsMenuOpen", ["HUDMenu"], cancellationToken);
@@ -40,7 +38,6 @@ var result = await context.GetSingleton<GamePapyrus>().CallStaticAsync(
 using F4Forge.Net.Objects.Queries;
 using F4Forge.Net.Objects;
 using F4Forge.Net.Papyrus;
-using static F4Forge.Net.Singletons.SingletonExtensions;
 
 var quest = context.GetSingleton<GameObjects>().Query(new FormByPlugin<Form>("Example.esp", 0x123));
 if (quest is not null)

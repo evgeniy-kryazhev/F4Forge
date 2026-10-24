@@ -30,7 +30,7 @@ public sealed partial class InputEventTests : IDisposable
             keyCode,
             userEvent = "Action О©",
             heldSeconds = 0.0F
-        }, new KeyDown(device, expectedKey, "Action О©", 0.0F));
+        }, new KeyDownEvent(device, expectedKey, "Action О©", 0.0F));
     }
 
     [Theory]
@@ -47,7 +47,7 @@ public sealed partial class InputEventTests : IDisposable
             keyCode,
             userEvent = "",
             heldSeconds = 2.5F
-        }, new KeyUp(device, expectedKey, "", 2.5F));
+        }, new KeyUpEvent(device, expectedKey, "", 2.5F));
     }
 
     [Fact]
@@ -59,22 +59,22 @@ public sealed partial class InputEventTests : IDisposable
             keyCode = 65U,
             userEvent = "Action О©",
             heldSeconds = 1.5F
-        }, new KeyPress(InputDevice.Keyboard, KeyCode.A, "Action О©", 1.5F));
+        }, new KeyPressEvent(InputDevice.Keyboard, KeyCode.A, "Action О©", 1.5F));
     }
 
     [Fact]
     public void SubscriberFailureDoesNotBlockOtherInputSubscribers()
     {
         var deliveries = 0;
-        using var failing = _channel.Subscribe<KeyDown>((Action<KeyDown>)(_ =>
+        using var failing = _channel.Subscribe<KeyDownEvent>((Action<KeyDownEvent>)(_ =>
         {
             throw new InvalidOperationException("Input handler failed");
         }));
-        using var healthy = _channel.Subscribe<KeyDown>(_ =>
+        using var healthy = _channel.Subscribe<KeyDownEvent>(_ =>
         {
             deliveries++;
         });
-        _channel.Publish(new KeyDown(InputDevice.Keyboard, KeyCode.A, "", 0));
+        _channel.Publish(new KeyDownEvent(InputDevice.Keyboard, KeyCode.A, "", 0));
         Assert.Equal(1, deliveries);
     }
 
@@ -86,21 +86,21 @@ public sealed partial class InputEventTests : IDisposable
         var presses = 0;
         var holds = 0;
         var releases = 0;
-        events.Subscribe<KeyDown>(_ =>
+        events.Subscribe<KeyDownEvent>(_ =>
         {
             presses++;
         });
-        events.Subscribe<KeyUp>(_ =>
+        events.Subscribe<KeyUpEvent>(_ =>
         {
             releases++;
         });
-        events.Subscribe<KeyPress>(_ =>
+        events.Subscribe<KeyPressEvent>(_ =>
         {
             holds++;
         });
-        var pressed = new KeyDown(InputDevice.Keyboard, KeyCode.A, "", 0);
-        var released = new KeyUp(InputDevice.Keyboard, KeyCode.A, "", 1);
-        var held = new KeyPress(InputDevice.Keyboard, KeyCode.A, "", 0.5F);
+        var pressed = new KeyDownEvent(InputDevice.Keyboard, KeyCode.A, "", 0);
+        var released = new KeyUpEvent(InputDevice.Keyboard, KeyCode.A, "", 1);
+        var held = new KeyPressEvent(InputDevice.Keyboard, KeyCode.A, "", 0.5F);
         _channel.Publish(pressed);
         _channel.Publish(held);
         _channel.Publish(released);
@@ -117,11 +117,11 @@ public sealed partial class InputEventTests : IDisposable
     public void TypedPublicationUsesCamelCaseWithoutEventMetadata()
     {
         System.Text.Json.JsonElement received = default;
-        using var subscription = _channel.Subscribe<System.Text.Json.JsonElement>(KeyDown.EventName, value =>
+        using var subscription = _channel.Subscribe<System.Text.Json.JsonElement>(KeyDownEvent.EventName, value =>
         {
             received = value;
         });
-        _channel.Publish(new KeyDown(InputDevice.Mouse, KeyCode.MouseLeft, "Fire", 0));
+        _channel.Publish(new KeyDownEvent(InputDevice.Mouse, KeyCode.MouseLeft, "Fire", 0));
         Assert.Equal(1, received.GetProperty("device").GetInt32());
         Assert.Equal(256U, received.GetProperty("keyCode").GetUInt32());
         Assert.Equal("Fire", received.GetProperty("userEvent").GetString());

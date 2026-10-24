@@ -26,11 +26,11 @@ receiver are classified directly through CommonLib's button predicates.
 
 | SDK event | Wire name | Transition |
 | --- | --- | --- |
-| KeyDown | game.input.key.down | QJustPressed() |
-| KeyPress | game.input.key.press | QHeldDown() |
-| KeyUp | game.input.key.up | QReleased() |
+| KeyDownEvent | game.input.key.down | QJustPressed() |
+| KeyPressEvent | game.input.key.press | QHeldDown() |
+| KeyUpEvent | game.input.key.up | QReleased() |
 
-A short tap can have no KeyPress. Analog triggers follow engine button values.
+A short tap can have no KeyPressEvent. Analog triggers follow engine button values.
 Mouse wheel, motion, sticks, text and unsupported devices are excluded.
 `Device` is Keyboard=0, Mouse=1, Gamepad=2. `KeyCode` preserves keyboard codes
 (Windows VK on the tested 1.11.240 runtime, W=87), adds 256 for mouse buttons,
@@ -42,9 +42,9 @@ value with a positive timer is Up. A zero value with a zero timer is ignored.
 Wire payloads use the existing serializer. No interop exports are added.
 
 ```csharp
-context.Events.Subscribe<KeyDown>(key => context.LogInfo($"Down {key.KeyCode}"));
-context.Events.Subscribe<KeyPress>(key => context.LogInfo($"Held {key.KeyCode}"));
-context.Events.Subscribe<KeyUp>(key => context.LogInfo($"Up {key.KeyCode}"));
+context.Subscribe<KeyDownEvent>(key => context.LogInfo($"Down {key.KeyCode}"));
+context.Subscribe<KeyPressEvent>(key => context.LogInfo($"Held {key.KeyCode}"));
+context.Subscribe<KeyUpEvent>(key => context.LogInfo($"Up {key.KeyCode}"));
 ```
 
 Import F4Forge.Net.Events and F4Forge.Net.Input.Events. Replace ButtonPressed and

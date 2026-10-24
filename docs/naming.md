@@ -39,6 +39,12 @@ distinct from the public `GameThread` subsystem facade. The existing
 
 ## Casing and Files
 
+Every type implementing `IGameEvent` ends with `Event`, for example `SaveLoadedEvent`,
+`ActorDiedEvent`, or `KeyDownEvent`. This includes private implementation types,
+test fixtures, and custom event contracts in examples. Source files for standalone
+event types use the same name, such as `SaveLoadedEvent.cs`. Renaming a managed event
+type does not change its stable `EventName` or serialized payload.
+
 - Types and methods use `PascalCase`.
 - Interfaces use `I` followed by a descriptive contract name.
 - Private fields use `_camelCase`.
@@ -66,7 +72,6 @@ For example, resolve the console and Papyrus facades from a mod context:
 ```csharp
 using F4Forge.Net.Console;
 using F4Forge.Net.Papyrus;
-using static F4Forge.Net.Singletons.SingletonExtensions;
 
 var console = context.GetSingleton<GameConsole>();
 var papyrus = context.GetSingleton<GamePapyrus>();

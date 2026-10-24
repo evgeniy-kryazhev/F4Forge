@@ -55,7 +55,6 @@ public sealed partial class GameThreadSingletonTests : IAsyncLifetime
         Assert.NotSame(scheduler, otherContext.GetSingleton<GameThread>());
         Assert.Equal(0, _threadChecks);
         Assert.Empty(_queuedTasks);
-        Assert.Throws<ArgumentNullException>(() => SingletonExtensions.GetSingleton<GameThread>(null!));
     }
 
     [Fact]

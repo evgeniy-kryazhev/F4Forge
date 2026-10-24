@@ -4,7 +4,7 @@ namespace F4Forge.Net.Game.Events;
 
 /// <summary>The engine changed the readiness of its game data.</summary>
 /// <param name="Ready">Whether game data is ready.</param>
-public sealed record GameDataReady(bool Ready) : IGameEvent
+public sealed record GameDataReadyEvent(bool Ready) : IGameEvent
 {
     /// <inheritdoc />
     public static string EventName => "game.data.ready";

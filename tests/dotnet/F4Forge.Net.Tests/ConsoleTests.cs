@@ -4,7 +4,6 @@ using F4Forge.Net.Interop;
 using F4Forge.Net.Messaging;
 using F4Forge.Net.Mods;
 using F4Forge.Net.Serialization;
-using static F4Forge.Net.Singletons.SingletonExtensions;
 
 namespace F4Forge.Net.Tests;
 

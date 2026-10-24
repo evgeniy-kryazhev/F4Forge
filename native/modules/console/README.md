@@ -8,7 +8,6 @@ itself; `context.GetSingleton<GameConsole>()` provides the mod's scoped command 
 
 ```csharp
 using F4Forge.Net.Console;
-using static F4Forge.Net.Singletons.SingletonExtensions;
 
 context.GetSingleton<GameConsole>().AddHandler("hello", command =>
 {

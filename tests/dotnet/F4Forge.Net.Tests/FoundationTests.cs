@@ -12,7 +12,6 @@ using F4Forge.Net.Objects;
 using F4Forge.Net.Operations;
 using F4Forge.Net.Player.Queries;
 using F4Forge.Net.Serialization;
-using static F4Forge.Net.Singletons.SingletonExtensions;
 
 namespace F4Forge.Net.Tests;
 
@@ -80,8 +79,8 @@ public sealed partial class FoundationTests : IDisposable
         Assert.False(Assert.Single(records).Success);
 
         var delivered = 0;
-        Track(context.Events.Subscribe<int>("example", (Action<int>)(_ => throw new InvalidOperationException("Event failed"))));
-        Track(context.Events.Subscribe<int>("example", _ => delivered++));
+        Track(context.Subscribe<int>("example", (Action<int>)(_ => throw new InvalidOperationException("Event failed"))));
+        Track(context.Subscribe<int>("example", _ => delivered++));
         context.Events.Publish("example", 1);
         Assert.Equal(1, delivered);
         Assert.Contains(records, entry => entry.Kind == "event.handle" && !entry.Success && entry.Message == "Event failed");
@@ -321,7 +320,7 @@ public sealed partial class FoundationTests : IDisposable
         var context = new ModContext(Path.GetTempPath(), messages, events, channel.Serializer);
         var actor = context.GetSingleton<GameObjects>().Query(new GetPlayer())!;
         context.Messages.Register<int, int>("owned", value => value);
-        context.Events.Subscribe<int>("owned.event", _ => throw new InvalidOperationException());
+        context.Subscribe<int>("owned.event", _ => throw new InvalidOperationException());
         events.Dispose();
         messages.Dispose();
         Assert.Throws<ObjectDisposedException>(() => context.Messages.Query(new DescribeForm(actor)));

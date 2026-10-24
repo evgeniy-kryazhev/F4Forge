@@ -74,7 +74,7 @@ public sealed partial class AsyncSerializerTests
                 OriginalCommand = "before", Command = "before", Skip = false, SelectedReferenceFormId = 0x14
             });
             Assert.Equal("help Player Ω", decision.GetProperty("command").GetString());
-            using var subscription = context.Events.Subscribe<AfterAwait>(async (_, token) =>
+            using var subscription = context.Subscribe<AfterAwaitEvent>(async (_, token) =>
             {
                 await scheduled.Task;
                 var position = await context.GetSingleton<GameThread>().RunAsync(
@@ -93,7 +93,7 @@ public sealed partial class AsyncSerializerTests
                     }, token);
                 completed.SetResult(position);
             });
-            channel.Publish(new AfterAwait());
+            channel.Publish(new AfterAwaitEvent());
             scheduled.SetResult();
             var id = await queued.Task.WaitAsync(TimeSpan.FromSeconds(5));
             // A notification on an arbitrary thread must not execute a game task.
@@ -121,7 +121,7 @@ public sealed partial class AsyncSerializerTests
         }
     }
 
-    private sealed record AfterAwait : IGameEvent
+    private sealed record AfterAwaitEvent : IGameEvent
     {
         public static string EventName => "after.await";
     }

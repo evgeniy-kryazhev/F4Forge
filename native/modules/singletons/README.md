@@ -1,6 +1,6 @@
 # Generated singleton API
 
-The .NET SDK exposes CommonLibF4 singletons through one constrained generic extension:
+The .NET SDK exposes CommonLibF4 singletons through one constrained generic method on `ModContext`:
 
 ```csharp
 using F4Forge.Net.Singletons;
@@ -49,7 +49,6 @@ using F4Forge.Net.Diagnostics;
 using F4Forge.Net.Interception;
 using F4Forge.Net.Objects;
 using F4Forge.Net.Papyrus;
-using static F4Forge.Net.Singletons.SingletonExtensions;
 
 var console = context.GetSingleton<GameConsole>();
 var diagnostics = context.GetSingleton<GameDiagnostics>();
@@ -64,8 +63,8 @@ cleanup uses the original transport during shutdown. Unused services are not cre
 `ModContext` keeps `Directory`, `Messages`, `Events`, and `Serializer` as context data
 and transport infrastructure. Service properties are no longer exposed separately.
 
-Importing `SingletonExtensions` with `using static` enables extension-method lookup
-without importing all generated engine types, avoiding names shared with managed
+`GetSingleton<T>()` is an instance method on `ModContext`. Import only the required
+types or use type aliases when generated engine types share names with managed
 object wrappers such as `ActorValue`.
 
 Each engine proxy member invocation resolves `RE::Type::GetSingleton()` again. The game retains

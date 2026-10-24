@@ -30,7 +30,6 @@ public sealed partial class SingletonTests : IDisposable
         Assert.NotSame(first.GetSingleton<PlayerControls>(), second.GetSingleton<PlayerControls>());
         Assert.IsType<PlayerCamera>(first.GetSingleton<PlayerCamera>());
         Assert.IsType<GameUI>(first.GetSingleton<GameUI>());
-        Assert.Throws<ArgumentNullException>(() => SingletonExtensions.GetSingleton<PlayerControls>(null!));
     }
 
     [Theory]

@@ -29,7 +29,7 @@ Restarting the SDK before cleanup completes is rejected.
 
 ## Notifications
 
-Typed subscriptions use `context.Events.Subscribe<TEvent>(handler)`.
+Typed subscriptions use `context.Subscribe<TEvent>(handler)`.
 The event type implements `IGameEvent` and defines a static `EventName`; separate
 `OnSaveLoaded`, `OnActorDied`, and other `On…` methods are no longer needed.
 Three shared overloads support:
@@ -45,13 +45,13 @@ Adding a new notification requires only one definition:
 ```csharp
 using F4Forge.Net.Events;
 
-public sealed record InventoryChanged(uint OwnerFormId) : IGameEvent
+public sealed record InventoryChangedEvent(uint OwnerFormId) : IGameEvent
 {
     public static string EventName => "mymod.inventory.changed";
 }
 ```
 
-`context.Events.Publish(new InventoryChanged(ownerId))` uses the same name.
+`context.Events.Publish(new InventoryChangedEvent(ownerId))` uses the same name.
 The `EventName` property is not included in serialized data. The low-level
 `Subscribe<T>(name, handler)` and `Publish(name, data)` methods remain available for
 dynamic names and contracts that do not implement `IGameEvent`.
@@ -82,7 +82,7 @@ using F4Forge.Net.Player.Queries;
 using F4Forge.Net.Saves.Events;
 using F4Forge.Net.Singletons;
 
-context.Events.Subscribe<SaveLoaded>(async (notification, cancellationToken) =>
+context.Subscribe<SaveLoadedEvent>(async (notification, cancellationToken) =>
 {
     if (!notification.Success)
     {
@@ -125,7 +125,6 @@ A notification reports something that has happened; an interceptor returns a dec
 
 ```csharp
 using F4Forge.Net.Interception;
-using static F4Forge.Net.Singletons.SingletonExtensions;
 
 context.GetSingleton<GameInterception>().OnConsoleCommandExecuting(command =>
 {

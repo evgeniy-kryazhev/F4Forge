@@ -8,7 +8,6 @@ These modules use the existing message channel and its `IDataSerializer`. They a
 
 ```csharp
 using F4Forge.Net.Diagnostics;
-using static F4Forge.Net.Singletons.SingletonExtensions;
 
 var recent = context.GetSingleton<GameDiagnostics>().GetOperations(maximum: 32);
 var hooks = context.GetSingleton<GameDiagnostics>().GetHooks();
@@ -32,9 +31,8 @@ using F4Forge.Net.Objects.Queries;
 using F4Forge.Net.Objects;
 using F4Forge.Net.Operations;
 using F4Forge.Net.Player.Queries;
-using static F4Forge.Net.Singletons.SingletonExtensions;
 
-context.Events.Subscribe<ActorDied>(notification =>
+context.Subscribe<ActorDiedEvent>(notification =>
 {
     var actor = context.GetSingleton<GameObjects>().Query(new FormById<Actor>(notification.ActorFormId));
     if (actor is not null)
@@ -49,7 +47,6 @@ All lookups use `context.GetSingleton<GameObjects>().Query(query)`. The query de
 
 ```csharp
 using F4Forge.Net.Objects;
-using static F4Forge.Net.Singletons.SingletonExtensions;
 
 Actor? player = context.GetSingleton<GameObjects>().Query(new GetPlayer());
 var weapon = context.GetSingleton<GameObjects>().Query(new FormByPlugin<Weapon>("Example.esp", 0x123));

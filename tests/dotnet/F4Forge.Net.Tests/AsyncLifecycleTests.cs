@@ -149,15 +149,15 @@ public sealed partial class AsyncLifecycleTests : IDisposable
         var release = Signal();
         var finished = Signal();
         var calls = new List<int>();
-        using var subscription = _context.Events.Subscribe<LifecycleNotification>(async notification =>
+        using var subscription = _context.Subscribe<LifecycleNotificationEvent>(async notification =>
         {
             calls.Add(notification.Value);
             await release.Task;
             finished.TrySetResult();
             throw new InvalidOperationException("Failure after await");
         });
-        _channel.Publish(new LifecycleNotification(1));
-        _channel.Publish(new LifecycleNotification(2));
+        _channel.Publish(new LifecycleNotificationEvent(1));
+        _channel.Publish(new LifecycleNotificationEvent(2));
         Assert.Equal([1, 2], calls);
         Assert.False(finished.Task.IsCompleted);
         release.SetResult();
@@ -167,7 +167,7 @@ public sealed partial class AsyncLifecycleTests : IDisposable
         Assert.All(_records, record => Assert.EndsWith("AsyncExample.dll", record.ModId));
     }
 
-    private sealed record LifecycleNotification(int Value) : IGameEvent
+    private sealed record LifecycleNotificationEvent(int Value) : IGameEvent
     {
         public static string EventName => "async";
     }
@@ -177,12 +177,12 @@ public sealed partial class AsyncLifecycleTests : IDisposable
     {
         var release = Signal();
         CancellationToken observed = default;
-        var subscription = _context.Events.Subscribe<SaveLoaded>(async (_, token) =>
+        var subscription = _context.Subscribe<SaveLoadedEvent>(async (_, token) =>
         {
             observed = token;
             await release.Task;
         });
-        _channel.Publish("game.save.loaded", new SaveLoaded("Example", true));
+        _channel.Publish("game.save.loaded", new SaveLoadedEvent("Example", true));
         subscription.Dispose();
         Assert.True(observed.IsCancellationRequested);
         _lifetime.Close();
@@ -196,7 +196,7 @@ public sealed partial class AsyncLifecycleTests : IDisposable
     public async Task HandlerCanStopItsOwnLifetimeWithoutDeadlocking()
     {
         var continued = Signal();
-        using var subscription = _context.Events.Subscribe<int>("stop", async (_, token) =>
+        using var subscription = _context.Subscribe<int>("stop", async (_, token) =>
         {
             _events.Dispose();
             await Task.Yield();
@@ -316,7 +316,7 @@ public sealed partial class AsyncLifecycleTests : IDisposable
     {
         var release = Signal();
         var attempted = Signal();
-        using var subscription = _context.Events.Subscribe<int>("late", async _ =>
+        using var subscription = _context.Subscribe<int>("late", async _ =>
         {
             await release.Task;
             Assert.Throws<ObjectDisposedException>(() => _context.Messages.Call<int>("native.echo", 1));

@@ -6,7 +6,6 @@ using F4Forge.Net.Mods;
 using F4Forge.Net.Objects;
 using F4Forge.Net.Papyrus;
 using F4Forge.Net.Serialization;
-using static F4Forge.Net.Singletons.SingletonExtensions;
 
 namespace F4Forge.Net.Tests;
 

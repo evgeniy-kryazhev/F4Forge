@@ -26,7 +26,6 @@ using F4Forge.Net.Objects.Queries;
 using F4Forge.Net.Objects;
 using F4Forge.Net.Operations;
 using F4Forge.Net.Player.Queries;
-using static F4Forge.Net.Singletons.SingletonExtensions;
 
 var player = context.GetSingleton<GameObjects>().Query(new GetPlayer());
 var health = context.GetSingleton<GameObjects>().Query(new FormByEditorId<ActorValue>("Health"));
