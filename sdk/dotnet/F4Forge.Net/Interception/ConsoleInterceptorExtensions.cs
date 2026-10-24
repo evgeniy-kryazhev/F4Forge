@@ -7,7 +7,7 @@ public static class ConsoleInterceptorExtensions
     /// <param name="interceptors">The mod-owned interceptor service.</param>
     /// <param name="handler">Synchronous callback, valid only during the intercepted call.</param>
     /// <returns>A registration disposed automatically on startup failure or shutdown.</returns>
-    public static IDisposable OnConsoleCommandExecuting(this InterceptorService interceptors,
+    public static IDisposable OnConsoleCommandExecuting(this GameInterception interceptors,
         Action<ConsoleCommandInterception> handler)
     {
         ArgumentNullException.ThrowIfNull(interceptors);

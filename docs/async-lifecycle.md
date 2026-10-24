@@ -29,7 +29,7 @@ Restarting the SDK before cleanup completes is rejected.
 
 ## Notifications
 
-Typed subscriptions use `context.Events.Subscribe<TEvent>(handler)`.
+Typed subscriptions use `context.Subscribe<TEvent>(handler)`.
 The event type implements `IGameEvent` and defines a static `EventName`; separate
 `OnSaveLoaded`, `OnActorDied`, and other `On…` methods are no longer needed.
 Three shared overloads support:
@@ -45,13 +45,13 @@ Adding a new notification requires only one definition:
 ```csharp
 using F4Forge.Net.Events;
 
-public sealed record InventoryChanged(uint OwnerFormId) : IGameEvent
+public sealed record InventoryChangedEvent(uint OwnerFormId) : IGameEvent
 {
     public static string EventName => "mymod.inventory.changed";
 }
 ```
 
-`context.Events.Publish(new InventoryChanged(ownerId))` uses the same name.
+`context.Events.Publish(new InventoryChangedEvent(ownerId))` uses the same name.
 The `EventName` property is not included in serialized data. The low-level
 `Subscribe<T>(name, handler)` and `Publish(name, data)` methods remain available for
 dynamic names and contracts that do not implement `IGameEvent`.
@@ -70,28 +70,29 @@ a synchronous contract; without an explicit type, the compiler may choose `Func<
 ## Game Objects After await
 
 A regular `await` does not guarantee a return to the game thread. Use
-`context.GameThread.RunAsync` with a synchronous block:
+`context.GetSingleton<GameThread>().RunAsync` with a synchronous block:
 
 ```csharp
 using System.Text.Json;
 using F4Forge.Net.Events;
-using F4Forge.Net.Objects;
 using F4Forge.Net.Objects.Queries;
+using F4Forge.Net.Objects;
 using F4Forge.Net.Operations;
 using F4Forge.Net.Player.Queries;
 using F4Forge.Net.Saves.Events;
+using F4Forge.Net.Singletons;
 
-context.Events.Subscribe<SaveLoaded>(async (notification, cancellationToken) =>
+context.Subscribe<SaveLoadedEvent>(async (notification, cancellationToken) =>
 {
     if (!notification.Success)
     {
         return;
     }
 
-    var position = await context.GameThread.RunAsync(
+    var position = await context.GetSingleton<GameThread>().RunAsync(
         () =>
         {
-            var player = context.Objects.Query(new GetPlayer());
+            var player = context.GetSingleton<GameObjects>().Query(new GetPlayer());
             if (player is null)
             {
                 return (Position?)null;
@@ -125,7 +126,7 @@ A notification reports something that has happened; an interceptor returns a dec
 ```csharp
 using F4Forge.Net.Interception;
 
-context.Interceptors.OnConsoleCommandExecuting(command =>
+context.GetSingleton<GameInterception>().OnConsoleCommandExecuting(command =>
 {
     if (command.Command == "mymod.help")
     {
@@ -157,7 +158,7 @@ The shared native registry is in `native/modules/interception/`. It uses
 `interceptors.register` and `interceptors.remove` and invokes registered
 methods through the shared channel; the game adapter is responsible for validating the decision.
 New typed contracts are added through SDK extension classes on top of
-`InterceptorService.Register<TInput, TContext, TDecision>`, without changing the shared
+`GameInterception.Register<TInput, TContext, TDecision>`, without changing the shared
 service. The extension defines the name, context creation, and decision copying.
 `TContext` inherits from `InvocationContext` and calls `EnsureActive` before
 changes. The shared adapter deactivates the context on success, handler exceptions,

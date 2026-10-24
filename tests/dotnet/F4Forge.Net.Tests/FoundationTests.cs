@@ -7,8 +7,8 @@ using F4Forge.Net.Hosting;
 using F4Forge.Net.Interop;
 using F4Forge.Net.Messaging;
 using F4Forge.Net.Mods;
-using F4Forge.Net.Objects;
 using F4Forge.Net.Objects.Queries;
+using F4Forge.Net.Objects;
 using F4Forge.Net.Operations;
 using F4Forge.Net.Player.Queries;
 using F4Forge.Net.Serialization;
@@ -45,8 +45,8 @@ public sealed partial class FoundationTests : IDisposable
         var handler = Assert.Single(records, entry => entry.Name == "first" && entry.Kind == "message.handle");
         var nested = Assert.Single(records, entry => entry.Name == "second" && entry.Kind == "message.call");
         var nestedHandler = Assert.Single(records, entry => entry.Name == "second" && entry.Kind == "message.handle");
-        Assert.Equal(first.Diagnostics.ModId, handler.ModId);
-        Assert.Equal(second.Diagnostics.ModId, nestedHandler.ModId);
+        Assert.Equal(first.GetSingleton<GameDiagnostics>().ModId, handler.ModId);
+        Assert.Equal(second.GetSingleton<GameDiagnostics>().ModId, nestedHandler.ModId);
         Assert.Equal(outer.Id, handler.ParentId);
         Assert.Equal(handler.Id, nested.ParentId);
         Assert.Equal(nested.Id, nestedHandler.ParentId);
@@ -62,7 +62,7 @@ public sealed partial class FoundationTests : IDisposable
         Assert.Throws<MessageException>(() => second.Messages.Call<int>("broken", 0));
         var error = Assert.Single(records, entry => entry.Name == "broken" && entry.Kind == "message.handle");
         Assert.False(error.Success);
-        Assert.Equal(first.Diagnostics.ModId, error.ModId);
+        Assert.Equal(first.GetSingleton<GameDiagnostics>().ModId, error.ModId);
         Assert.Equal(typeof(InvalidOperationException).FullName, error.ExceptionType);
         Assert.Contains("Error 🌍", error.Message);
         Assert.Contains(nameof(DiagnosticsKeepDllOwnershipNestedCallsAndFullErrors), error.StackTrace);
@@ -79,8 +79,8 @@ public sealed partial class FoundationTests : IDisposable
         Assert.False(Assert.Single(records).Success);
 
         var delivered = 0;
-        Track(context.Events.Subscribe<int>("example", (Action<int>)(_ => throw new InvalidOperationException("Event failed"))));
-        Track(context.Events.Subscribe<int>("example", _ => delivered++));
+        Track(context.Subscribe<int>("example", (Action<int>)(_ => throw new InvalidOperationException("Event failed"))));
+        Track(context.Subscribe<int>("example", _ => delivered++));
         context.Events.Publish("example", 1);
         Assert.Equal(1, delivered);
         Assert.Contains(records, entry => entry.Kind == "event.handle" && !entry.Success && entry.Message == "Event failed");
@@ -109,16 +109,16 @@ public sealed partial class FoundationTests : IDisposable
         var context = Context(channel);
         Track(channel.Register<JsonElement, DiagnosticRecord[]>("diagnostics.operations", arguments =>
         {
-            Assert.Equal(context.Diagnostics.ModId, arguments.GetProperty("modId").GetString());
+            Assert.Equal(context.GetSingleton<GameDiagnostics>().ModId, arguments.GetProperty("modId").GetString());
             Assert.Equal(2, arguments.GetProperty("maximum").GetInt32());
             return records.ToArray();
         }));
         Track(channel.Register<object?, HookStatus[]>("diagnostics.hooks", _ => [new("console", "function", "failed", "Invalid target", 1)]));
         context.Messages.Call<int>("native.echo", 1);
-        Assert.Single(context.Diagnostics.GetOperations(2));
-        Assert.Equal("failed", Assert.Single(context.Diagnostics.GetHooks()).State);
+        Assert.Single(context.GetSingleton<GameDiagnostics>().GetOperations(2));
+        Assert.Equal("failed", Assert.Single(context.GetSingleton<GameDiagnostics>().GetHooks()).State);
         Assert.Single(records);
-        Assert.Throws<ArgumentOutOfRangeException>(() => context.Diagnostics.GetOperations(0));
+        Assert.Throws<ArgumentOutOfRangeException>(() => context.GetSingleton<GameDiagnostics>().GetOperations(0));
     }
 
     [Theory]
@@ -146,13 +146,13 @@ public sealed partial class FoundationTests : IDisposable
             Assert.Equal(7UL, arguments.GetProperty("session").GetUInt64());
             return new ReferenceSnapshot(10, 20, 0, new Position(1, 2, 3));
         }));
-        Assert.Null(context.Objects.Query(new FormById<Form>(0)));
-        Assert.IsType<Weapon>(context.Objects.Query(new FormById<Weapon>(1)));
-        Assert.IsType<Weapon>(context.Objects.Query(new FormByPlugin<Weapon>("Example.esp", 1)));
-        Assert.IsType<Weapon>(context.Objects.Query(new FormByEditorId<Weapon>("ExampleWeapon")));
-        Assert.Throws<InvalidCastException>(() => context.Objects.Query(new FormById<Actor>(1)));
-        Assert.True(context.Objects.Query(new FormById<Form>(2))!.Is<Reference>());
-        var actor = context.Objects.Query(new GetPlayer())!;
+        Assert.Null(context.GetSingleton<GameObjects>().Query(new FormById<Form>(0)));
+        Assert.IsType<Weapon>(context.GetSingleton<GameObjects>().Query(new FormById<Weapon>(1)));
+        Assert.IsType<Weapon>(context.GetSingleton<GameObjects>().Query(new FormByPlugin<Weapon>("Example.esp", 1)));
+        Assert.IsType<Weapon>(context.GetSingleton<GameObjects>().Query(new FormByEditorId<Weapon>("ExampleWeapon")));
+        Assert.Throws<InvalidCastException>(() => context.GetSingleton<GameObjects>().Query(new FormById<Actor>(1)));
+        Assert.True(context.GetSingleton<GameObjects>().Query(new FormById<Form>(2))!.Is<Reference>());
+        var actor = context.GetSingleton<GameObjects>().Query(new GetPlayer())!;
         Assert.Equal(new Position(1, 2, 3), context.Messages.Query(new GetReferenceSnapshot(actor)).Position);
         Assert.Equal(0U, context.Messages.Query(new GetReferenceSnapshot(actor)).LocationFormId);
 
@@ -168,12 +168,12 @@ public sealed partial class FoundationTests : IDisposable
             Assert.Equal(90f, arguments.GetProperty("value").GetSingle());
             return true;
         }));
-        var value = context.Objects.Query(new FormById<ActorValue>(3))!;
+        var value = context.GetSingleton<GameObjects>().Query(new FormById<ActorValue>(3))!;
         Assert.Equal(75.5f, context.Messages.Query(new GetActorValue(actor, value, ActorValueKind.Permanent)));
         context.Messages.Execute(new SetActorBaseValue(actor, value, 90));
         Assert.Throws<ArgumentOutOfRangeException>(() => context.Messages.Execute(new SetActorBaseValue(actor, value, float.NaN)));
         Assert.Throws<ArgumentOutOfRangeException>(() => context.Messages.Query(new GetActorValue(actor, value, (ActorValueKind)999)));
-        var foreignValue = Context(channel, "Other.dll").Objects.Query(new FormById<ActorValue>(3))!;
+        var foreignValue = Context(channel, "Other.dll").GetSingleton<GameObjects>().Query(new FormById<ActorValue>(3))!;
         Assert.Throws<ArgumentException>(() => context.Messages.Query(new GetActorValue(actor, foreignValue)));
         var oldValue = new Form(context.Messages, Snapshot(3, "AVIF", value: true) with { Session = 6 }).As<ActorValue>();
         Assert.Throws<ArgumentException>(() => context.Messages.Query(new GetActorValue(actor, oldValue)));
@@ -198,9 +198,9 @@ public sealed partial class FoundationTests : IDisposable
                 _ => Snapshot(2, "ACHR", actor: true)
             };
         }));
-        Assert.Null(context.Objects.Query(new GetPlayer()));
-        Assert.Throws<InvalidCastException>(() => context.Objects.Query(new GetPlayer()));
-        Actor? player = context.Objects.Query(new GetPlayer());
+        Assert.Null(context.GetSingleton<GameObjects>().Query(new GetPlayer()));
+        Assert.Throws<InvalidCastException>(() => context.GetSingleton<GameObjects>().Query(new GetPlayer()));
+        Actor? player = context.GetSingleton<GameObjects>().Query(new GetPlayer());
         Assert.NotNull(player);
         Assert.Same(context.Messages, player.Messages);
         Assert.Equal(7UL, player.Session);
@@ -212,7 +212,7 @@ public sealed partial class FoundationTests : IDisposable
             Assert.Equal("Weapon Ω", property.Value.GetString());
             return Snapshot(1, "WEAP");
         }));
-        Weapon? weapon = context.Objects.Query(new WeaponQuery("Weapon Ω"));
+        Weapon? weapon = context.GetSingleton<GameObjects>().Query(new WeaponQuery("Weapon Ω"));
         Assert.NotNull(weapon);
         Assert.Same(context.Messages, weapon.Messages);
 
@@ -223,10 +223,10 @@ public sealed partial class FoundationTests : IDisposable
             Assert.Equal(2, arguments.EnumerateObject().Count());
             return Snapshot(1, "WEAP");
         }));
-        Assert.NotNull(context.Objects.Query(new FormByPlugin<Weapon>("Mod Ω.esl", 0x123)));
-        Assert.Throws<ArgumentException>(() => context.Objects.Query(new FormByPlugin<Form>(" ", 1)));
-        Assert.Throws<ArgumentException>(() => context.Objects.Query(new FormByEditorId<Form>(" ")));
-        Assert.Throws<ArgumentNullException>(() => context.Objects.Query<Actor>(null!));
+        Assert.NotNull(context.GetSingleton<GameObjects>().Query(new FormByPlugin<Weapon>("Mod Ω.esl", 0x123)));
+        Assert.Throws<ArgumentException>(() => context.GetSingleton<GameObjects>().Query(new FormByPlugin<Form>(" ", 1)));
+        Assert.Throws<ArgumentException>(() => context.GetSingleton<GameObjects>().Query(new FormByEditorId<Form>(" ")));
+        Assert.Throws<ArgumentNullException>(() => context.GetSingleton<GameObjects>().Query<Actor>(null!));
     }
 
     [Theory]
@@ -318,9 +318,9 @@ public sealed partial class FoundationTests : IDisposable
         using var messages = new ScopedChannel(channel, lifetime);
         using var events = new ScopedEvents(channel, lifetime);
         var context = new ModContext(Path.GetTempPath(), messages, events, channel.Serializer);
-        var actor = context.Objects.Query(new GetPlayer())!;
+        var actor = context.GetSingleton<GameObjects>().Query(new GetPlayer())!;
         context.Messages.Register<int, int>("owned", value => value);
-        context.Events.Subscribe<int>("owned.event", _ => throw new InvalidOperationException());
+        context.Subscribe<int>("owned.event", _ => throw new InvalidOperationException());
         events.Dispose();
         messages.Dispose();
         Assert.Throws<ObjectDisposedException>(() => context.Messages.Query(new DescribeForm(actor)));

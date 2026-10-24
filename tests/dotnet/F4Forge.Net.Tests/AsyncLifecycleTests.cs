@@ -1,8 +1,8 @@
 using System.Collections.Concurrent;
 using System.Runtime.InteropServices;
 using System.Text.Json;
-using F4Forge.Net.Diagnostics;
 using F4Forge.Net.Callbacks;
+using F4Forge.Net.Diagnostics;
 using F4Forge.Net.Events;
 using F4Forge.Net.Hosting;
 using F4Forge.Net.Interception;
@@ -10,6 +10,7 @@ using F4Forge.Net.Interop;
 using F4Forge.Net.Messaging;
 using F4Forge.Net.Mods;
 using F4Forge.Net.Saves.Events;
+using F4Forge.Net.Singletons;
 
 namespace F4Forge.Net.Tests;
 
@@ -148,15 +149,15 @@ public sealed partial class AsyncLifecycleTests : IDisposable
         var release = Signal();
         var finished = Signal();
         var calls = new List<int>();
-        using var subscription = _context.Events.Subscribe<LifecycleNotification>(async notification =>
+        using var subscription = _context.Subscribe<LifecycleNotificationEvent>(async notification =>
         {
             calls.Add(notification.Value);
             await release.Task;
             finished.TrySetResult();
             throw new InvalidOperationException("Failure after await");
         });
-        _channel.Publish(new LifecycleNotification(1));
-        _channel.Publish(new LifecycleNotification(2));
+        _channel.Publish(new LifecycleNotificationEvent(1));
+        _channel.Publish(new LifecycleNotificationEvent(2));
         Assert.Equal([1, 2], calls);
         Assert.False(finished.Task.IsCompleted);
         release.SetResult();
@@ -166,7 +167,7 @@ public sealed partial class AsyncLifecycleTests : IDisposable
         Assert.All(_records, record => Assert.EndsWith("AsyncExample.dll", record.ModId));
     }
 
-    private sealed record LifecycleNotification(int Value) : IGameEvent
+    private sealed record LifecycleNotificationEvent(int Value) : IGameEvent
     {
         public static string EventName => "async";
     }
@@ -176,12 +177,12 @@ public sealed partial class AsyncLifecycleTests : IDisposable
     {
         var release = Signal();
         CancellationToken observed = default;
-        var subscription = _context.Events.Subscribe<SaveLoaded>(async (_, token) =>
+        var subscription = _context.Subscribe<SaveLoadedEvent>(async (_, token) =>
         {
             observed = token;
             await release.Task;
         });
-        _channel.Publish("game.save.loaded", new SaveLoaded("Example", true));
+        _channel.Publish("game.save.loaded", new SaveLoadedEvent("Example", true));
         subscription.Dispose();
         Assert.True(observed.IsCancellationRequested);
         _lifetime.Close();
@@ -195,7 +196,7 @@ public sealed partial class AsyncLifecycleTests : IDisposable
     public async Task HandlerCanStopItsOwnLifetimeWithoutDeadlocking()
     {
         var continued = Signal();
-        using var subscription = _context.Events.Subscribe<int>("stop", async (_, token) =>
+        using var subscription = _context.Subscribe<int>("stop", async (_, token) =>
         {
             _events.Dispose();
             await Task.Yield();
@@ -220,11 +221,11 @@ public sealed partial class AsyncLifecycleTests : IDisposable
             queued.Enqueue(input.GetProperty("taskId").GetString()!);
             return true;
         }));
-        var immediate = _context.GameThread.RunAsync(() => 42);
+        var immediate = _context.GetSingleton<GameThread>().RunAsync(() => 42);
         Assert.True(immediate.IsCompletedSuccessfully);
         Assert.Equal(42, await immediate);
         Volatile.Write(ref gameThread, 0);
-        var result = _context.GameThread.RunAsync(() => 73);
+        var result = _context.GetSingleton<GameThread>().RunAsync(() => 73);
         Assert.False(result.IsCompleted);
         Assert.True(queued.TryDequeue(out var id));
         Volatile.Write(ref gameThread, Environment.CurrentManagedThreadId);
@@ -233,19 +234,19 @@ public sealed partial class AsyncLifecycleTests : IDisposable
         Volatile.Write(ref gameThread, 0);
         using var cancellation = new CancellationTokenSource();
         var executed = false;
-        var cancelled = _context.GameThread.RunAsync(() => executed = true, cancellation.Token);
+        var cancelled = _context.GetSingleton<GameThread>().RunAsync(() => executed = true, cancellation.Token);
         cancellation.Cancel();
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => cancelled);
         Assert.True(queued.TryDequeue(out var cancelledId));
         _channel.Publish("threading.execute", new { TaskId = cancelledId });
         Assert.False(executed);
-        var failure = _context.GameThread.RunAsync<int>(() => throw new InvalidOperationException("Game-thread failure"));
+        var failure = _context.GetSingleton<GameThread>().RunAsync<int>(() => throw new InvalidOperationException("Game-thread failure"));
         Assert.True(queued.TryDequeue(out var failedId));
         Volatile.Write(ref gameThread, Environment.CurrentManagedThreadId);
         _channel.Publish("threading.execute", new { TaskId = failedId });
         await Assert.ThrowsAsync<InvalidOperationException>(() => failure);
         Volatile.Write(ref gameThread, 0);
-        var stopped = _context.GameThread.RunAsync(() => 1);
+        var stopped = _context.GetSingleton<GameThread>().RunAsync(() => 1);
         _lifetime.Close();
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => stopped);
     }
@@ -254,23 +255,23 @@ public sealed partial class AsyncLifecycleTests : IDisposable
     public void InterceptorsCommitInOrderRollbackFailureAndStopAtSkip()
     {
         ConsoleCommandInterception? captured = null;
-        using var first = _context.Interceptors.OnConsoleCommandExecuting(context =>
+        using var first = _context.GetSingleton<GameInterception>().OnConsoleCommandExecuting(context =>
         {
             Assert.Equal("help", context.OriginalCommand);
             context.Command = "modified";
             captured = context;
         });
-        using var broken = _context.Interceptors.OnConsoleCommandExecuting(context =>
+        using var broken = _context.GetSingleton<GameInterception>().OnConsoleCommandExecuting(context =>
         {
             context.Command = "must be rolled back";
             throw new InvalidOperationException("Interceptor failed");
         });
-        using var skip = _context.Interceptors.OnConsoleCommandExecuting(context =>
+        using var skip = _context.GetSingleton<GameInterception>().OnConsoleCommandExecuting(context =>
         {
             Assert.Equal("modified", context.Command);
             context.Skip = true;
         });
-        using var unreachable = _context.Interceptors.OnConsoleCommandExecuting(_ => Assert.Fail("Skip did not terminate the chain"));
+        using var unreachable = _context.GetSingleton<GameInterception>().OnConsoleCommandExecuting(_ => Assert.Fail("Skip did not terminate the chain"));
         var result = _channel.Call<JsonElement>("test.intercept",
             new { OriginalCommand = "help", Command = "help", SelectedReferenceFormId = 0x14, Skip = false });
         Assert.Equal("modified", result.GetProperty("command").GetString());
@@ -283,7 +284,7 @@ public sealed partial class AsyncLifecycleTests : IDisposable
     public void SharedInterceptorAdapterCompletesCustomContextsWhenDecisionConversionFails()
     {
         CustomInterception? captured = null;
-        using var interceptor = _context.Interceptors.Register<CustomInput, CustomInterception, object>(
+        using var interceptor = _context.GetSingleton<GameInterception>().Register<CustomInput, CustomInterception, object>(
             "console.command.executing", context => captured = context,
             input => new CustomInterception(input.Command),
             _ => throw new InvalidOperationException("Decision conversion failed"));
@@ -315,7 +316,7 @@ public sealed partial class AsyncLifecycleTests : IDisposable
     {
         var release = Signal();
         var attempted = Signal();
-        using var subscription = _context.Events.Subscribe<int>("late", async _ =>
+        using var subscription = _context.Subscribe<int>("late", async _ =>
         {
             await release.Task;
             Assert.Throws<ObjectDisposedException>(() => _context.Messages.Call<int>("native.echo", 1));

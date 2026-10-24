@@ -33,7 +33,7 @@ public sealed class FixtureMod : IMod
             return FixtureValues.Identity(response);
         });
         context.Messages.Register<object?, string>("fixture.directory", _ => context.Directory);
-        context.Events.Subscribe<JsonElement>("fixture.input", data => context.Events.Publish("fixture.output", data));
+        context.Subscribe<JsonElement>("fixture.input", data => context.Events.Publish("fixture.output", data));
         if (File.Exists(Path.Combine(context.Directory, "fail-start")))
         {
             throw new InvalidOperationException("Fixture startup failed after registration.");

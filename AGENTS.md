@@ -49,6 +49,9 @@ No numeric coverage threshold is imposed.
 
 ## Readability and Ownership
 
+Follow the [SDK naming standard](docs/naming.md) for handwritten subsystem facades,
+generated wrappers, domain types, and infrastructure roles.
+
 Follow `.editorconfig`; use four-space C++/C# indentation, descriptive names, explicit
 control flow, and concise comments for invariants. C# types/methods use PascalCase;
 private fields use `_camelCase`. Keep warnings as errors. Never let exceptions cross

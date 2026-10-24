@@ -14,7 +14,7 @@ belong to their game subsystems. All payloads use the channel's `IDataSerializer
 
 The SDK paths above are relative to `sdk/dotnet/F4Forge.Net/`. Each notification
 implements `IGameEvent` and declares its stable `EventName`. All subsystems use
-the same three `context.Events.Subscribe<TEvent>(handler)` overloads.
+the same three `context.Subscribe<TEvent>(handler)` overloads.
 
 ```csharp
 using F4Forge.Net.Actors.Events;
@@ -24,12 +24,12 @@ using F4Forge.Net.Saves.Events;
 using F4Forge.Net.Logging;
 
 // Inside IMod.StartAsync(ModContext context, CancellationToken cancellationToken):
-context.Events.Subscribe<SaveLoaded>(notification =>
+context.Subscribe<SaveLoadedEvent>(notification =>
 {
     context.LogInfo($"Save loaded: {notification.Success}");
 });
 
-context.Events.Subscribe<ActorDied>(notification =>
+context.Subscribe<ActorDiedEvent>(notification =>
 {
     if (notification.IsPlayer)
     {
@@ -37,7 +37,7 @@ context.Events.Subscribe<ActorDied>(notification =>
     }
 });
 
-context.Events.Subscribe<PlayerLocationChanged>(notification =>
+context.Subscribe<PlayerLocationChangedEvent>(notification =>
 {
     context.LogInfo($"Location: {notification.NewLocationFormId:X8}");
 });
@@ -50,17 +50,17 @@ are removed when the mod stops. Disposing a subscription early is also supported
 
 | Channel name | SDK record | Payload |
 | --- | --- | --- |
-| `game.runtime.loaded` | `RuntimeLoaded` | Empty; F4SE's one-time startup notification |
-| `game.data.ready` | `GameDataReady` | `Ready`: true or false, as reported by F4SE |
-| `game.new` | `NewGame` | Empty; new game created, world may still be loading |
-| `game.save.loading` | `SaveLoading` | `SaveName` |
-| `game.save.loaded` | `SaveLoaded` | `SaveName`, `Success` (including failed loads) |
-| `game.save.saving` | `SaveSaving` | `SaveName` |
-| `game.save.saved` | `SaveSaved` | `SaveName`; save routine returned, success is not guaranteed |
-| `game.actor.died` | `ActorDied` | `ActorFormId`, `KillerFormId`, `IsPlayer` |
-| `game.player.cell.changed` | `PlayerCellChanged` | `PreviousCellFormId`, `NewCellFormId` |
-| `game.player.location.changed` | `PlayerLocationChanged` | `PreviousLocationFormId`, `NewLocationFormId` |
-| `game.menu.changed` | `MenuChanged` | `MenuName`, `Opening` |
+| `game.runtime.loaded` | `RuntimeLoadedEvent` | Empty; F4SE's one-time startup notification |
+| `game.data.ready` | `GameDataReadyEvent` | `Ready`: true or false, as reported by F4SE |
+| `game.new` | `NewGameEvent` | Empty; new game created, world may still be loading |
+| `game.save.loading` | `SaveLoadingEvent` | `SaveName` |
+| `game.save.loaded` | `SaveLoadedEvent` | `SaveName`, `Success` (including failed loads) |
+| `game.save.saving` | `SaveSavingEvent` | `SaveName` |
+| `game.save.saved` | `SaveSavedEvent` | `SaveName`; save routine returned, success is not guaranteed |
+| `game.actor.died` | `ActorDiedEvent` | `ActorFormId`, `KillerFormId`, `IsPlayer` |
+| `game.player.cell.changed` | `PlayerCellChangedEvent` | `PreviousCellFormId`, `NewCellFormId` |
+| `game.player.location.changed` | `PlayerLocationChangedEvent` | `PreviousLocationFormId`, `NewLocationFormId` |
+| `game.menu.changed` | `MenuChangedEvent` | `MenuName`, `Opening` |
 
 Wire properties use camelCase. IDs are unsigned 32-bit Form IDs; zero means absent or
 unknown. `SaveName` is nullable and preserves F4SE's name, rather than constructing

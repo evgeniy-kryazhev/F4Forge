@@ -2,12 +2,14 @@
 
 Custom aliases entered directly in the Fallout 4 console are routed through the
 existing message channel and `IDataSerializer`. The native module registers
-itself; `ModContext.Console` exposes the mod's scoped command service.
+itself; `context.GetSingleton<GameConsole>()` provides the mod's scoped command service.
 
 ## Mod API
 
 ```csharp
-context.Console.AddHandler("hello", command =>
+using F4Forge.Net.Console;
+
+context.GetSingleton<GameConsole>().AddHandler("hello", command =>
 {
     var name = command.Arguments.Count > 0 ? command.Arguments[0] : "Wasteland";
     command.WriteLine($"Hello, {name}!");
@@ -42,7 +44,7 @@ cross the channel. Requests, results and errors use the channel's
 is sent only to an existing handler; unknown input remains available to the game.
 The .NET service rejects parse errors before calling mod code.
 
-`context.Interceptors.OnConsoleCommandExecuting` runs before routing, including
+`context.GetSingleton<GameInterception>().OnConsoleCommandExecuting` runs before routing, including
 for built-in commands. It can replace `Command` or set `Skip` to cancel the entire
 action. Interceptors execute synchronously in registration order; a failed or
 invalid decision preserves earlier changes. The original input is retained in

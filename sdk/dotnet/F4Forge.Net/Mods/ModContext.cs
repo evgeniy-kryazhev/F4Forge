@@ -1,35 +1,32 @@
+using System.Runtime.CompilerServices;
 using F4Forge.Net.Messaging;
 using F4Forge.Net.Events;
 using F4Forge.Net.Serialization;
-using F4Forge.Net.Console;
 using F4Forge.Net.Diagnostics;
-using F4Forge.Net.Objects;
-using F4Forge.Net.Threading;
-using F4Forge.Net.Interception;
-using F4Forge.Net.Papyrus;
+using F4Forge.Net.Singletons;
 
 namespace F4Forge.Net.Mods;
 
-/// <summary>Services and directory belonging to one mod.</summary>
+/// <summary>Directory, shared channels, serializer, and lifetime belonging to one mod.</summary>
 public sealed class ModContext
 {
     internal ModContext(string directory, IMessageChannel messages, IEventChannel events, IDataSerializer serializer,
         string? modId = null, ModLifetime? lifetime = null)
     {
         Directory = directory;
-        var owner = Path.GetFullPath(modId ?? directory);
-        var modLifetime = lifetime ?? new ModLifetime();
-        var ownedChannels = new OwnedChannels(owner, messages, events, modLifetime);
+        ModId = Path.GetFullPath(modId ?? directory);
+        Lifetime = lifetime ?? new ModLifetime();
+        CleanupMessages = (messages as ScopedChannel)?.Transport ?? messages;
+        var ownedChannels = new OwnedChannels(ModId, messages, events, Lifetime);
         Messages = ownedChannels;
         Events = ownedChannels;
         Serializer = serializer;
-        Console = new ConsoleService(Messages);
-        Diagnostics = new ModDiagnostics(owner, Messages);
-        Objects = new GameObjects(Messages);
-        GameThread = new GameThreadService(Messages, Events, modLifetime);
-        Interceptors = new InterceptorService(Messages, (messages as ScopedChannel)?.Transport ?? messages, modLifetime);
-        Papyrus = new PapyrusClient(Messages, (messages as ScopedChannel)?.Transport ?? messages, Events, modLifetime);
     }
+
+    internal ModLifetime Lifetime { get; }
+    internal string ModId { get; }
+    // Detach must bypass closed mod channels while the native host is still alive.
+    internal IMessageChannel CleanupMessages { get; }
 
     /// <summary>Absolute path to the mod directory.</summary>
     public string Directory { get; }
@@ -43,21 +40,80 @@ public sealed class ModContext
     /// <summary>The same serializer used for messages, events, arguments and results.</summary>
     public IDataSerializer Serializer { get; }
 
-    /// <summary>Game console commands with registrations owned by this mod.</summary>
-    public IConsole Console { get; }
+    /// <summary>Gets this mod context's cached singleton proxy or subsystem facade.</summary>
+    /// <typeparam name="T">A supported singleton proxy or subsystem facade.</typeparam>
+    /// <returns>A typed proxy; the engine singleton need not exist yet.</returns>
+    /// <remarks>Engine proxy members require the game thread. Native pointers are never cached.</remarks>
+    public T GetSingleton<T>() where T : class, IGameSingleton<T>
+    {
+        // ConditionalWeakTable may invoke its factory concurrently. Only the stored
+        // Lazy may construct a facade, because construction can register cleanup.
+        var singleton = ProxyCache<T>.Instances.GetValue(this, static owner =>
+        {
+            return new Lazy<T>(() => T.Create(owner), LazyThreadSafetyMode.ExecutionAndPublication);
+        });
+        return singleton.Value;
+    }
 
-    /// <summary>Operation history for this mod and native hook statuses.</summary>
-    public ModDiagnostics Diagnostics { get; }
+    /// <summary>Subscribes synchronously using the notification type's event name.</summary>
+    /// <typeparam name="T">The notification contract.</typeparam>
+    /// <param name="handler">Callback invoked in the publisher's thread.</param>
+    /// <returns>A subscription owned by this mod.</returns>
+    public IDisposable Subscribe<T>(Action<T> handler) where T : IGameEvent
+    {
+        return Events.Subscribe(handler);
+    }
 
-    /// <summary>Typed game objects accessed through the shared message channel.</summary>
-    public GameObjects Objects { get; }
+    /// <summary>Subscribes asynchronously using the notification type's event name.</summary>
+    /// <typeparam name="T">The notification contract.</typeparam>
+    /// <param name="handler">Callback tracked through asynchronous completion.</param>
+    /// <returns>A subscription owned by this mod.</returns>
+    public IDisposable Subscribe<T>(Func<T, Task> handler) where T : IGameEvent
+    {
+        return Events.Subscribe(handler);
+    }
 
-    /// <summary>Executes synchronous engine operations on the actual game thread.</summary>
-    public GameThreadService GameThread { get; }
+    /// <summary>Subscribes to a typed notification with cancellation on unsubscription or shutdown.</summary>
+    /// <typeparam name="T">The notification contract.</typeparam>
+    /// <param name="handler">Callback receiving its subscription's cancellation token.</param>
+    /// <returns>A subscription owned by this mod.</returns>
+    public IDisposable Subscribe<T>(Func<T, CancellationToken, Task> handler) where T : IGameEvent
+    {
+        return Events.Subscribe(handler);
+    }
 
-    /// <summary>Synchronous decisions applied before the engine executes an action.</summary>
-    public InterceptorService Interceptors { get; }
+    /// <summary>Subscribes synchronously to a named notification.</summary>
+    /// <typeparam name="T">The notification payload.</typeparam>
+    /// <param name="name">Event name.</param>
+    /// <param name="handler">Synchronous callback; never wait on a thread that needs the channel.</param>
+    /// <returns>A subscription owned by this mod.</returns>
+    public IDisposable Subscribe<T>(string name, Action<T> handler)
+    {
+        return Events.Subscribe(name, handler);
+    }
 
-    /// <summary>Dynamic calls and properties through the game's Papyrus VM.</summary>
-    public PapyrusClient Papyrus { get; }
+    /// <summary>Starts an asynchronous notification without waiting for completion.</summary>
+    /// <typeparam name="T">The notification payload.</typeparam>
+    /// <param name="name">Event name.</param>
+    /// <param name="handler">Callback invoked in the publisher's thread until its first incomplete await.</param>
+    /// <returns>A subscription owned by this mod.</returns>
+    public IDisposable Subscribe<T>(string name, Func<T, Task> handler)
+    {
+        return Events.Subscribe(name, handler);
+    }
+
+    /// <summary>Subscribes to a named notification with cancellation on unsubscription or shutdown.</summary>
+    /// <typeparam name="T">The notification payload.</typeparam>
+    /// <param name="name">Event name.</param>
+    /// <param name="handler">Callback receiving its subscription's cancellation token.</param>
+    /// <returns>A subscription owned by this mod.</returns>
+    public IDisposable Subscribe<T>(string name, Func<T, CancellationToken, Task> handler)
+    {
+        return Events.Subscribe(name, handler);
+    }
+
+    private static class ProxyCache<T> where T : class, IGameSingleton<T>
+    {
+        internal static readonly ConditionalWeakTable<ModContext, Lazy<T>> Instances = new();
+    }
 }

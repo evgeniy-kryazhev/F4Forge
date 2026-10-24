@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <OutputType>Exe</OutputType>
+        <GenerateDocumentationFile>false</GenerateDocumentationFile>
+        <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    </PropertyGroup>
+    <ItemGroup>
+        <PackageReference Include="ClangSharp" Version="21.1.8.4" />
+    </ItemGroup>
+</Project>

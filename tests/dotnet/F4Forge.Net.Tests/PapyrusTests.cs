@@ -34,7 +34,7 @@ public sealed partial class PapyrusTests
             fixture.Complete(request, new PapyrusValue { Kind = "bool", Boolean = true });
             return true;
         });
-        var result = await context.Papyrus.CallStaticAsync("PrismaUI", "Show", ["Interface Ω"]);
+        var result = await context.GetSingleton<GamePapyrus>().CallStaticAsync("PrismaUI", "Show", ["Interface Ω"]);
         Assert.True(result.Boolean);
         Assert.Equal(1, fixture.Forgotten);
     }
@@ -62,13 +62,13 @@ public sealed partial class PapyrusTests
             fixture.Complete(request, new PapyrusValue { Kind = "string", Text = "done 🌍" });
             return true;
         });
-        var result = await fixture.Context.Papyrus.CallStaticAsync("Probe", "Values",
+        var result = await fixture.Context.GetSingleton<GamePapyrus>().CallStaticAsync("Probe", "Values",
             [null, true, -5, 1.5, form, new object?[] { 1, "two" },
                 new PapyrusStruct("UI#MenuData", new Dictionary<string, object?> { ["depth"] = 4 })]);
         Assert.Equal("done 🌍", result.Text);
-        await Assert.ThrowsAsync<ArgumentException>(() => fixture.Context.Papyrus.CallStaticAsync("Probe", "Values", [float.NaN]));
+        await Assert.ThrowsAsync<ArgumentException>(() => fixture.Context.GetSingleton<GamePapyrus>().CallStaticAsync("Probe", "Values", [float.NaN]));
         var foreign = new Form(new ModContext(Path.GetTempPath(), fixture.Channel, fixture.Channel, fixture.Channel.Serializer).Messages, form.Snapshot);
-        await Assert.ThrowsAsync<ArgumentException>(() => fixture.Context.Papyrus.CallStaticAsync("Probe", "Values", [foreign]));
+        await Assert.ThrowsAsync<ArgumentException>(() => fixture.Context.GetSingleton<GamePapyrus>().CallStaticAsync("Probe", "Values", [foreign]));
     }
 
     [Fact]
@@ -76,7 +76,7 @@ public sealed partial class PapyrusTests
     {
         await using var fixture = new Fixture(false);
         var form = new Form(fixture.Context.Messages, new(1, 7, "QUST", "Quest", "Quest", false, false, false));
-        var target = fixture.Context.Papyrus.Object(form, "MyQuestScript");
+        var target = fixture.Context.GetSingleton<GamePapyrus>().Object(form, "MyQuestScript");
         var operations = new List<string>();
         using var begin = fixture.Channel.Register<JsonElement, bool>("papyrus.begin", request =>
         {
@@ -86,9 +86,9 @@ public sealed partial class PapyrusTests
             fixture.Complete(request, new PapyrusValue { Kind = "int", Integer = 42 });
             return true;
         });
-        Assert.Equal(42, (await fixture.Context.Papyrus.CallAsync(target, "GetStage")).Integer);
-        Assert.Equal(42, (await fixture.Context.Papyrus.GetPropertyAsync(target, "Counter")).Integer);
-        await fixture.Context.Papyrus.SetPropertyAsync(target, "Counter", 10);
+        Assert.Equal(42, (await fixture.Context.GetSingleton<GamePapyrus>().CallAsync(target, "GetStage")).Integer);
+        Assert.Equal(42, (await fixture.Context.GetSingleton<GamePapyrus>().GetPropertyAsync(target, "Counter")).Integer);
+        await fixture.Context.GetSingleton<GamePapyrus>().SetPropertyAsync(target, "Counter", 10);
         Assert.Equal(new[] { "method", "get", "set" }, operations);
     }
 
@@ -102,8 +102,8 @@ public sealed partial class PapyrusTests
             requests.Add(request.Clone());
             return true;
         });
-        var first = fixture.Context.Papyrus.CallStaticAsync("Probe", "First");
-        var second = fixture.Context.Papyrus.CallStaticAsync("Probe", "Second");
+        var first = fixture.Context.GetSingleton<GamePapyrus>().CallStaticAsync("Probe", "First");
+        var second = fixture.Context.GetSingleton<GamePapyrus>().CallStaticAsync("Probe", "Second");
         fixture.Complete(requests[1], new PapyrusValue { Kind = "string", Text = "second" });
         fixture.Complete(requests[0], new PapyrusValue { Kind = "string", Text = "first" });
         Assert.Equal("first", (await first).Text);
@@ -121,17 +121,17 @@ public sealed partial class PapyrusTests
             return true;
         });
         using var cancellation = new CancellationTokenSource();
-        var canceled = fixture.Context.Papyrus.CallStaticAsync("Probe", "Wait", cancellationToken: cancellation.Token);
+        var canceled = fixture.Context.GetSingleton<GamePapyrus>().CallStaticAsync("Probe", "Wait", cancellationToken: cancellation.Token);
         cancellation.Cancel();
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => canceled);
         Assert.Equal(1, fixture.Forgotten);
-        var pending = fixture.Context.Papyrus.CallStaticAsync("Probe", "Wait");
+        var pending = fixture.Context.GetSingleton<GamePapyrus>().CallStaticAsync("Probe", "Wait");
         fixture.Lifetime.Close();
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => pending);
         await fixture.Lifetime.Completion.WaitAsync(TimeSpan.FromSeconds(5));
         Assert.Equal(1, fixture.Released);
         fixture.Complete(requests[1], new PapyrusValue { Kind = "int", Integer = 99 });
-        await Assert.ThrowsAsync<ObjectDisposedException>(() => fixture.Context.Papyrus.CallStaticAsync("Probe", "Wait"));
+        await Assert.ThrowsAsync<ObjectDisposedException>(() => fixture.Context.GetSingleton<GamePapyrus>().CallStaticAsync("Probe", "Wait"));
     }
 
     [Fact]
@@ -149,15 +149,15 @@ public sealed partial class PapyrusTests
             });
             return true;
         });
-        var error = await Assert.ThrowsAsync<MessageException>(() => fixture.Context.Papyrus.CallStaticAsync("Probe", "Unknown"));
+        var error = await Assert.ThrowsAsync<MessageException>(() => fixture.Context.GetSingleton<GamePapyrus>().CallStaticAsync("Probe", "Unknown"));
         Assert.Equal("Function not found Ω", error.Message);
         using var cancellation = new CancellationTokenSource();
         cancellation.Cancel();
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
-            fixture.Context.Papyrus.CallStaticAsync("Probe", "Wait", cancellationToken: cancellation.Token));
+            fixture.Context.GetSingleton<GamePapyrus>().CallStaticAsync("Probe", "Wait", cancellationToken: cancellation.Token));
         Assert.Equal(1, calls);
-        await Assert.ThrowsAsync<ArgumentException>(() => fixture.Context.Papyrus.CallStaticAsync(" ", "Function"));
-        await Assert.ThrowsAsync<ArgumentException>(() => fixture.Context.Papyrus.CallStaticAsync("Probe", "bad\0name"));
+        await Assert.ThrowsAsync<ArgumentException>(() => fixture.Context.GetSingleton<GamePapyrus>().CallStaticAsync(" ", "Function"));
+        await Assert.ThrowsAsync<ArgumentException>(() => fixture.Context.GetSingleton<GamePapyrus>().CallStaticAsync("Probe", "bad\0name"));
     }
 
     private sealed class Fixture : IAsyncDisposable
