@@ -46,6 +46,12 @@ target("F4Forge.Channel.Tests")
     add_rules("f4forge.native")
     add_files("native/core/**.cpp", "native/tests/channel_tests.cpp")
 
+target("F4Forge.Regression.Tests")
+    set_kind("binary")
+    set_targetdir("build/tests")
+    add_rules("f4forge.native")
+    add_files("native/core/**.cpp", "native/modules/game_events/runtime.cpp", "native/tests/regression_tests.cpp")
+
 target("F4Forge.TestTransport")
     set_kind("shared")
     set_targetdir("build/tests")

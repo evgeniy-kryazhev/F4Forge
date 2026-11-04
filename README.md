@@ -17,6 +17,7 @@ git submodule update --init --recursive
 xmake f -m releasedbg -y
 xmake -j 2
 xmake run F4Forge.Channel.Tests
+xmake run F4Forge.Regression.Tests
 xmake run F4Forge.Events.Tests
 xmake run F4Forge.Components.Tests
 xmake run F4Forge.Hosting.Tests

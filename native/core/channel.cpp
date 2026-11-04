@@ -130,7 +130,15 @@ EventChannel& Channel::Events() noexcept
 
 std::string Channel::Error(std::string_view code, std::string_view message) const
 {
-    const auto response = serializer_->Serialize(DataValue{{"success", false}, {"error", {{"code", code}, {"message", message.substr(0, 4096)}}}});
+    auto length = std::min(message.size(), std::size_t{4096});
+    // If the first excluded byte continues a UTF-8 character, exclude its
+    // leading byte too. Complete characters ending at the limit are preserved.
+    if (length < message.size()) {
+        while (length > 0 && (static_cast<unsigned char>(message[length]) & 0xc0) == 0x80) {
+            --length;
+        }
+    }
+    const auto response = serializer_->Serialize(DataValue{{"success", false}, {"error", {{"code", code}, {"message", message.substr(0, length)}}}});
     if (response.size() > MaxMessageBytes) {
         throw std::length_error("Serialized error exceeds the size limit.");
     }
