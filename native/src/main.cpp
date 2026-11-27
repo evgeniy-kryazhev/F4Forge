@@ -1,4 +1,5 @@
 #include "dotnet_sdk.h"
+#include "bridge/method_registry.h"
 #include <F4SE/F4SE.h>
 #include <REX/REX.h>
 #include <Windows.h>
@@ -32,6 +33,7 @@ F4SE_PLUGIN_LOAD(const F4SE::LoadInterface* loadInterface)
 {
     try {
         F4SE::Init(loadInterface);
+        f4forge::GetMethodRegistry();
         f4forge::LoadManagedPlugins(PluginDirectory());
         return true;
     } catch (const std::exception& exception) {
