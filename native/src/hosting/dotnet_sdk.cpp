@@ -70,7 +70,7 @@ void f4forge::LoadManagedPlugins(const std::filesystem::path& pluginDirectory)
     }
     const auto getMethod = RuntimeDelegate<get_function_pointer_fn>(getDelegate, context, hdt_get_function_pointer);
     void* startAddress = nullptr;
-    if (getMethod(L"F4Forge.Net.Hosting.Bootstrap, F4Forge.Net", L"Start", UNMANAGEDCALLERSONLY_METHOD,
+    if (getMethod(L"F4Forge.Hosting.Bootstrap, F4Forge.Net", L"Start", UNMANAGEDCALLERSONLY_METHOD,
             nullptr, nullptr, &startAddress) != 0 || startAddress == nullptr) {
         throw std::runtime_error("Cannot find the F4Forge.Net bootstrap method.");
     }

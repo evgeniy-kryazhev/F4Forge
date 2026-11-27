@@ -1,10 +1,9 @@
 using System.Reflection;
 using System.Runtime.Loader;
-using F4Forge.Net.Mods;
 
-namespace F4Forge.Net.Hosting;
+namespace F4Forge.Hosting;
 
-internal sealed class ModLoadContext(string assemblyPath) : AssemblyLoadContext(isCollectible: true)
+internal sealed class PluginLoadContext(string assemblyPath) : AssemblyLoadContext(isCollectible: true)
 {
     private readonly AssemblyDependencyResolver _resolver = new(assemblyPath);
     private readonly string _directory = Path.GetDirectoryName(assemblyPath)!;
@@ -29,7 +28,7 @@ internal sealed class ModLoadContext(string assemblyPath) : AssemblyLoadContext(
         {
             return null;
         }
-        // Dependency DLLs must remain replaceable, just like the mod's main DLL.
+        // Dependency DLLs must remain replaceable, just like the plugin's main DLL.
         using var assemblyStream = File.OpenRead(path);
         return LoadFromStream(assemblyStream);
     }

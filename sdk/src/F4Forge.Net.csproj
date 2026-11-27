@@ -1,6 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
     <PropertyGroup>
         <AssemblyName>F4Forge.Net</AssemblyName>
+        <RootNamespace>F4Forge</RootNamespace>
         <Version>0.3.2</Version>
         <GenerateDocumentationFile>true</GenerateDocumentationFile>
         <GenerateRuntimeConfigurationFiles>true</GenerateRuntimeConfigurationFiles>

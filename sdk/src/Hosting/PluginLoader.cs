@@ -1,9 +1,8 @@
 using System.Reflection;
-using F4Forge.Net.Mods;
 
-namespace F4Forge.Net.Hosting;
+namespace F4Forge.Hosting;
 
-internal sealed class ModLoader(Action<string> reportError)
+internal sealed class PluginLoader(Action<string> reportError)
 {
     private readonly List<IPlugin> _plugins = [];
 
@@ -42,7 +41,7 @@ internal sealed class ModLoader(Action<string> reportError)
             return;
         }
 
-        var context = new ModLoadContext(path);
+        var context = new PluginLoadContext(path);
         var initialized = false;
         try
         {

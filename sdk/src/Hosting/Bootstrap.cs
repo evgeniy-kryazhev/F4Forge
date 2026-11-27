@@ -1,12 +1,12 @@
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 
-namespace F4Forge.Net.Hosting;
+namespace F4Forge.Hosting;
 
 internal static unsafe class Bootstrap
 {
     // Keep initialized plugins alive for the game session.
-    private static ModLoader? _loader;
+    private static PluginLoader? _loader;
 
     [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
     public static int Start(char* pluginDirectory)
@@ -20,7 +20,7 @@ internal static unsafe class Bootstrap
         {
             var directory = new string(pluginDirectory);
             var logPath = Path.Combine(directory, "F4Forge", "Net.log");
-            var loader = new ModLoader(message => Log(logPath, message));
+            var loader = new PluginLoader(message => Log(logPath, message));
             if (Interlocked.CompareExchange(ref _loader, loader, null) is not null)
             {
                 return 1;
@@ -28,8 +28,8 @@ internal static unsafe class Bootstrap
 
             try
             {
-                var mods = Path.GetFullPath(Path.Combine(directory, "..", "..", "F4ForgeNet"));
-                loader.LoadDirectory(mods);
+                var managedPluginDirectory = Path.GetFullPath(Path.Combine(directory, "..", "..", "F4ForgeNet"));
+                loader.LoadDirectory(managedPluginDirectory);
                 return 0;
             }
             catch (Exception exception)

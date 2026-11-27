@@ -1,9 +1,8 @@
-using F4Forge.Net.Mods;
 using F4Forge.Tests.FixtureDependency;
 
 namespace F4Forge.Tests.Fixture;
 
-public sealed class FixtureMod : IPlugin
+public sealed class FixturePlugin : IPlugin
 {
     public void Start(PluginContext context)
     {
