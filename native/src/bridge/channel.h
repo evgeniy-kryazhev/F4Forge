@@ -7,7 +7,8 @@ namespace f4forge {
 
 enum class ValueType : std::int32_t {
     Error = -1,
-    Int32 = 2
+    Int32 = 2,
+    String = 6
 };
 
 enum class InvokeError : std::int32_t {
@@ -22,6 +23,7 @@ struct F4SEValue {
     ValueType type;
     union {
         std::int32_t integer;
+        const char* utf8String;
         InvokeError error;
         std::uint64_t storage;
     };

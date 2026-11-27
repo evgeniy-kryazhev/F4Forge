@@ -28,6 +28,7 @@ internal static unsafe class Bootstrap
 
             try
             {
+                Bridge.ConnectNativeEvents(message => Log(logPath, message));
                 var managedPluginDirectory = Path.GetFullPath(Path.Combine(directory, "..", "..", "F4ForgeNet"));
                 loader.LoadDirectory(managedPluginDirectory);
                 return 0;

@@ -36,6 +36,7 @@ public sealed class PluginDiscoveryTests : IDisposable
         Assert.Contains(Path.Combine(failed, "Fixture.dll"), error);
         Assert.False(File.Exists(Path.Combine(failed, "initialized.txt")));
         Assert.Equal([working], File.ReadAllLines(Path.Combine(working, "initialized.txt")));
+        Bridge.Publish("FailedPluginProbe", null, 1);
     }
 
     [Fact]

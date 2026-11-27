@@ -1,4 +1,5 @@
 #include "method_registry.h"
+#include "events.h"
 
 #include <limits>
 
@@ -17,11 +18,22 @@ F4SEValue TestAdd(std::span<const F4SEValue> arguments) noexcept
     return {ValueType::Int32, {.integer = static_cast<std::int32_t>(sum)}};
 }
 
+F4SEValue EmitTestMessage(std::span<const F4SEValue> arguments) noexcept
+{
+    if (!arguments.empty()) {
+        return {ValueType::Error, {.error = InvokeError::InvalidArguments}};
+    }
+    const F4SEValue message{ValueType::String, {.utf8String = "Привет из F4Forge"}};
+    const bool delivered = PublishEvent("Test_Message", nullptr, message);
+    return {ValueType::Int32, {.integer = delivered ? 1 : 0}};
+}
+
 }
 
 void RegisterHostMethods(MethodRegistry& registry)
 {
     registry.Register("Test_Add", TestAdd);
+    registry.Register("Test_EmitMessage", EmitTestMessage);
 }
 
 }

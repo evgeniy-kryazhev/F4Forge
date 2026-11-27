@@ -9,7 +9,8 @@ public static partial class Bridge
     private enum ValueType : int
     {
         Error = -1,
-        Int32 = 2
+        Int32 = 2,
+        String = 6
     }
 
     private enum InvokeError : int
@@ -26,6 +27,7 @@ public static partial class Bridge
     {
         [FieldOffset(0)] public ValueType Type;
         [FieldOffset(8)] public int Integer;
+        [FieldOffset(8)] public nint Utf8String;
         [FieldOffset(8)] public InvokeError Error;
     }
 

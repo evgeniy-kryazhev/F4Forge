@@ -9,6 +9,10 @@ public sealed class FixturePlugin : IPlugin
         var directory = context.Directory;
         if (File.Exists(Path.Combine(directory, "fail-start")))
         {
+            Bridge.On<int>("FailedPluginProbe", (_, _) =>
+            {
+                throw new InvalidOperationException("A failed plugin received an event after unloading.");
+            });
             throw new InvalidOperationException("Fixture initialization failed.");
         }
 
