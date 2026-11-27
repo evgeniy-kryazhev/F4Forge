@@ -11,7 +11,7 @@ internal sealed class ModLoadContext(string assemblyPath) : AssemblyLoadContext(
 
     protected override Assembly? Load(AssemblyName assemblyName)
     {
-        var sdkAssembly = typeof(IMod).Assembly;
+        var sdkAssembly = typeof(IPlugin).Assembly;
         if (assemblyName.Name == sdkAssembly.GetName().Name)
         {
             return sdkAssembly;

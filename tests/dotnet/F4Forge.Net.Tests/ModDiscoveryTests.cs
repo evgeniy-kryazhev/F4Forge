@@ -14,7 +14,7 @@ public sealed class ModDiscoveryTests : IDisposable
     {
         var directory = DeployFixture(relativeDirectory);
         File.Move(Path.Combine(directory, "Fixture.dll"), Path.Combine(directory, "Renamed.DLL"));
-        File.Copy(typeof(Mods.IMod).Assembly.Location, Path.Combine(directory, "F4Forge.Net.dll"));
+        File.Copy(typeof(Mods.IPlugin).Assembly.Location, Path.Combine(directory, "F4Forge.Net.dll"));
         File.WriteAllBytes(Path.Combine(directory, "Unmanaged.dll"), [0x4d, 0x5a]);
 
         new ModLoader(_errors.Add).LoadDirectory(_root);

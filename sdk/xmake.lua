@@ -1,4 +1,4 @@
-local sdk_output = "sdk/dotnet/F4Forge.Net/bin/Release/net10.0"
+local sdk_output = "sdk/src/bin/Release/net10.0"
 local resource_file = "build/generated/dotnet/managed_sdk.rc"
 
 option("dotnet_host_dir")
@@ -23,7 +23,7 @@ rule("f4forge.sdk.dotnet")
         end
         assert(os.isfile(path.join(hostdir, "nethost.h")), "Invalid .NET host directory")
         target:add("includedirs", hostdir)
-        target:add("includedirs", path.join(os.projectdir(), "sdk/dotnet/native"))
+        target:add("includedirs", path.join(os.projectdir(), "native/src/hosting"))
         target:add("linkdirs", hostdir)
         target:add("links", "libnethost")
         target:add("syslinks", "advapi32")
@@ -34,7 +34,7 @@ target("F4Forge.Net")
     set_kind("phony")
     set_policy("build.fence", true)
     on_build(function()
-        os.vrunv("dotnet", {"build", "sdk/dotnet/F4Forge.Net/F4Forge.Net.csproj", "-c", "Release"})
+        os.vrunv("dotnet", {"build", "sdk/src/F4Forge.Net.csproj", "-c", "Release"})
 
         local assembly = sdk_output .. "/F4Forge.Net.dll"
         local config = sdk_output .. "/F4Forge.Net.runtimeconfig.json"

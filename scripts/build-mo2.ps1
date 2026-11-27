@@ -3,9 +3,9 @@
 .SYNOPSIS
 Builds F4Forge and creates a ZIP ready to install through Mod Organizer 2.
 .EXAMPLE
-./build-mo2.ps1
+./scripts/build-mo2.ps1
 .EXAMPLE
-./build-mo2.ps1 -Jobs 4
+./scripts/build-mo2.ps1 -Jobs 4
 .NOTES
 Requires xmake, MSVC with C++23 support, the .NET 10 x64 SDK, and initialized submodules.
 The archive contains F4SE/Plugins directly: MO2 installs these paths under Data.
@@ -20,7 +20,7 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
-$repositoryDirectory = $PSScriptRoot
+$repositoryDirectory = Split-Path -Parent $PSScriptRoot
 $buildDescription = Get-Content -LiteralPath (Join-Path $repositoryDirectory 'xmake.lua') -Raw
 $versionMatch = [regex]::Match($buildDescription, '(?m)^set_version\("([0-9]+\.[0-9]+\.[0-9]+)"\)')
 if (-not $versionMatch.Success) {

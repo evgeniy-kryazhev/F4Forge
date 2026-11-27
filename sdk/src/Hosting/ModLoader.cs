@@ -5,7 +5,7 @@ namespace F4Forge.Net.Hosting;
 
 internal sealed class ModLoader(Action<string> reportError)
 {
-    private readonly List<IMod> _plugins = [];
+    private readonly List<IPlugin> _plugins = [];
 
     public void LoadDirectory(string directory)
     {
@@ -37,7 +37,7 @@ internal sealed class ModLoader(Action<string> reportError)
         {
             return; // Native dependencies can be deployed next to the plugin.
         }
-        if (AssemblyName.ReferenceMatchesDefinition(name, typeof(IMod).Assembly.GetName()))
+        if (AssemblyName.ReferenceMatchesDefinition(name, typeof(IPlugin).Assembly.GetName()))
         {
             return;
         }
@@ -49,7 +49,7 @@ internal sealed class ModLoader(Action<string> reportError)
             using var stream = File.OpenRead(path);
             var assembly = context.LoadFromStream(stream);
             var entries = assembly.GetExportedTypes()
-                .Where(type => type.IsClass && !type.IsAbstract && typeof(IMod).IsAssignableFrom(type))
+                .Where(type => type.IsClass && !type.IsAbstract && typeof(IPlugin).IsAssignableFrom(type))
                 .ToArray();
             if (entries.Length == 0)
             {
@@ -57,11 +57,12 @@ internal sealed class ModLoader(Action<string> reportError)
             }
             if (entries.Length != 1)
             {
-                throw new InvalidDataException("A plugin DLL must contain exactly one public IMod implementation.");
+                throw new InvalidDataException("A plugin DLL must contain exactly one public IPlugin implementation.");
             }
 
-            var plugin = (IMod)Activator.CreateInstance(entries[0])!;
-            plugin.Initialize(Path.GetDirectoryName(path)!);
+            var plugin = (IPlugin)Activator.CreateInstance(entries[0])!;
+            var pluginContext = new PluginContext { Directory = Path.GetDirectoryName(path)! };
+            plugin.Start(pluginContext);
             _plugins.Add(plugin);
             initialized = true;
         }
