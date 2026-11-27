@@ -57,6 +57,10 @@ try {
             FileName = 'F4Forge.Net.dll'
             ArchivePath = 'F4SE/Plugins/F4Forge/F4Forge.Net.dll'
         }
+        [pscustomobject]@{
+            FileName = 'F4Forge.Net.runtimeconfig.json'
+            ArchivePath = 'F4SE/Plugins/F4Forge/F4Forge.Net.runtimeconfig.json'
+        }
     )
     $binaryDirectory = Join-Path $repositoryDirectory 'build/bin'
     foreach ($file in $payload) {

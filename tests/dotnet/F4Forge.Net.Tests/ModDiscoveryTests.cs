@@ -1,86 +1,51 @@
-using System.Runtime.InteropServices;
 using F4Forge.Net.Hosting;
-using F4Forge.Net.Interop;
 
 namespace F4Forge.Net.Tests;
 
-public sealed partial class ModDiscoveryTests : IDisposable
+public sealed class ModDiscoveryTests : IDisposable
 {
-    private readonly NativeChannel _channel = new(Create());
-    private readonly string _root = Path.Combine(Path.GetTempPath(), "F4ForgeTests", Guid.NewGuid().ToString("N"), "F4ForgeNet");
-
-    [LibraryImport("F4Forge.TestTransport", EntryPoint = "TestCreate")]
-    private static partial ChannelBinding Create();
-
-    [LibraryImport("F4Forge.TestTransport", EntryPoint = "TestDestroy")]
-    private static partial void Destroy();
+    private readonly string _root = Directory.CreateTempSubdirectory("F4Forge-").FullName;
+    private readonly List<string> _errors = [];
 
     [Theory]
     [InlineData("")]
-    [InlineData("Nested/AnotherLevel")]
-    public async Task DiscoversDllWithoutManifestAndResolvesAdjacentDependency(string relativeDirectory)
+    [InlineData("Nested/Мод Ω")]
+    public void InitializesPluginFromItsOwnDirectory(string relativeDirectory)
     {
         var directory = DeployFixture(relativeDirectory);
-        // Assembly discovery must not depend on the filename matching its folder or assembly name.
-        File.Move(Path.Combine(directory, "Fixture.dll"), Path.Combine(directory, "AnyModName.DLL"));
-        var errors = new List<string>();
-        await using var loader = new ModLoader(_channel, _channel, _channel.Serializer, errors.Add);
+        File.Move(Path.Combine(directory, "Fixture.dll"), Path.Combine(directory, "Renamed.DLL"));
+        File.Copy(typeof(Mods.IMod).Assembly.Location, Path.Combine(directory, "F4Forge.Net.dll"));
+        File.WriteAllBytes(Path.Combine(directory, "Unmanaged.dll"), [0x4d, 0x5a]);
 
-        loader.LoadDirectory(_root);
+        new ModLoader(_errors.Add).LoadDirectory(_root);
 
-        Assert.Empty(errors);
-        Assert.Equal(1, loader.Count);
-        Assert.Equal(directory, _channel.Call<string>("fixture.directory", null));
-        Assert.Equal("Dependency loaded Ω", _channel.Call<string>("fixture.echo", "Dependency loaded Ω"));
-        Assert.Empty(Directory.GetFiles(_root, "*.json", SearchOption.AllDirectories));
+        Assert.Empty(_errors);
+        Assert.Equal([directory], File.ReadAllLines(Path.Combine(directory, "initialized.txt")));
     }
 
     [Fact]
-    public async Task SkipsDependenciesSdkCopiesAndNativeDlls()
+    public void FailedPluginDoesNotPreventOtherPluginsFromInitializing()
     {
-        var directory = DeployFixture("");
-        File.Copy(Path.Combine(AppContext.BaseDirectory, "F4Forge.Net.dll"),
-            Path.Combine(directory, "F4Forge.Net.dll"));
-        File.Copy(Path.Combine(AppContext.BaseDirectory, "F4Forge.TestTransport.dll"),
-            Path.Combine(directory, "NativeDependency.dll"));
-        var errors = new List<string>();
-        await using var loader = new ModLoader(_channel, _channel, _channel.Serializer, errors.Add);
+        var failed = DeployFixture("A");
+        File.WriteAllText(Path.Combine(failed, "fail-start"), "");
+        var working = DeployFixture("B");
 
-        loader.LoadDirectory(_root);
+        new ModLoader(_errors.Add).LoadDirectory(_root);
 
-        Assert.Equal(1, loader.Count);
-        Assert.Empty(errors);
-        Assert.Equal("Still works", _channel.Call<string>("fixture.echo", "Still works"));
+        var error = Assert.Single(_errors);
+        Assert.Contains(Path.Combine(failed, "Fixture.dll"), error);
+        Assert.False(File.Exists(Path.Combine(failed, "initialized.txt")));
+        Assert.Equal([working], File.ReadAllLines(Path.Combine(working, "initialized.txt")));
     }
 
     [Fact]
-    public async Task FailedModDoesNotPreventLoadingAnotherDll()
+    public void CreatesMissingPluginDirectory()
     {
-        var failedDirectory = DeployFixture("A-Failed");
-        File.WriteAllText(Path.Combine(failedDirectory, "fail-start"), "");
-        var workingDirectory = DeployFixture("B-Working/Nested");
-        var errors = new List<string>();
-        await using var loader = new ModLoader(_channel, _channel, _channel.Serializer, errors.Add);
+        var directory = Path.Combine(_root, "F4ForgeNet");
+        new ModLoader(_errors.Add).LoadDirectory(directory);
 
-        loader.LoadDirectory(_root);
-
-        Assert.Equal(1, loader.Count);
-        Assert.Single(errors);
-        Assert.Contains(Path.Combine(failedDirectory, "Fixture.dll"), errors[0]);
-        Assert.Equal(workingDirectory, _channel.Call<string>("fixture.directory", null));
-    }
-
-    [Fact]
-    public async Task CreatesMissingModDirectory()
-    {
-        var errors = new List<string>();
-        await using var loader = new ModLoader(_channel, _channel, _channel.Serializer, errors.Add);
-
-        loader.LoadDirectory(_root);
-
-        Assert.True(Directory.Exists(_root));
-        Assert.Equal(0, loader.Count);
-        Assert.Empty(errors);
+        Assert.True(Directory.Exists(directory));
+        Assert.Empty(_errors);
     }
 
     private string DeployFixture(string relativeDirectory)
@@ -96,16 +61,6 @@ public sealed partial class ModDiscoveryTests : IDisposable
 
     public void Dispose()
     {
-        try
-        {
-            if (Directory.Exists(_root))
-            {
-                Directory.Delete(Path.GetDirectoryName(_root)!, recursive: true);
-            }
-        }
-        finally
-        {
-            Destroy();
-        }
+        Directory.Delete(_root, recursive: true);
     }
 }

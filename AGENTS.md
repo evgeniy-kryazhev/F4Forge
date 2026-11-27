@@ -7,14 +7,14 @@ comments, log and error messages, commit messages, and pull request descriptions
 
 ## Structure and Architecture
 
-F4Forge targets Windows x64, C++23, .NET 10, and F4SE. `native/core/` contains the shared
-message/event channels, serializer interfaces, and component registry; `native/src/` integrates F4SE. New native features
-belong in `native/modules/`. `native/lib/commonlibf4/` is an external submodule.
+F4Forge targets Windows x64, C++23, .NET 10, and F4SE. `native/src/` integrates
+F4SE. `native/lib/commonlibf4/` is an external submodule.
 
 `sdk/<language>/` owns each SDK, including its native adapter and mod-loading policy.
-All native adapters compile into `F4Forge.Core.dll`. The managed API and loader compile
-into `F4Forge.Net.dll`. Native tests live in `native/tests/`; managed tests and fixtures
-in `tests/dotnet/`. Build artifacts belong in ignored `build/`, `bin/`, and `obj/` folders.
+Native adapters compile into `F4Forge.Core.dll`. The managed plugin interface and
+loader compile into `F4Forge.Net.dll`. Native tests live in `native/tests/`; managed
+tests and fixtures live in `tests/dotnet/`. Build artifacts belong in ignored
+`build/`, `bin/`, and `obj/` folders.
 
 ## Extension Rule — User Approval Required
 
@@ -35,31 +35,20 @@ Run from the repository root:
 ```powershell
 xmake f -m releasedbg -y
 xmake -j 2
-xmake run F4Forge.Channel.Tests
-xmake run F4Forge.Events.Tests
-xmake run F4Forge.Components.Tests
 xmake run F4Forge.Hosting.Tests
 dotnet test tests/dotnet/F4Forge.Net.Tests/F4Forge.Net.Tests.csproj -c Release
 ```
 
-The hosting test starts the real CLR and loads a fixture mod. Managed tests use xUnit
-and a native transport fixture. Test Unicode, error boundaries, registration lifetime,
-startup rollback, nested calls, event subscription races, and alternate serialization.
+The hosting test starts the real CLR and loads a fixture plugin. Managed tests use
+xUnit and cover discovery, private dependencies, initialization, and failure isolation.
 No numeric coverage threshold is imposed.
 
 ## Readability and Ownership
 
-Follow the [SDK naming standard](docs/naming.md) for handwritten subsystem facades,
-generated wrappers, domain types, and infrastructure roles.
-
 Follow `.editorconfig`; use four-space C++/C# indentation, descriptive names, explicit
 control flow, and concise comments for invariants. C# types/methods use PascalCase;
 private fields use `_camelCase`. Keep warnings as errors. Never let exceptions cross
-unmanaged callbacks. Handlers are synchronous: do not block on another thread that
-needs the channel. Dispose registrations before releasing callback state.
-Use `IDataSerializer` for all wire data, including errors. Keep format-specific parsing
-inside serializer implementations. Messages and events share one serializer and dispatch
-lane per host; never invoke handlers while holding a registry lock.
+unmanaged callbacks.
 
 ## Contributions and Tools
 
