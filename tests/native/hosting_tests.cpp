@@ -1,5 +1,6 @@
 #include "channel.h"
 #include <F4SE/F4SE.h>
+#include <RE/N/NiPoint3.h>
 #include <Windows.h>
 #include <filesystem>
 #include <fstream>
@@ -57,15 +58,31 @@ int main(int argc, char* argv[])
         if (load == nullptr) {
             throw std::runtime_error("Missing F4SEPlugin_Load export.");
         }
-        // Exercise the production entry point with no game services or game log directory.
+        static F4SE::MessagingInterface::EventCallback* onMessage = nullptr;
+        static F4SE::Impl::F4SEMessagingInterface messaging{};
+        messaging.interfaceVersion = F4SE::MessagingInterface::kVersion;
+        messaging.RegisterListener = [](std::uint32_t, const char* sender, void* callback) {
+            if (std::string_view(sender) != "F4SE" || !callback) {
+                return false;
+            }
+            onMessage = reinterpret_cast<F4SE::MessagingInterface::EventCallback*>(callback);
+            return true;
+        };
         F4SE::Impl::F4SEInterface host{};
-        host.QueryInterface = [](std::uint32_t) -> void* { return nullptr; };
+        host.QueryInterface = [](std::uint32_t id) -> void* {
+            return id == F4SE::LoadInterface::kMessaging ? &messaging : nullptr;
+        };
         host.GetPluginHandle = []() -> std::uint32_t { return 1; };
         host.GetReleaseIndex = []() -> std::uint32_t { return 0; };
         host.GetSaveFolderName = []() { return ""; };
         if (!load(reinterpret_cast<const F4SE::LoadInterface*>(&host))) {
             throw std::runtime_error("F4SE plugin initialization failed.");
         }
+        if (!onMessage) {
+            throw std::runtime_error("The host did not subscribe to F4SE messages.");
+        }
+        F4SE::MessagingInterface::Message beforeDataReady{"F4SE", F4SE::MessagingInterface::kGameDataReady, 1, nullptr};
+        onMessage(&beforeDataReady);
         std::ifstream initialized(marker);
         std::string line;
         if (!std::getline(initialized, line)) {
@@ -89,6 +106,17 @@ int main(int argc, char* argv[])
             if (result.type != f4forge::ValueType::Error || result.error != f4forge::InvokeError::UnknownOperation) {
                 throw std::runtime_error("The packaged DLL must not register Test_Add.");
             }
+            constexpr RE::NiPoint3 point{3.0f, 4.0f, 0.0f};
+            f4forge::F4SEValue self{f4forge::ValueType::Pointer, {.pointer = &point}};
+            invoke("RE::NiPoint3::SqrLength() const", &self, 1, &result);
+            if (result.type != f4forge::ValueType::Float || result.number != 25.0f) {
+                throw std::runtime_error("Packaged host could not call the generated NiPoint3 binding.");
+            }
+            self.pointer = nullptr;
+            invoke("RE::NiPoint3::SqrLength() const", &self, 1, &result);
+            if (result.type != f4forge::ValueType::Error || result.error != f4forge::InvokeError::InvalidArguments) {
+                throw std::runtime_error("Generated instance binding accepted a null receiver.");
+            }
             std::cout << "Packaged host has no Test_Add binding\n";
         } else {
             std::ifstream result(bridgeResult);
@@ -96,6 +124,8 @@ int main(int argc, char* argv[])
                 throw std::runtime_error("The C# bridge probe did not receive 5 from Test_Add(2, 3).");
             }
             std::cout << "Bridge.Invoke<int>(Test_Add, 2, 3) returned " << line << '\n';
+            std::cout << "C# plugin passed the generated CommonLibF4 binding checks\n";
+            std::cout << "C# plugin received the generated TESObjectLoadedEvent and unsubscribed\n";
         }
         std::cout << "Managed plugin initialization passed\n";
         return 0;

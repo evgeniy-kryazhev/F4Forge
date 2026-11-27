@@ -1,4 +1,5 @@
 #include "dotnet_sdk.h"
+#include "bridge/events.h"
 #include "bridge/method_registry.h"
 #include <F4SE/F4SE.h>
 #include <REX/REX.h>
@@ -10,6 +11,21 @@
 #include <vector>
 
 namespace {
+
+void OnF4SEMessage(F4SE::MessagingInterface::Message* message)
+{
+    // F4SE puts the readiness flag in the pointer value itself.
+    if (!message || message->type != F4SE::MessagingInterface::kGameDataReady || !message->data) {
+        return;
+    }
+    try {
+        f4forge::RegisterCommonLibEventSinks();
+    } catch (const std::exception& exception) {
+        REX::ERROR("F4Forge event registration: {}", exception.what());
+    } catch (...) {
+        REX::ERROR("F4Forge: unknown event registration failure");
+    }
+}
 
 std::filesystem::path PluginDirectory()
 {
@@ -34,6 +50,10 @@ F4SE_PLUGIN_LOAD(const F4SE::LoadInterface* loadInterface)
     try {
         F4SE::Init(loadInterface);
         f4forge::GetMethodRegistry();
+        const auto* messaging = F4SE::GetMessagingInterface();
+        if (messaging && !messaging->RegisterListener(OnF4SEMessage)) {
+            throw std::runtime_error("Cannot listen for F4SE game data readiness.");
+        }
         f4forge::LoadManagedPlugins(PluginDirectory());
         return true;
     } catch (const std::exception& exception) {

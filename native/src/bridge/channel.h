@@ -7,15 +7,22 @@ namespace f4forge {
 
 enum class ValueType : std::int32_t {
     Error = -1,
+    Void = 0,
+    Bool = 1,
     Int32 = 2,
-    String = 6
+    UInt32 = 3,
+    Float = 4,
+    Pointer = 5,
+    String = 6,
+    EventSnapshot = 7
 };
 
 enum class InvokeError : std::int32_t {
     UnknownOperation = 1,
     InvalidArguments = 2,
     Overflow = 3,
-    RegistryUnavailable = 4
+    RegistryUnavailable = 4,
+    NativeException = 5
 };
 
 // The payload occupies one 64-bit slot, including for 32-bit values.
@@ -23,6 +30,10 @@ struct F4SEValue {
     ValueType type;
     union {
         std::int32_t integer;
+        std::uint32_t unsignedInteger;
+        std::uint8_t boolean;
+        float number;
+        const void* pointer;
         const char* utf8String;
         InvokeError error;
         std::uint64_t storage;

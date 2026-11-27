@@ -32,9 +32,10 @@ rule_end()
 
 target("F4Forge.Net")
     set_kind("phony")
+    add_deps("F4Forge.Bindings")
     set_policy("build.fence", true)
     on_build(function()
-        os.vrunv("dotnet", {"build", "sdk/src/F4Forge.Net.csproj", "-c", "Release"})
+        os.vrunv("dotnet", {"build", "sdk/src/F4Forge.Net.csproj", "-c", "Release", "-p:F4ForgeBindingsReady=true"})
 
         local assembly = sdk_output .. "/F4Forge.Net.dll"
         local config = sdk_output .. "/F4Forge.Net.runtimeconfig.json"
@@ -51,6 +52,6 @@ target("F4Forge.Net.Fixture")
     set_kind("phony")
     add_deps("F4Forge.Net")
     on_build(function()
-        os.vrunv("dotnet", {"build", "tests/dotnet/Fixture/Fixture.csproj", "-c", "Release"})
-        os.vrunv("dotnet", {"build", "tests/dotnet/BridgeProbe/BridgeProbe.csproj", "-c", "Release"})
+        os.vrunv("dotnet", {"build", "tests/dotnet/Fixture/Fixture.csproj", "-c", "Release", "-p:F4ForgeBindingsReady=true"})
+        os.vrunv("dotnet", {"build", "tests/dotnet/BridgeProbe/BridgeProbe.csproj", "-c", "Release", "-p:F4ForgeBindingsReady=true"})
     end)

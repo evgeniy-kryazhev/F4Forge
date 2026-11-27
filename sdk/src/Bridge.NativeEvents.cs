@@ -7,6 +7,13 @@ public static partial class Bridge
 {
     private static Action<string>? _reportNativeEventError;
 
+    [StructLayout(LayoutKind.Sequential)]
+    private unsafe struct EventSnapshot
+    {
+        public ulong* Fields;
+        public int Count;
+    }
+
     internal static unsafe void ConnectNativeEvents(Action<string> reportError)
     {
         _reportNativeEventError = reportError;
@@ -30,11 +37,20 @@ public static partial class Bridge
             object? sender = senderPointer == 0 ? null : (object)senderPointer;
             switch (args->Type)
             {
+                case ValueType.EventSnapshot:
+                    var snapshot = (EventSnapshot*)args->Pointer;
+                    if (snapshot is null || snapshot->Count < 0 || (snapshot->Count > 0 && snapshot->Fields is null))
+                    {
+                        throw new ArgumentException($"Invalid snapshot for native event '{name}'.");
+                    }
+                    var fields = new ReadOnlySpan<ulong>(snapshot->Fields, snapshot->Count);
+                    PublishCommonLibEvent(name, sender, fields);
+                    break;
                 case ValueType.Int32:
                     Publish(name, sender, args->Integer);
                     break;
                 case ValueType.String:
-                    var text = Marshal.PtrToStringUTF8(args->Utf8String)
+                    var text = Marshal.PtrToStringUTF8(args->Pointer)
                         ?? throw new ArgumentException($"Missing UTF-8 string for native event '{name}'.");
                     Publish(name, sender, text);
                     break;

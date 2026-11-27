@@ -30,6 +30,7 @@ const MethodRegistry& GetMethodRegistry()
 {
     static const MethodRegistry methods = [] {
         MethodRegistry registry;
+        RegisterCommonLibMethods(registry);
         RegisterHostMethods(registry);
         return registry;
     }();

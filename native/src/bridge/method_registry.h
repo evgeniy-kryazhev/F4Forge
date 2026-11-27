@@ -22,6 +22,7 @@ private:
 
 // The linked host supplies its bindings once, before the registry is published.
 void RegisterHostMethods(MethodRegistry& registry);
+void RegisterCommonLibMethods(MethodRegistry& registry);
 const MethodRegistry& GetMethodRegistry();
 
 }
