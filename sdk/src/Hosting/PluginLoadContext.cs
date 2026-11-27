@@ -3,6 +3,8 @@ using System.Runtime.Loader;
 
 namespace F4Forge.Hosting;
 
+using F4Forge.Plugins;
+
 internal sealed class PluginLoadContext(string assemblyPath) : AssemblyLoadContext(isCollectible: true)
 {
     private readonly AssemblyDependencyResolver _resolver = new(assemblyPath);

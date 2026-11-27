@@ -1,6 +1,8 @@
 using System.Runtime.Loader;
 
-namespace F4Forge;
+namespace F4Forge.Actors;
+
+using F4Forge.Bridge;
 
 /// <summary>Gameplay events for actors.</summary>
 public static class ActorEvents

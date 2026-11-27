@@ -2,6 +2,10 @@ using F4Forge.Tests.FixtureDependency;
 
 namespace F4Forge.Tests.Fixture;
 
+using F4Forge.Actors;
+using F4Forge.Bridge;
+using F4Forge.Plugins;
+
 public sealed class FixturePlugin : IPlugin
 {
     public void Start(PluginContext context)

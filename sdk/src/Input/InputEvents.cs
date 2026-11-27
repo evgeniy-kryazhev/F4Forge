@@ -1,4 +1,6 @@
-namespace F4Forge;
+namespace F4Forge.Input;
+
+using F4Forge.Bridge;
 
 /// <summary>Input notifications delivered by Fallout's MenuControls on the notifying thread.</summary>
 public static class InputEvents

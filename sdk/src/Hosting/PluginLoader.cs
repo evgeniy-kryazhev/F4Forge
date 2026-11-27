@@ -2,6 +2,9 @@ using System.Reflection;
 
 namespace F4Forge.Hosting;
 
+using F4Forge.Logging;
+using F4Forge.Plugins;
+
 internal sealed class PluginLoader(Action<string> writeLog)
 {
     private readonly List<IPlugin> _plugins = [];

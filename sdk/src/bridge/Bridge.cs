@@ -1,7 +1,7 @@
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 
-namespace F4Forge;
+namespace F4Forge.Bridge;
 
 /// <summary>Calls named native operations provided by the F4Forge host.</summary>
 public static partial class Bridge

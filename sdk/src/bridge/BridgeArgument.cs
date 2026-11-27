@@ -1,6 +1,6 @@
 using System.Runtime.InteropServices;
 
-namespace F4Forge;
+namespace F4Forge.Bridge;
 
 /// <summary>A tagged scalar or borrowed native address passed to a bridge operation.</summary>
 [StructLayout(LayoutKind.Sequential)]

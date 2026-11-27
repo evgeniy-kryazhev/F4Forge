@@ -1,4 +1,6 @@
-namespace F4Forge;
+namespace F4Forge.Plugins;
+
+using F4Forge.Logging;
 
 /// <summary>Information supplied by the host when starting a plugin.</summary>
 public class PluginContext

@@ -1,4 +1,6 @@
-namespace F4Forge;
+namespace F4Forge.Game;
+
+using F4Forge.Bridge;
 
 /// <summary>Gameplay notifications from CommonLibF4.</summary>
 public static class GameEvents

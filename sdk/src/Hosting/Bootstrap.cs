@@ -3,6 +3,9 @@ using System.Runtime.InteropServices;
 
 namespace F4Forge.Hosting;
 
+using F4Forge.Bridge;
+using F4Forge.Logging;
+
 internal static unsafe class Bootstrap
 {
     // Keep initialized plugins alive for the game session.

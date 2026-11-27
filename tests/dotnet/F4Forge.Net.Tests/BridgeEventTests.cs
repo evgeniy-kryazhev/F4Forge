@@ -1,5 +1,7 @@
 namespace F4Forge.Tests;
 
+using F4Forge.Bridge;
+
 public sealed class BridgeEventTests
 {
     [Fact]

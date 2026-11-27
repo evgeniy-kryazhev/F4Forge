@@ -1,4 +1,6 @@
-namespace F4Forge;
+namespace F4Forge.Actors;
+
+using F4Forge.Bridge;
 
 /// <summary>Provides access to the current player character.</summary>
 public static class Player

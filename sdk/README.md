@@ -3,7 +3,8 @@
 Reference `src/F4Forge.Net.csproj` from your C# plugin project. Deploy the plugin DLL directly in `Data/F4Forge/` or in a subfolder such as `Data/F4Forge/<plugin>/`. The host searches recursively and supplies the SDK assembly.
 
 ```csharp
-using F4Forge;
+using F4Forge.Actors;
+using F4Forge.Plugins;
 
 public sealed class DeathLogPlugin : IPlugin
 {
@@ -26,7 +27,7 @@ public sealed class DeathLogPlugin : IPlugin
 
 `Player.GetSingleton()` reads the current player and returns null when unavailable. `Actor.Handle` exposes the borrowed native address for calls through `Bridge.Invoke`. Use actor references only while their game objects are alive.
 
-Subscribe in `IPlugin.Start` to receive the generated `Events.TESLoadGameEvent` on the thread that raised it:
+Import `F4Forge.Game` and subscribe in `IPlugin.Start` to receive game events on the thread that raised them.
 
 ```csharp
 GameEvents.OnGameLoaded += (_, _) => context.Log.Info("Game loaded.");
@@ -36,11 +37,11 @@ GameEvents.OnObjectLoadChanged += (_, args) =>
     context.Log.Debug($"Object {args.FormID:X8}: loaded={args.Loaded}");
 ```
 
-`OnDeath` delivers the deceased actor on the thread that raised the event. Use `ActorEvents.OnDeath -= LogDeath` to unsubscribe. A plugin that also needs the killer or the dying phase can subscribe to `Events.TESDeathEvent` through `Bridge.On`. Generated methods are available through `Bindings`, for example `Bindings.Actor.IsInCombat(victim.Handle)`.
+`OnDeath` delivers the deceased actor on the thread that raised the event. Use `ActorEvents.OnDeath -= LogDeath` to unsubscribe. Import `F4Forge.Bridge` for `Bridge`, `Bindings`, and `Events`. A plugin that also needs the killer or the dying phase can subscribe to `Events.TESDeathEvent` through `Bridge.On`. Generated methods are available through `Bindings`, for example `Bindings.Actor.IsInCombat(victim.Handle)`.
 
 ## Keyboard and mouse input
 
-Subscribe in `IPlugin.Start` to observe the input that Fallout 4 delivers to `MenuControls`. Button codes are specific to the device. The example logs the first press of a keyboard key (`Device == 0`) or mouse button (`Device == 1`).
+Import `F4Forge.Input` and subscribe in `IPlugin.Start` to observe the input that Fallout 4 delivers to `MenuControls`. Button codes are specific to the device. The example logs the first press of a keyboard key (`Device == 0`) or mouse button (`Device == 1`).
 
 ```csharp
 InputEvents.OnButton += (_, button) =>

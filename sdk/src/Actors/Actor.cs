@@ -1,4 +1,6 @@
-namespace F4Forge;
+namespace F4Forge.Actors;
+
+using F4Forge.Bridge;
 
 /// <summary>A borrowed reference to a live Fallout 4 actor. Use it only while the game owns the actor.</summary>
 public sealed record Actor

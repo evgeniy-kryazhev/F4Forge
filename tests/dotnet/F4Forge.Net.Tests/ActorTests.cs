@@ -2,6 +2,9 @@ using F4Forge.Hosting;
 
 namespace F4Forge.Tests;
 
+using F4Forge.Actors;
+using F4Forge.Bridge;
+
 public sealed class ActorTests : IDisposable
 {
     private readonly string _directory = Directory.CreateTempSubdirectory("F4Forge-Actor-").FullName;

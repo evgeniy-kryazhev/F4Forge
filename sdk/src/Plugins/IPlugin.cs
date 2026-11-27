@@ -1,4 +1,4 @@
-namespace F4Forge;
+namespace F4Forge.Plugins;
 
 /// <summary>Entry point for a managed Fallout 4 plugin.</summary>
 public interface IPlugin

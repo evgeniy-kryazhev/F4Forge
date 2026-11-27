@@ -1,7 +1,7 @@
 using System.Collections.Immutable;
 using System.Runtime.Loader;
 
-namespace F4Forge;
+namespace F4Forge.Bridge;
 
 public static partial class Bridge
 {

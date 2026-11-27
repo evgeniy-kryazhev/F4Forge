@@ -1,7 +1,7 @@
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 
-namespace F4Forge;
+namespace F4Forge.Bridge;
 
 public static partial class Bridge
 {

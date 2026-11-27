@@ -2,6 +2,10 @@ using System.Globalization;
 
 namespace F4Forge.Tests.BridgeProbe;
 
+using F4Forge.Bridge;
+using F4Forge.Input;
+using F4Forge.Plugins;
+
 public sealed class BridgeProbePlugin : IPlugin
 {
     public void Start(PluginContext context)

@@ -2,6 +2,9 @@ using F4Forge.Hosting;
 
 namespace F4Forge.Tests;
 
+using F4Forge.Bridge;
+using F4Forge.Plugins;
+
 public sealed class PluginDiscoveryTests : IDisposable
 {
     private readonly string _root = Directory.CreateTempSubdirectory("F4Forge-").FullName;

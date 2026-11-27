@@ -1,4 +1,4 @@
-namespace F4Forge;
+namespace F4Forge.Logging;
 
 /// <summary>Writes messages to the managed host log under the plugin's assembly name.</summary>
 public sealed class PluginLogger

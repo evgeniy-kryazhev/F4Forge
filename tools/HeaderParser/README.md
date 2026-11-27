@@ -6,7 +6,7 @@ Building F4Forge from source requires the Windows x64 LLVM SDK, including `inclu
 
 - `AutoRegistry.cpp` registers typed C++ thunks in the host's method registry.
 - `AutoEventSinks.h` projects CommonLibF4 event fields for the native sinks.
-- `Bindings.g.cs` exposes typed wrappers in `F4Forge.Bindings` and event payloads in `F4Forge.Events`.
+- `Bindings.g.cs` exposes typed wrappers in `F4Forge.Bridge.Bindings` and event payloads in `F4Forge.Bridge.Events`. Import `F4Forge.Bridge` for the examples below.
 - `API.md` lists call names, return types, event names, payload fields and omitted members.
 
 The input is the umbrella header `RE/Fallout.h`. The parser visits public inline and virtual methods of non-template classes and structs declared directly in namespace `RE`. Supported wire types include bool, signed and unsigned 32-bit integers, float, enums with a supported 32-bit underlying type, void returns, and borrowed pointers or reference arguments to supported RE records.

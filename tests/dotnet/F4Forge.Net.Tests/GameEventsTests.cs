@@ -1,5 +1,8 @@
 namespace F4Forge.Tests;
 
+using F4Forge.Bridge;
+using F4Forge.Game;
+
 public sealed class GameEventsTests
 {
     [Fact]
