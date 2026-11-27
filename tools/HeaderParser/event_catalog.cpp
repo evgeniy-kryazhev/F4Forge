@@ -1,5 +1,6 @@
 #include "event_catalog.h"
 #include "clang_helpers.h"
+#include "managed_name.h"
 
 #include <cctype>
 #include <optional>
@@ -29,7 +30,7 @@ std::optional<EventField> ReadField(CXCursor field, std::size_t index)
     }
     auto value = "event." + name;
     const auto slot = "fields[" + std::to_string(index) + "]";
-    name.front() = static_cast<char>(std::toupper(static_cast<unsigned char>(name.front())));
+    name = ManagedIdentifier(name);
     auto type = clang_getCanonicalType(clang_getCursorType(field));
     if (type.kind == CXType_Enum) {
         type = clang_getCanonicalType(clang_getEnumDeclIntegerType(clang_getTypeDeclaration(type)));
@@ -120,10 +121,7 @@ void EventCatalog::ReadSource(CXCursor getter)
         return;
     }
     const auto route = nativeType.substr(4);
-    auto managedName = route;
-    for (auto pos = managedName.find("::"); pos != std::string::npos; pos = managedName.find("::")) {
-        managedName.replace(pos, 2, "_");
-    }
+    const auto managedName = ManagedIdentifier(route);
     EventDeclaration event{nativeType, managedName, QualifiedName(getter), {}, {}};
     for (const auto member : Children(definition)) {
         const auto kind = clang_getCursorKind(member);
@@ -149,9 +147,9 @@ void EventCatalog::Emit(std::ostream& header, std::ostream& native, std::ostream
 {
     header << "\nnamespace f4forge {\n";
     managed << "\n/// <summary>Generated CommonLibF4 event payloads. Native addresses are borrowed.</summary>\n"
-               "public static class AutoEvents\n{\n";
+               "public static class Events\n{\n";
     docs << "\n## CommonLibF4 events\n\n" << events_.size()
-         << " event sources. Subscribe with `Bridge.On<AutoEvents.T>(AutoEvents.T.Name, handler)`. "
+         << " event sources. Subscribe with `Bridge.On<Events.T>(Events.T.Name, handler)`. "
             "Handlers run on the notifying thread. Sender and nint fields are borrowed engine addresses.\n\n"
             "| Event name | Payload type | Copied fields | Omitted members |\n|---|---|---|---|\n";
     for (const auto& [route, event] : events_) {
@@ -161,7 +159,7 @@ void EventCatalog::Emit(std::ostream& header, std::ostream& native, std::ostream
                << "[[maybe_unused]] const " << event.nativeType << "& event)\n    {\n        return {\n";
         managed << "    /// <summary>Snapshot of " << event.nativeType << ".</summary>\n"
                 << "    public readonly record struct " << event.managedName << '(';
-        docs << "| `" << route << "` | `AutoEvents." << event.managedName << "` | ";
+        docs << "| `" << route << "` | `Events." << event.managedName << "` | ";
         for (std::size_t index = 0; index < event.fields.size(); ++index) {
             const auto& field = event.fields[index];
             if (index > 0) {
@@ -187,7 +185,7 @@ void EventCatalog::Emit(std::ostream& header, std::ostream& native, std::ostream
     header << "}\n";
     native << "\nnamespace f4forge {\nvoid RegisterCommonLibEventSinks()\n{\n";
     for (const auto& [route, event] : events_) {
-        const auto payload = "AutoEvents." + event.managedName;
+        const auto payload = "Events." + event.managedName;
         managed << "            case " << payload << ".Name when fields.Length == " << event.fields.size() << ":\n"
                 << "                Publish(name, sender, new " << payload << '(';
         for (std::size_t index = 0; index < event.fields.size(); ++index) {

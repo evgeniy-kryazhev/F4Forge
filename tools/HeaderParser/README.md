@@ -6,12 +6,12 @@ Building F4Forge from source requires the Windows x64 LLVM SDK, including `inclu
 
 - `AutoRegistry.cpp` registers typed C++ thunks in the host's method registry.
 - `AutoEventSinks.h` projects CommonLibF4 event fields for the native sinks.
-- `AutoBindings.g.cs` exposes typed wrappers in `F4Forge.AutoBindings` and event payloads in `F4Forge.AutoEvents`.
+- `Bindings.g.cs` exposes typed wrappers in `F4Forge.Bindings` and event payloads in `F4Forge.Events`.
 - `API.md` lists call names, return types, event names, payload fields and omitted members.
 
 The input is the umbrella header `RE/Fallout.h`. The parser visits public inline and virtual methods of non-template classes and structs declared directly in namespace `RE`. Supported wire types include bool, signed and unsigned 32-bit integers, float, enums with a supported 32-bit underlying type, void returns, and borrowed pointers or reference arguments to supported RE records.
 
-For example, a plugin holding a live `RE::NiPoint3*` as `nint point` can call either `Bridge.Invoke<float>("NiPoint3_SqrLength", point)` or `AutoBindings.NiPoint3_SqrLength(point)`. The full signature `RE::NiPoint3::SqrLength() const` stays valid when overloads are added. Overloaded short names carry a signature suffix.
+For example, a plugin holding a live `RE::NiPoint3*` as `nint point` can call either `Bridge.Invoke<float>("NiPoint3.SqrLength", point)` or `Bindings.NiPoint3.SqrLength(point)`. The full signature `RE::NiPoint3::SqrLength() const` stays valid when overloads are added. Overloaded short names carry a signature suffix.
 
 Instance calls require the address of the **declaring C++ subobject**. Multiple inheritance can give a base subobject a different address from the complete object. The bridge checks argument tags, counts and required non-null references. The caller is responsible for native object type, lifetime and game-thread requirements.
 
@@ -20,7 +20,7 @@ Instance calls require the address of the **declaring C++ subobject**. Multiple 
 The parser discovers public static methods and namespace functions named `GetEventSource()` returning a pointer to `RE::BSTEventSource<T>` or `RE::BSTGlobalEvent::EventSource<T>`. F4Forge attaches a typed sink when F4SE signals that game data is ready. Plugins can subscribe in `IPlugin.Start` and keep the returned `IDisposable` for the desired lifetime.
 
 ```csharp
-var subscription = Bridge.On<AutoEvents.TESDeathEvent>(AutoEvents.TESDeathEvent.Name, (sender, args) =>
+var subscription = Bridge.On<Events.TESDeathEvent>(Events.TESDeathEvent.Name, (sender, args) =>
 {
     if (args.Dead)
     {

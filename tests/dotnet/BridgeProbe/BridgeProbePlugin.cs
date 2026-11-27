@@ -7,14 +7,14 @@ public sealed class BridgeProbePlugin : IPlugin
     public void Start(PluginContext context)
     {
         var point = Bridge.Invoke<nint>("Test_GetPoint");
-        var squaredLength = Bridge.Invoke<float>("NiPoint3_SqrLength", point);
-        var dotProduct = AutoBindings.NiPoint3_Dot(point, point);
+        var squaredLength = Bridge.Invoke<float>("NiPoint3.SqrLength", point);
+        var dotProduct = Bindings.NiPoint3.Dot(point, point);
         if (squaredLength != 25f || dotProduct != 25f)
         {
             throw new InvalidOperationException($"Generated CommonLibF4 bindings returned {squaredLength} and {dotProduct}.");
         }
         // This CommonLib static method compares pointers without accessing the game runtime.
-        if (!AutoBindings.BGSInventoryList_StandardObjectCompareCallbackFn(0, 0))
+        if (!Bindings.BGSInventoryList.StandardObjectCompareCallbackFn(0, 0))
         {
             throw new InvalidOperationException("Generated static binding should consider two null pointers equal.");
         }
@@ -48,8 +48,8 @@ public sealed class BridgeProbePlugin : IPlugin
     private static void CheckCommonLibEvent()
     {
         var deliveries = 0;
-        AutoEvents.TESObjectLoadedEvent received = default;
-        using (Bridge.On<AutoEvents.TESObjectLoadedEvent>(AutoEvents.TESObjectLoadedEvent.Name, (sender, args) =>
+        Events.TESObjectLoadedEvent received = default;
+        using (Bridge.On<Events.TESObjectLoadedEvent>(Events.TESObjectLoadedEvent.Name, (sender, args) =>
         {
             if (sender is not nint address || address == 0)
             {

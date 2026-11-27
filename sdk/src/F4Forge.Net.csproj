@@ -7,7 +7,7 @@
         <GenerateRuntimeConfigurationFiles>true</GenerateRuntimeConfigurationFiles>
     </PropertyGroup>
     <ItemGroup>
-        <Compile Include="../../build/generated/bindings/AutoBindings.g.cs" Link="Generated/AutoBindings.g.cs" />
+        <Compile Include="../../build/generated/bindings/Bindings.g.cs" Link="bridge/Generated/Bindings.g.cs" />
         <InternalsVisibleTo Include="F4Forge.Net.Tests" />
     </ItemGroup>
     <Target Name="GenerateCommonLibBindings" BeforeTargets="CoreCompile" Condition="'$(F4ForgeBindingsReady)' != 'true'">

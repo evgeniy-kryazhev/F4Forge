@@ -7,6 +7,15 @@ public sealed class FixturePlugin : IPlugin
     public void Start(PluginContext context)
     {
         var directory = context.Directory;
+        if (File.Exists(Path.Combine(directory, "death-probe")))
+        {
+            void OnDeath(Actor actor)
+            {
+                File.AppendAllLines(Path.Combine(directory, "deaths.txt"), [actor.Handle.ToString("X")]);
+                ActorEvents.OnDeath -= OnDeath;
+            }
+            ActorEvents.OnDeath += OnDeath;
+        }
         if (File.Exists(Path.Combine(directory, "fail-start")))
         {
             Bridge.On<int>("FailedPluginProbe", (_, _) =>
