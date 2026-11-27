@@ -15,13 +15,13 @@ std::filesystem::path PluginDirectory()
     HMODULE module = nullptr;
     if (!GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
             reinterpret_cast<LPCWSTR>(&PluginDirectory), &module)) {
-        throw std::runtime_error("Cannot locate F4Forge.Core.");
+        throw std::runtime_error("Cannot locate F4Forge.dll.");
     }
 
     std::vector<wchar_t> filename(32768);
     const auto length = GetModuleFileNameW(module, filename.data(), static_cast<DWORD>(filename.size()));
     if (length == 0 || length >= filename.size()) {
-        throw std::runtime_error("Cannot resolve the F4Forge.Core directory.");
+        throw std::runtime_error("Cannot resolve the F4Forge.dll directory.");
     }
     return std::filesystem::path(filename.data(), filename.data() + length).parent_path();
 }
@@ -35,9 +35,9 @@ F4SE_PLUGIN_LOAD(const F4SE::LoadInterface* loadInterface)
         f4forge::LoadManagedPlugins(PluginDirectory());
         return true;
     } catch (const std::exception& exception) {
-        REX::ERROR("F4Forge.Core: {}", exception.what());
+        REX::ERROR("F4Forge: {}", exception.what());
     } catch (...) {
-        REX::ERROR("F4Forge.Core: unknown startup failure");
+        REX::ERROR("F4Forge: unknown startup failure");
     }
     return false;
 }

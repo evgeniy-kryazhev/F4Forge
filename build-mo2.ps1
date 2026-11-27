@@ -41,33 +41,14 @@ try {
         throw "xmake configuration failed with exit code $LASTEXITCODE."
     }
 
-    # Building Core also builds the SDK through its declared dependency.
-    & xmake build -P $repositoryDirectory -j $Jobs F4Forge.Core
+    & xmake build -P $repositoryDirectory -j $Jobs F4Forge
     if ($LASTEXITCODE -ne 0) {
         throw "Framework build failed with exit code $LASTEXITCODE."
     }
 
-    # Use an explicit payload so test DLLs, symbols and stale binaries stay out.
-    $payload = @(
-        [pscustomobject]@{
-            FileName = 'F4Forge.Core.dll'
-            ArchivePath = 'F4SE/Plugins/F4Forge.Core.dll'
-        }
-        [pscustomobject]@{
-            FileName = 'F4Forge.Net.dll'
-            ArchivePath = 'F4SE/Plugins/F4Forge/F4Forge.Net.dll'
-        }
-        [pscustomobject]@{
-            FileName = 'F4Forge.Net.runtimeconfig.json'
-            ArchivePath = 'F4SE/Plugins/F4Forge/F4Forge.Net.runtimeconfig.json'
-        }
-    )
-    $binaryDirectory = Join-Path $repositoryDirectory 'build/bin'
-    foreach ($file in $payload) {
-        $sourcePath = Join-Path $binaryDirectory $file.FileName
-        if (-not (Test-Path -LiteralPath $sourcePath -PathType Leaf)) {
-            throw "Build output is missing: $sourcePath"
-        }
+    $sourcePath = Join-Path $repositoryDirectory 'build/dist/F4Forge.dll'
+    if (-not (Test-Path -LiteralPath $sourcePath -PathType Leaf)) {
+        throw "Build output is missing: $sourcePath"
     }
 
     $packageDirectory = Join-Path $repositoryDirectory 'build/packages'
@@ -80,15 +61,12 @@ try {
     try {
         $archive = [IO.Compression.ZipFile]::Open($temporaryPath, [IO.Compression.ZipArchiveMode]::Create)
         try {
-            foreach ($file in $payload) {
-                $sourcePath = Join-Path $binaryDirectory $file.FileName
-                [IO.Compression.ZipFileExtensions]::CreateEntryFromFile(
-                    $archive,
-                    $sourcePath,
-                    $file.ArchivePath,
-                    [IO.Compression.CompressionLevel]::Optimal
-                ) | Out-Null
-            }
+            [IO.Compression.ZipFileExtensions]::CreateEntryFromFile(
+                $archive,
+                $sourcePath,
+                'F4SE/Plugins/F4Forge.dll',
+                [IO.Compression.CompressionLevel]::Optimal
+            ) | Out-Null
         }
         finally {
             $archive.Dispose()

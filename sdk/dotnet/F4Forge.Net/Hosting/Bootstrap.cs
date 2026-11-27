@@ -50,6 +50,7 @@ internal static unsafe class Bootstrap
     {
         try
         {
+            Directory.CreateDirectory(Path.GetDirectoryName(logPath)!);
             File.AppendAllText(logPath, $"{DateTimeOffset.UtcNow:O} {message}{Environment.NewLine}");
         }
         catch (IOException)

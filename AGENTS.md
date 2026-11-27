@@ -11,8 +11,9 @@ F4Forge targets Windows x64, C++23, .NET 10, and F4SE. `native/src/` integrates
 F4SE. `native/lib/commonlibf4/` is an external submodule.
 
 `sdk/<language>/` owns each SDK, including its native adapter and mod-loading policy.
-Native adapters compile into `F4Forge.Core.dll`. The managed plugin interface and
-loader compile into `F4Forge.Net.dll`. Native tests live in `native/tests/`; managed
+Native adapters compile into `F4Forge.dll`, the single installable file in `build/dist/`.
+The managed plugin interface and loader compile into `F4Forge.Net.dll`, which is embedded
+in the native DLL and serves as the build-time reference for plugins. Native tests live in `native/tests/`; managed
 tests and fixtures live in `tests/dotnet/`. Build artifacts belong in ignored
 `build/`, `bin/`, and `obj/` folders.
 

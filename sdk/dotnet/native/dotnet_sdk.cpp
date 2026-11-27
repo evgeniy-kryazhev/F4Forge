@@ -1,4 +1,5 @@
 #include "dotnet_sdk.h"
+#include "embedded_sdk.h"
 
 #include <Windows.h>
 #define NETHOST_USE_AS_STATIC
@@ -23,16 +24,22 @@ Function Export(HMODULE library, const char* name)
     return reinterpret_cast<Function>(address);
 }
 
+template<class Function>
+Function RuntimeDelegate(hostfxr_get_runtime_delegate_fn getDelegate, hostfxr_handle context, hostfxr_delegate_type type)
+{
+    void* address = nullptr;
+    if (getDelegate(context, type, &address) < 0 || address == nullptr) {
+        throw std::runtime_error("Cannot acquire the .NET assembly hosting delegate.");
+    }
+    return reinterpret_cast<Function>(address);
+}
+
 }
 
 void f4forge::LoadManagedPlugins(const std::filesystem::path& pluginDirectory)
 {
     const auto directory = std::filesystem::absolute(pluginDirectory);
-    const auto sdk = directory / L"F4Forge";
-    const auto assembly = sdk / L"F4Forge.Net.dll";
-    if (!std::filesystem::exists(assembly)) {
-        return;
-    }
+    const auto assembly = EmbeddedSdkResource(L"F4FORGE_SDK");
 
     std::vector<wchar_t> hostPath(32768);
     auto hostPathSize = hostPath.size();
@@ -48,22 +55,23 @@ void f4forge::LoadManagedPlugins(const std::filesystem::path& pluginDirectory)
     const auto initialize = Export<hostfxr_initialize_for_runtime_config_fn>(library.get(), "hostfxr_initialize_for_runtime_config");
     const auto getDelegate = Export<hostfxr_get_runtime_delegate_fn>(library.get(), "hostfxr_get_runtime_delegate");
     const auto close = Export<hostfxr_close_fn>(library.get(), "hostfxr_close");
-    const auto configuration = sdk / L"F4Forge.Net.runtimeconfig.json";
+    TemporaryRuntimeConfig configuration;
+    configuration.Write(EmbeddedSdkResource(L"F4FORGE_CONFIG"));
     hostfxr_handle context = nullptr;
-    const auto result = initialize(configuration.c_str(), nullptr, &context);
+    const auto result = initialize(configuration.Path().c_str(), nullptr, &context);
     const std::unique_ptr<void, hostfxr_close_fn> contextOwner(context, close);
     if (result < 0 || context == nullptr) {
         throw std::runtime_error("Cannot initialize .NET using F4Forge.Net.runtimeconfig.json.");
     }
 
-    void* loaderAddress = nullptr;
-    if (getDelegate(context, hdt_load_assembly_and_get_function_pointer, &loaderAddress) < 0 || loaderAddress == nullptr) {
-        throw std::runtime_error("Cannot acquire the .NET assembly loader.");
+    const auto load = RuntimeDelegate<load_assembly_bytes_fn>(getDelegate, context, hdt_load_assembly_bytes);
+    if (load(assembly.data(), assembly.size(), nullptr, 0, nullptr, nullptr) != 0) {
+        throw std::runtime_error("Cannot load the embedded F4Forge.Net assembly.");
     }
-    const auto load = reinterpret_cast<load_assembly_and_get_function_pointer_fn>(loaderAddress);
+    const auto getMethod = RuntimeDelegate<get_function_pointer_fn>(getDelegate, context, hdt_get_function_pointer);
     void* startAddress = nullptr;
-    if (load(assembly.c_str(), L"F4Forge.Net.Hosting.Bootstrap, F4Forge.Net", L"Start",
-            UNMANAGEDCALLERSONLY_METHOD, nullptr, &startAddress) != 0 || startAddress == nullptr) {
+    if (getMethod(L"F4Forge.Net.Hosting.Bootstrap, F4Forge.Net", L"Start", UNMANAGEDCALLERSONLY_METHOD,
+            nullptr, nullptr, &startAddress) != 0 || startAddress == nullptr) {
         throw std::runtime_error("Cannot find the F4Forge.Net bootstrap method.");
     }
 
