@@ -5,6 +5,7 @@
 #include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <iterator>
 #include <memory>
 #include <stdexcept>
 #include <string>
@@ -29,6 +30,9 @@ int main(int argc, char* argv[])
         const auto source = packagedHost ? L"build/dist/F4Forge.dll" : L"build/tests/host/F4Forge.dll";
         std::filesystem::copy_file(source, plugin, overwrite);
         for (const auto& entry : std::filesystem::directory_iterator(plugins)) {
+            if (entry.is_directory() && entry.path() == plugins / L"F4Forge") {
+                continue; // The managed host keeps its log here across runs.
+            }
             if (entry.path() != plugin) {
                 throw std::runtime_error("Expected only F4Forge.dll in the test installation.");
             }
@@ -42,6 +46,8 @@ int main(int argc, char* argv[])
         std::filesystem::remove(marker);
         const auto probeDirectory = data / L"F4ForgeNet/BridgeProbe";
         const auto bridgeResult = probeDirectory / L"bridge-result.txt";
+        const auto logPath = plugins / L"F4Forge/Net.log";
+        const auto previousLogSize = std::filesystem::exists(logPath) ? std::filesystem::file_size(logPath) : 0;
         if (!packagedHost) {
             std::filesystem::create_directories(probeDirectory);
             std::filesystem::copy_file(L"tests/dotnet/BridgeProbe/bin/Release/net10.0/BridgeProbe.dll",
@@ -96,6 +102,17 @@ int main(int argc, char* argv[])
             throw std::runtime_error("The fixture initialized more than once.");
         }
 
+        std::ifstream log(logPath, std::ios::binary);
+        log.seekg(static_cast<std::streamoff>(previousLogSize));
+        const std::string newEntries{std::istreambuf_iterator<char>(log), {}};
+        const auto startup = newEntries.find("[INFO] [F4Forge] Starting F4Forge core.");
+        const auto expectedCount = packagedHost ? 1 : 2;
+        const auto summary = newEntries.find("[INFO] [F4Forge] Core startup complete. Loaded plugins: " +
+            std::to_string(expectedCount) + ".");
+        if (startup == std::string::npos || summary == std::string::npos || startup >= summary) {
+            throw std::runtime_error("Missing core startup message or incorrect plugin count in Net.log.");
+        }
+
         if (packagedHost) {
             const auto invoke = reinterpret_cast<f4forge::InvokeFunction>(GetProcAddress(library.get(), "InvokeFFI"));
             if (invoke == nullptr) {
@@ -119,6 +136,9 @@ int main(int argc, char* argv[])
             }
             std::cout << "Packaged host has no Test_Add binding\n";
         } else {
+            if (newEntries.find("[INFO] [BridgeProbe] Привет из F4Forge") == std::string::npos) {
+                throw std::runtime_error("Missing plugin event message in the managed host log.");
+            }
             std::ifstream result(bridgeResult);
             if (!std::getline(result, line) || line != "5") {
                 throw std::runtime_error("The C# bridge probe did not receive 5 from Test_Add(2, 3).");

@@ -30,8 +30,10 @@ public sealed class PluginDiscoveryTests : IDisposable
         File.WriteAllText(Path.Combine(failed, "fail-start"), "");
         var working = DeployFixture("B");
 
-        new PluginLoader(_errors.Add).LoadDirectory(_root);
+        var loader = new PluginLoader(_errors.Add);
+        loader.LoadDirectory(_root);
 
+        Assert.Equal(1, loader.LoadedPluginCount);
         var error = Assert.Single(_errors);
         Assert.Contains(Path.Combine(failed, "Fixture.dll"), error);
         Assert.False(File.Exists(Path.Combine(failed, "initialized.txt")));
@@ -43,8 +45,10 @@ public sealed class PluginDiscoveryTests : IDisposable
     public void CreatesMissingPluginDirectory()
     {
         var directory = Path.Combine(_root, "F4ForgeNet");
-        new PluginLoader(_errors.Add).LoadDirectory(directory);
+        var loader = new PluginLoader(_errors.Add);
+        loader.LoadDirectory(directory);
 
+        Assert.Equal(0, loader.LoadedPluginCount);
         Assert.True(Directory.Exists(directory));
         Assert.Empty(_errors);
     }

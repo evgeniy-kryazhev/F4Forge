@@ -33,6 +33,7 @@ public sealed class BridgeProbePlugin : IPlugin
                 throw new InvalidOperationException("Expected a native event without a sender.");
             }
             receivedMessage = args;
+            context.Log.Info(args);
         });
         var delivered = Bridge.Invoke<int>("Test_EmitMessage");
         if (delivered != 1 || receivedMessage != "Привет из F4Forge")

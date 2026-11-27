@@ -7,6 +7,7 @@ internal static unsafe class Bootstrap
 {
     // Keep initialized plugins alive for the game session.
     private static PluginLoader? _loader;
+    private static readonly Lock LogGate = new();
 
     [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
     public static int Start(char* pluginDirectory)
@@ -20,7 +21,9 @@ internal static unsafe class Bootstrap
         {
             var directory = new string(pluginDirectory);
             var logPath = Path.Combine(directory, "F4Forge", "Net.log");
-            var loader = new PluginLoader(message => Log(logPath, message));
+            void WriteLog(string message) => Log(logPath, message);
+            var coreLog = new PluginLogger("F4Forge", WriteLog);
+            var loader = new PluginLoader(WriteLog);
             if (Interlocked.CompareExchange(ref _loader, loader, null) is not null)
             {
                 return 1;
@@ -28,14 +31,16 @@ internal static unsafe class Bootstrap
 
             try
             {
-                Bridge.ConnectNativeEvents(message => Log(logPath, message));
+                coreLog.Info("Starting F4Forge core.");
+                Bridge.ConnectNativeEvents(message => coreLog.Error(message));
                 var managedPluginDirectory = Path.GetFullPath(Path.Combine(directory, "..", "..", "F4ForgeNet"));
                 loader.LoadDirectory(managedPluginDirectory);
+                coreLog.Info($"Core startup complete. Loaded plugins: {loader.LoadedPluginCount}.");
                 return 0;
             }
             catch (Exception exception)
             {
-                Log(logPath, exception.ToString());
+                coreLog.Error("Core startup failed.", exception);
                 _loader = null;
                 return 1;
             }
@@ -51,8 +56,11 @@ internal static unsafe class Bootstrap
     {
         try
         {
-            Directory.CreateDirectory(Path.GetDirectoryName(logPath)!);
-            File.AppendAllText(logPath, $"{DateTimeOffset.UtcNow:O} {message}{Environment.NewLine}");
+            lock (LogGate)
+            {
+                Directory.CreateDirectory(Path.GetDirectoryName(logPath)!);
+                File.AppendAllText(logPath, $"{DateTimeOffset.UtcNow:O} {message}{Environment.NewLine}");
+            }
         }
         catch (IOException)
         {

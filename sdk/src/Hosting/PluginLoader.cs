@@ -2,9 +2,11 @@ using System.Reflection;
 
 namespace F4Forge.Hosting;
 
-internal sealed class PluginLoader(Action<string> reportError)
+internal sealed class PluginLoader(Action<string> writeLog)
 {
     private readonly List<IPlugin> _plugins = [];
+
+    public int LoadedPluginCount => _plugins.Count;
 
     public void LoadDirectory(string directory)
     {
@@ -20,7 +22,7 @@ internal sealed class PluginLoader(Action<string> reportError)
             }
             catch (Exception exception)
             {
-                reportError($"{path}: {exception}");
+                writeLog($"{path}: {exception}");
             }
         }
     }
@@ -60,7 +62,8 @@ internal sealed class PluginLoader(Action<string> reportError)
             }
 
             var plugin = (IPlugin)Activator.CreateInstance(entries[0])!;
-            var pluginContext = new PluginContext { Directory = Path.GetDirectoryName(path)! };
+            var log = new PluginLogger(name.Name ?? Path.GetFileNameWithoutExtension(path), writeLog);
+            var pluginContext = new PluginContext(Path.GetDirectoryName(path)!, log);
             plugin.Start(pluginContext);
             _plugins.Add(plugin);
             initialized = true;
