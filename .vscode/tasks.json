@@ -1,0 +1,54 @@
+{
+  "version": "2.0.0",
+  "options": {
+    "cwd": "${workspaceFolder}"
+  },
+  "tasks": [
+    {
+      "label": "Configure F4Forge",
+      "type": "process",
+      "command": "xmake",
+      "args": ["f", "-m", "releasedbg", "-a", "x64", "-y"],
+      "problemMatcher": []
+    },
+    {
+      "label": "Refresh C++ IntelliSense",
+      "type": "process",
+      "command": "xmake",
+      "args": ["project", "-k", "compile_commands", "--lsp=cpptools", "build"],
+      "dependsOn": "Configure F4Forge",
+      "problemMatcher": []
+    },
+    {
+      "label": "Build F4Forge",
+      "type": "process",
+      "command": "xmake",
+      "args": ["build", "-j", "2"],
+      "dependsOn": "Refresh C++ IntelliSense",
+      "group": { "kind": "build", "isDefault": true },
+      "problemMatcher": ["$msCompile"]
+    },
+    {
+      "label": "Run hosting test",
+      "type": "process",
+      "command": "xmake",
+      "args": ["run", "F4Forge.Hosting.Tests"],
+      "dependsOn": "Build F4Forge",
+      "problemMatcher": []
+    },
+    {
+      "label": "Run .NET tests",
+      "type": "process",
+      "command": "dotnet",
+      "args": ["test", "tests/dotnet/F4Forge.Net.Tests/F4Forge.Net.Tests.csproj", "-c", "Release"],
+      "problemMatcher": ["$msCompile"]
+    },
+    {
+      "label": "Test F4Forge",
+      "dependsOrder": "sequence",
+      "dependsOn": ["Run hosting test", "Run .NET tests"],
+      "group": { "kind": "test", "isDefault": true },
+      "problemMatcher": []
+    }
+  ]
+}

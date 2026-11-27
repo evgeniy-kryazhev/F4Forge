@@ -1,0 +1,8 @@
+<Solution>
+    <Project Path="sdk/dotnet/F4Forge.Net/F4Forge.Net.csproj" />
+    <Folder Name="/Tests/">
+        <Project Path="tests/dotnet/F4Forge.Net.Tests/F4Forge.Net.Tests.csproj" />
+        <Project Path="tests/dotnet/Fixture/Fixture.csproj" />
+        <Project Path="tests/dotnet/FixtureDependency/FixtureDependency.csproj" />
+    </Folder>
+</Solution>

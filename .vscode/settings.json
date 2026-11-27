@@ -1,0 +1,4 @@
+{
+  "dotnet.defaultSolution": "F4Forge.slnx",
+  "C_Cpp.default.compileCommands": "${workspaceFolder}/build/compile_commands.json"
+}
