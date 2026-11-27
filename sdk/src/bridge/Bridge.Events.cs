@@ -53,17 +53,33 @@ public static partial class Bridge
         }
     }
 
-    private sealed class EventSubscription<T>(string name, EventHandler<T> handler) : IDisposable
+    // Event accessors and disposable subscriptions can coexist on the same route.
+    internal sealed class NamedEvent<T>(string name)
+    {
+        public void Add(EventHandler<T> handler)
+        {
+            ArgumentNullException.ThrowIfNull(handler);
+            EventSubscription<T>.Add(name, handler, this);
+        }
+
+        public void Remove(EventHandler<T> handler)
+        {
+            EventSubscription<T>.RemoveLast(name, handler, this);
+        }
+    }
+
+    private sealed class EventSubscription<T>(string name, EventHandler<T> handler, NamedEvent<T>? namedEvent) : IDisposable
     {
         private static readonly Lock Gate = new();
         private static readonly Dictionary<string, ImmutableArray<EventSubscription<T>>> Subscribers = new(StringComparer.Ordinal);
         private AssemblyLoadContext? _owner;
 
         public EventHandler<T> Handler { get; } = handler;
+        private NamedEvent<T>? Event { get; } = namedEvent;
 
-        public static EventSubscription<T> Add(string name, EventHandler<T> handler)
+        public static EventSubscription<T> Add(string name, EventHandler<T> handler, NamedEvent<T>? namedEvent = null)
         {
-            var subscription = new EventSubscription<T>(name, handler);
+            var subscription = new EventSubscription<T>(name, handler, namedEvent);
             var owner = AssemblyLoadContext.GetLoadContext(handler.Method.Module.Assembly);
             lock (Gate)
             {
@@ -76,6 +92,26 @@ public static partial class Bridge
                 Subscribers[name] = current.Add(subscription);
             }
             return subscription;
+        }
+
+        public static void RemoveLast(string name, EventHandler<T> handler, NamedEvent<T> namedEvent)
+        {
+            lock (Gate)
+            {
+                if (!Subscribers.TryGetValue(name, out var current))
+                {
+                    return;
+                }
+                for (var index = current.Length - 1; index >= 0; index--)
+                {
+                    var subscription = current[index];
+                    if (subscription.Event == namedEvent && subscription.Handler == handler)
+                    {
+                        subscription.Dispose();
+                        return;
+                    }
+                }
+            }
         }
 
         public static ImmutableArray<EventSubscription<T>> Snapshot(string name)

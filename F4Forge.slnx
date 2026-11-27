@@ -1,5 +1,8 @@
 <Solution>
     <Project Path="sdk/src/F4Forge.Net.csproj" />
+    <Folder Name="/Examples/">
+        <Project Path="examples/HelloWorld/HelloWorld.csproj" />
+    </Folder>
     <Folder Name="/Tests/">
         <Project Path="tests/dotnet/BridgeProbe/BridgeProbe.csproj" />
         <Project Path="tests/dotnet/F4Forge.Net.Tests/F4Forge.Net.Tests.csproj" />

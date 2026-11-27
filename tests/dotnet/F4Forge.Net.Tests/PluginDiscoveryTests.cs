@@ -44,7 +44,7 @@ public sealed class PluginDiscoveryTests : IDisposable
     [Fact]
     public void CreatesMissingPluginDirectory()
     {
-        var directory = Path.Combine(_root, "F4ForgeNet");
+        var directory = Path.Combine(_root, "F4Forge");
         var loader = new PluginLoader(_errors.Add);
         loader.LoadDirectory(directory);
 

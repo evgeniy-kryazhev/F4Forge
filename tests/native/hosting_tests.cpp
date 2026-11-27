@@ -21,7 +21,8 @@ int main(int argc, char* argv[])
         const auto installation = packagedHost ? L"SingleFile-Ω" : L"Invoke-Ω";
         const auto data = std::filesystem::absolute(std::filesystem::path(L"build/hosting-test") / installation / L"Data");
         const auto plugins = data / L"F4SE/Plugins";
-        const auto fixture = data / L"F4ForgeNet/Nested/Fixture";
+        const auto managedPlugins = data / L"F4Forge";
+        const auto fixture = managedPlugins / L"Nested/Fixture";
         std::filesystem::create_directories(plugins);
         std::filesystem::create_directories(fixture);
 
@@ -44,14 +45,12 @@ int main(int argc, char* argv[])
 
         const auto marker = fixture / L"initialized.txt";
         std::filesystem::remove(marker);
-        const auto probeDirectory = data / L"F4ForgeNet/BridgeProbe";
-        const auto bridgeResult = probeDirectory / L"bridge-result.txt";
+        const auto bridgeResult = managedPlugins / L"bridge-result.txt";
         const auto logPath = plugins / L"F4Forge/Net.log";
         const auto previousLogSize = std::filesystem::exists(logPath) ? std::filesystem::file_size(logPath) : 0;
         if (!packagedHost) {
-            std::filesystem::create_directories(probeDirectory);
             std::filesystem::copy_file(L"tests/dotnet/BridgeProbe/bin/Release/net10.0/BridgeProbe.dll",
-                probeDirectory / L"BridgeProbe.dll", overwrite);
+                managedPlugins / L"BridgeProbe.dll", overwrite);
             std::filesystem::remove(bridgeResult);
         }
         const std::unique_ptr<std::remove_pointer_t<HMODULE>, decltype(&FreeLibrary)> library(

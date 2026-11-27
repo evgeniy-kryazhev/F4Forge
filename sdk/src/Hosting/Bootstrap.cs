@@ -33,7 +33,7 @@ internal static unsafe class Bootstrap
             {
                 coreLog.Info("Starting F4Forge core.");
                 Bridge.ConnectNativeEvents(message => coreLog.Error(message));
-                var managedPluginDirectory = Path.GetFullPath(Path.Combine(directory, "..", "..", "F4ForgeNet"));
+                var managedPluginDirectory = Path.GetFullPath(Path.Combine(directory, "..", "..", "F4Forge"));
                 loader.LoadDirectory(managedPluginDirectory);
                 coreLog.Info($"Core startup complete. Loaded plugins: {loader.LoadedPluginCount}.");
                 return 0;
