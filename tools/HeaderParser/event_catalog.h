@@ -17,7 +17,8 @@ struct EventField {
 struct EventDeclaration {
     std::string nativeType;
     std::string managedName;
-    std::string getter;
+    std::string sourceMethod;
+    bool isInputCallback;
     std::vector<EventField> fields;
     std::vector<std::string> omitted;
 };
@@ -30,5 +31,8 @@ public:
 
 private:
     void ReadSource(CXCursor getter);
+    void ReadInputCallback(CXCursor callback);
+    void AddEvent(CXType payload, std::string sourceMethod, bool isInputCallback);
     std::map<std::string, EventDeclaration> events_;
+    std::map<std::string, std::string> skippedInputCallbacks_;
 };

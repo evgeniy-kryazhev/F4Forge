@@ -2,7 +2,7 @@
 #include "clang_helpers.h"
 #include "managed_name.h"
 
-#include <cctype>
+#include <algorithm>
 #include <optional>
 #include <stdexcept>
 
@@ -22,7 +22,7 @@ std::string QualifiedName(CXCursor declaration)
     return name;
 }
 
-std::optional<EventField> ReadField(CXCursor field, std::size_t index)
+std::optional<EventField> ReadField(CXCursor field, std::size_t index, bool inputSnapshot)
 {
     auto name = Text(clang_getCursorSpelling(field));
     if (name.empty() || clang_getCXXAccessSpecifier(field) != CX_CXXPublic) {
@@ -32,6 +32,10 @@ std::optional<EventField> ReadField(CXCursor field, std::size_t index)
     const auto slot = "fields[" + std::to_string(index) + "]";
     name = ManagedIdentifier(name);
     auto type = clang_getCanonicalType(clang_getCursorType(field));
+    if (inputSnapshot && type.kind == CXType_Record && QualifiedName(clang_getTypeDeclaration(type)) == "REX::TEnumSet") {
+        type = clang_getCanonicalType(clang_Type_getTemplateArgumentAsType(type, 0));
+        value += ".get()";
+    }
     if (type.kind == CXType_Enum) {
         type = clang_getCanonicalType(clang_getEnumDeclIntegerType(clang_getTypeDeclaration(type)));
     }
@@ -53,10 +57,13 @@ std::optional<EventField> ReadField(CXCursor field, std::size_t index)
         return EventField{name, "float", "std::bit_cast<std::uint32_t>(" + value + ")",
             "System.BitConverter.UInt32BitsToSingle((uint)" + slot + ")"};
     case CXType_Pointer:
+        if (inputSnapshot) {
+            return std::nullopt;
+        }
         managed = "nint";
         break;
     case CXType_Record:
-        if (QualifiedName(clang_getTypeDeclaration(type)) != "RE::NiPointer") {
+        if (inputSnapshot || QualifiedName(clang_getTypeDeclaration(type)) != "RE::NiPointer") {
             return std::nullopt;
         }
         managed = "nint";
@@ -70,15 +77,82 @@ std::optional<EventField> ReadField(CXCursor field, std::size_t index)
         "unchecked((" + managed + ")" + slot + ")"};
 }
 
+void ReadFields(CXCursor definition, EventDeclaration& event)
+{
+    for (const auto member : Children(definition)) {
+        const auto kind = clang_getCursorKind(member);
+        if (kind == CXCursor_CXXBaseSpecifier) {
+            const auto baseType = clang_getCanonicalType(clang_getCursorType(member));
+            if (event.isInputCallback && clang_getCXXAccessSpecifier(member) == CX_CXXPublic) {
+                ReadFields(clang_getCursorDefinition(clang_getTypeDeclaration(baseType)), event);
+            } else {
+                event.omitted.push_back("base " + Text(clang_getTypeSpelling(baseType)));
+            }
+        } else if (kind == CXCursor_FieldDecl) {
+            if (auto field = ReadField(member, event.fields.size(), event.isInputCallback)) {
+                event.fields.push_back(std::move(*field));
+            } else {
+                event.omitted.push_back(Text(clang_getCursorSpelling(member)));
+            }
+        }
+    }
+}
+
+void EmitInputHandler(std::ostream& header, std::ostream& native, const std::vector<const EventDeclaration*>& inputs)
+{
+    native << "\nvoid RegisterCommonLibInputHandler()\n{\n";
+    if (inputs.empty()) {
+        native << "}\n";
+        return;
+    }
+    header << R"(
+class CommonLibInputHandler final : public RE::BSInputEventUser {
+public:
+    bool ShouldHandleEvent(const RE::InputEvent* event) override
+    {
+        if (!event) {
+            return false;
+        }
+        switch (event->eventType.get()) {
+)";
+    for (const auto* input : inputs) {
+        header << "        case " << input->nativeType << "::TYPE:\n";
+    }
+    header << "            return true;\n        default:\n            return false;\n        }\n    }\n";
+    for (const auto* input : inputs) {
+        header << "\n    void " << input->sourceMethod << "(const " << input->nativeType << "* event) override\n    {\n"
+               << "        if (event) {\n            PublishCommonLibEvent(*event, nullptr);\n        }\n    }\n";
+    }
+    header << "};\n";
+    native << R"(    auto* controls = RE::MenuControls::GetSingleton();
+    if (!controls) {
+        return;
+    }
+    static CommonLibInputHandler handler;
+    for (const auto* existing : controls->handlers) {
+        if (existing == &handler) {
+            return;
+        }
+    }
+    controls->RegisterHandler(&handler);
+}
+)";
+}
+
 }
 
 void EventCatalog::ReadScope(CXCursor scope, const std::filesystem::path& includeRoot)
 {
+    const bool inputUser = Text(clang_getCursorSpelling(scope)) == "BSInputEventUser"
+        && QualifiedName(scope) == "RE::BSInputEventUser";
     for (const auto child : Children(scope)) {
         const auto kind = clang_getCursorKind(child);
         const auto access = clang_getCXXAccessSpecifier(child);
         if (access == CX_CXXPrivate || access == CX_CXXProtected) {
             continue;
+        }
+        if (inputUser && kind == CXCursor_CXXMethod && clang_CXXMethod_isVirtual(child)) {
+            ReadInputCallback(child);
         }
         if (kind == CXCursor_Namespace || kind == CXCursor_StructDecl || kind == CXCursor_ClassDecl) {
             if (clang_isCursorDefinition(child) && !Text(clang_getCursorSpelling(child)).empty()
@@ -114,7 +188,44 @@ void EventCatalog::ReadSource(CXCursor getter)
     if (source != "RE::BSTEventSource" && source != "RE::BSTGlobalEvent::EventSource") {
         return;
     }
-    const auto payload = clang_getCanonicalType(clang_Type_getTemplateArgumentAsType(sourceType, 0));
+    AddEvent(clang_Type_getTemplateArgumentAsType(sourceType, 0), QualifiedName(getter), false);
+}
+
+void EventCatalog::ReadInputCallback(CXCursor callback)
+{
+    const auto name = Text(clang_getCursorSpelling(callback));
+    if (!name.starts_with("On") || !name.ends_with("Event") || clang_Cursor_getNumArguments(callback) != 1
+        || clang_getCursorResultType(callback).kind != CXType_Void) {
+        return;
+    }
+    const auto argument = clang_getCanonicalType(clang_getCursorType(clang_Cursor_getArgument(callback, 0)));
+    if (argument.kind != CXType_Pointer) {
+        return;
+    }
+    const auto payload = clang_getPointeeType(argument);
+    if (!clang_isConstQualifiedType(payload)) {
+        return;
+    }
+    const auto definition = clang_getCursorDefinition(clang_getTypeDeclaration(payload));
+    if (clang_Cursor_isNull(definition)) {
+        skippedInputCallbacks_[name] = "Forward-declared input payload";
+        return;
+    }
+    const auto members = Children(definition);
+    const bool hasTypeTag = std::ranges::any_of(members, [](CXCursor member) {
+        return clang_getCursorKind(member) == CXCursor_VarDecl && clang_getCXXAccessSpecifier(member) == CX_CXXPublic
+            && Text(clang_getCursorSpelling(member)) == "TYPE";
+    });
+    if (!hasTypeTag) {
+        skippedInputCallbacks_[name] = "Missing public input event TYPE";
+        return;
+    }
+    AddEvent(payload, name, true);
+}
+
+void EventCatalog::AddEvent(CXType payloadType, std::string sourceMethod, bool isInputCallback)
+{
+    const auto payload = clang_getCanonicalType(payloadType);
     const auto definition = clang_getCursorDefinition(clang_getTypeDeclaration(payload));
     const auto nativeType = QualifiedName(definition);
     if (!nativeType.starts_with("RE::")) {
@@ -122,23 +233,10 @@ void EventCatalog::ReadSource(CXCursor getter)
     }
     const auto route = nativeType.substr(4);
     const auto managedName = ManagedIdentifier(route);
-    EventDeclaration event{nativeType, managedName, QualifiedName(getter), {}, {}};
-    for (const auto member : Children(definition)) {
-        const auto kind = clang_getCursorKind(member);
-        if (kind == CXCursor_CXXBaseSpecifier) {
-            event.omitted.push_back("base " + Text(clang_getTypeSpelling(clang_getCursorType(member))));
-        }
-        if (kind != CXCursor_FieldDecl) {
-            continue;
-        }
-        if (auto field = ReadField(member, event.fields.size())) {
-            event.fields.push_back(std::move(*field));
-        } else {
-            event.omitted.push_back(Text(clang_getCursorSpelling(member)));
-        }
-    }
+    EventDeclaration event{nativeType, managedName, std::move(sourceMethod), isInputCallback, {}, {}};
+    ReadFields(definition, event);
     const auto [found, inserted] = events_.emplace(route, event);
-    if (!inserted && found->second.getter != event.getter) {
+    if (!inserted && found->second.sourceMethod != event.sourceMethod) {
         throw std::runtime_error("Multiple event sources for " + nativeType);
     }
 }
@@ -182,7 +280,7 @@ void EventCatalog::Emit(std::ostream& header, std::ostream& native, std::ostream
     managed << "}\n\npublic static partial class Bridge\n{\n"
                "    private static void PublishCommonLibEvent(string name, object? sender, System.ReadOnlySpan<ulong> fields)\n"
                "    {\n        switch (name)\n        {\n";
-    header << "}\n";
+    std::vector<const EventDeclaration*> inputs;
     native << "\nnamespace f4forge {\nvoid RegisterCommonLibEventSinks()\n{\n";
     for (const auto& [route, event] : events_) {
         const auto payload = "Events." + event.managedName;
@@ -195,10 +293,23 @@ void EventCatalog::Emit(std::ostream& header, std::ostream& native, std::ostream
             managed << event.fields[index].unpack;
         }
         managed << "));\n                break;\n";
-        native << "    if (auto* source = " << event.getter << "()) {\n"
+        if (event.isInputCallback) {
+            inputs.push_back(&event);
+            continue;
+        }
+        native << "    if (auto* source = " << event.sourceMethod << "()) {\n"
                << "        source->RegisterSink(&CommonLibEventSink<" << event.nativeType << ">::Instance());\n    }\n";
     }
-    native << "}\n}\n";
+    native << "}\n";
+    EmitInputHandler(header, native, inputs);
+    header << "}\n";
+    native << "}\n";
+    if (!skippedInputCallbacks_.empty()) {
+        docs << "\n### Skipped input callbacks\n\n";
+        for (const auto& [name, reason] : skippedInputCallbacks_) {
+            docs << "- `" << name << "` — " << reason << "\n";
+        }
+    }
     managed << "            default:\n                throw new System.ArgumentException($\"Unknown CommonLib event or invalid field count: '{name}'.\");\n"
                "        }\n    }\n}\n";
 }

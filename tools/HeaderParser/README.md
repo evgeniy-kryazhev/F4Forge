@@ -30,3 +30,5 @@ var subscription = Bridge.On<Events.TESDeathEvent>(Events.TESDeathEvent.Name, (s
 ```
 
 Handlers execute synchronously on the engine thread that raised the event. The SDK copies scalar field values before invoking a handler. The sender is the source address. Pointer and `NiPointer<T>` fields expose borrowed addresses as `nint`; retaining a payload does not extend an engine object's lifetime. Sources with no projected fields still publish typed notifications. Custom plugin events continue to use `Bridge.Publish<T>` and `Bridge.On<T>`.
+
+The parser also discovers public virtual `void On…Event(const T*)` callbacks on `RE::BSInputEventUser`. For payloads with a full definition and a public `TYPE` tag, it generates a single observer registered with `MenuControls` at F4SE input initialization. Registration is retried when game data becomes ready. Each callback copies public scalar fields including inherited fields and enum values. Engine pointers such as `InputEvent::next` stay in native code. The observer leaves the event's handled state untouched and publishes with a null sender. The generated catalog lists skipped callbacks and the reason for each omission.

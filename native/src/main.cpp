@@ -14,12 +14,17 @@ namespace {
 
 void OnF4SEMessage(F4SE::MessagingInterface::Message* message)
 {
-    // F4SE puts the readiness flag in the pointer value itself.
-    if (!message || message->type != F4SE::MessagingInterface::kGameDataReady || !message->data) {
+    if (!message) {
         return;
     }
     try {
-        f4forge::RegisterCommonLibEventSinks();
+        if (message->type == F4SE::MessagingInterface::kInputLoaded) {
+            f4forge::RegisterCommonLibInputHandler();
+        } else if (message->type == F4SE::MessagingInterface::kGameDataReady && message->data) {
+            // Retry if MenuControls was unavailable at input initialization.
+            f4forge::RegisterCommonLibInputHandler();
+            f4forge::RegisterCommonLibEventSinks();
+        }
     } catch (const std::exception& exception) {
         REX::ERROR("F4Forge event registration: {}", exception.what());
     } catch (...) {

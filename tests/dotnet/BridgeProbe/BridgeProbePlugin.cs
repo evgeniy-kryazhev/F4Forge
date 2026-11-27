@@ -42,6 +42,7 @@ public sealed class BridgeProbePlugin : IPlugin
         }
 
         CheckCommonLibEvent();
+        CheckInputEvents();
         var resultPath = Path.Combine(context.Directory, "bridge-result.txt");
         File.WriteAllText(resultPath, sum.ToString(CultureInfo.InvariantCulture));
     }
@@ -69,6 +70,44 @@ public sealed class BridgeProbePlugin : IPlugin
         if (deliveries != 1 || received.FormID != 0xFEDC1234u || !received.Loaded)
         {
             throw new InvalidOperationException("Incorrect generated event payload or subscription lifetime.");
+        }
+    }
+
+    private static void CheckInputEvents()
+    {
+        var buttons = new List<Events.ButtonEvent>();
+        var characters = new List<uint>();
+        var movements = new List<(int, int)>();
+        var positions = new List<(int, int)>();
+        void Button(object? sender, Events.ButtonEvent args) => buttons.Add(args);
+        void Character(object? sender, Events.CharacterEvent args) => characters.Add(args.CharCode);
+        void MouseMove(object? sender, Events.MouseMoveEvent args) => movements.Add((args.MouseInputX, args.MouseInputY));
+        void CursorMove(object? sender, Events.CursorMoveEvent args) => positions.Add((args.CursorPosX, args.CursorPosY));
+
+        InputEvents.OnButton += Button;
+        InputEvents.OnCharacter += Character;
+        InputEvents.OnMouseMove += MouseMove;
+        InputEvents.OnCursorMove += CursorMove;
+        try
+        {
+            if (!Bridge.Invoke<bool>("Test_EmitInput"))
+            {
+                throw new InvalidOperationException("The generated input handler accepted the wrong event types.");
+            }
+        }
+        finally
+        {
+            InputEvents.OnButton -= Button;
+            InputEvents.OnCharacter -= Character;
+            InputEvents.OnMouseMove -= MouseMove;
+            InputEvents.OnCursorMove -= CursorMove;
+        }
+        Bridge.Invoke<bool>("Test_EmitInput");
+        if (buttons is not [{ Device: 0, IdCode: 30, Value: 1f, HeldDownSecs: 0f },
+                            { Device: 1, IdCode: 1, Value: 0f, HeldDownSecs: 0.25f }]
+            || characters is not [0x0416u] || movements is not [(-7, 3)] || positions is not [(320, 240)])
+        {
+            throw new InvalidOperationException("Incorrect input snapshots, delivery count, or subscription lifetime.");
         }
     }
 }

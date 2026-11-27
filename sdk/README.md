@@ -37,3 +37,19 @@ GameEvents.OnObjectLoadChanged += (_, args) =>
 ```
 
 `OnDeath` delivers the deceased actor on the thread that raised the event. Use `ActorEvents.OnDeath -= LogDeath` to unsubscribe. A plugin that also needs the killer or the dying phase can subscribe to `Events.TESDeathEvent` through `Bridge.On`. Generated methods are available through `Bindings`, for example `Bindings.Actor.IsInCombat(victim.Handle)`.
+
+## Keyboard and mouse input
+
+Subscribe in `IPlugin.Start` to observe the input that Fallout 4 delivers to `MenuControls`. Button codes are specific to the device. The example logs the first press of a keyboard key (`Device == 0`) or mouse button (`Device == 1`).
+
+```csharp
+InputEvents.OnButton += (_, button) =>
+{
+    if (button.Device is 0 or 1 && button.Value != 0 && button.HeldDownSecs == 0)
+    {
+        context.Log.Info($"Device {button.Device} pressed button {button.IdCode}.");
+    }
+};
+```
+
+`OnCharacter` supplies `CharCode`, `OnMouseMove` supplies relative `MouseInputX` and `MouseInputY`, and `OnCursorMove` supplies `CursorPosX` and `CursorPosY`. All four handlers receive copied values synchronously with a null sender. Plugins can also subscribe directly, for example with `Bridge.On<Events.ButtonEvent>(Events.ButtonEvent.Name, handler)`.

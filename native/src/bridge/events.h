@@ -8,5 +8,6 @@ namespace f4forge {
 bool PublishEvent(const char* name, const void* sender, const F4SEValue& args) noexcept;
 
 void RegisterCommonLibEventSinks();
+void RegisterCommonLibInputHandler();
 
 }
